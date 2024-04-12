@@ -617,13 +617,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   image: {fileID: 1741178508}
-  pixelSize: 3
+  pixelSize: 2
   cellSize: 0.04
   mapWidth: 250
   mapHeight: 150
   raycastCount: 100
   raycastDistance: 4
-  clampOdds: 1.5
+  maxConfidence: 0.95
+  framesToConsiderStatic: 60
+  framesToConsiderDynamic: 20
 --- !u!1 &524598992
 GameObject:
   m_ObjectHideFlags: 0

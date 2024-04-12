@@ -16,7 +16,14 @@ public class RobotBresenham : MonoBehaviour
     public int raycastCount = 20;
     public float raycastDistance = 1;
 
-    public float clampOdds = 1.5f;
+    public float maxConfidence = 0.99f;
+
+    public int framesToConsiderStatic = 60;
+    public int framesToConsiderDynamic = 20;
+
+    private float HighStatic, LowStatic;
+    private float HighDynamic, LowDynamic;
+    
 
     private Texture2D texture;
 
@@ -30,8 +37,7 @@ public class RobotBresenham : MonoBehaviour
     private float[][] staticMap;
     private float[][] dynamicMap;
 
-    private const float High = 0.55f;    // High probability (inverse sensor model)
-    private const float Low = 0.45f;     // Low probability (inverse sensor model)
+    private float maxLogOddValue;
 
     // Start is called before the first frame update
     void Start()
@@ -39,6 +45,18 @@ public class RobotBresenham : MonoBehaviour
         // Map width and height should be a multiple of 2:
         mapWidth &= ~1;
         mapHeight &= ~1;
+
+        // Compute maxLogOdd values from maxConfidence:
+        maxLogOddValue = Mathf.Log(maxConfidence / (1 - maxConfidence));
+
+        // Compute the inverse sensor model values:
+        float tmp = Mathf.Pow(0.95f / (1 - 0.95f), 1f / framesToConsiderStatic);
+        HighStatic = tmp / (1 + tmp);
+        LowStatic = 1 - HighStatic;
+
+        tmp = Mathf.Pow(0.95f / (1 - 0.95f), 1f / framesToConsiderDynamic);
+        HighDynamic = tmp / (1 + tmp);
+        LowDynamic = 1 - HighDynamic;
 
         // Create the static and dynamic map, and initialize all values with 0:
         staticMap = new float[mapWidth][];
@@ -173,17 +191,17 @@ public class RobotBresenham : MonoBehaviour
 
         // Update the static and dynamic maps according to Tables 1 and 2
         // (inverse observation model for the static and dynamic maps):
-        float pSt = staticInverseModel(previousStaticValue, state == FREE);
-        float pDt = dynamicInverseModel(previousStaticValue, state == FREE);
+        float pSt = state == OCCUPIED && previousStaticValue > 0.1f ? HighStatic : LowStatic;
+        float pDt = state == OCCUPIED && previousStaticValue <= 0.1f ? HighDynamic : LowDynamic;
 
         // Update the maps using equations (12) and (13):
-        staticMap[x][y] += Mathf.Log10(pSt / (1 - pSt));
-        dynamicMap[x][y] += Mathf.Log10(pDt / (1 - pDt));
+        staticMap[x][y] += Mathf.Log(pSt / (1 - pSt));
+        dynamicMap[x][y] += Mathf.Log(pDt / (1 - pDt));
 
         // Clamp values to avoid being too confident about the presence or absence
         // of an obstacle (this allows to take changes of the map into account):
-        staticMap[x][y] = Mathf.Clamp(staticMap[x][y], -clampOdds, clampOdds);
-        dynamicMap[x][y] = Mathf.Clamp(dynamicMap[x][y], -clampOdds, clampOdds);
+        staticMap[x][y] = Mathf.Clamp(staticMap[x][y], -maxLogOddValue, maxLogOddValue);
+        dynamicMap[x][y] = Mathf.Clamp(dynamicMap[x][y], -maxLogOddValue, maxLogOddValue);
 
         // Get the new values for the static and dynamic maps:
         float s = 1 - getMapValue(x, y, staticMap);
@@ -192,42 +210,14 @@ public class RobotBresenham : MonoBehaviour
         texture.SetPixel(x, y, new Color(d, d, d));
     }
 
-    // Implementation of Table 1:
-    private float staticInverseModel(float previousStatic, bool free) {
-        if(free) {
-            if (previousStatic < 0.1f) return 0.3f;     // FREE => FREE
-            if (previousStatic < 0.9f) return 0.4f;     // UNKNOWN => FREE
-            return 0.45f;                               // OCCUPIED => FREE
-        }
-        else {
-            if (previousStatic < 0.1f) return 0.55f;    // FREE => OCCUPIED
-            if (previousStatic < 0.9f) return 0.6f;     // UNKNOWN => OCCUPIED
-            return 0.7f;                                // OCCUPIED => OCCUPIED
-        }
-    }
-
-    // Implementation of Table 2:
-    private float dynamicInverseModel(float previousStatic, bool free) {
-        if (free) {
-            if (previousStatic < 0.1f) return 0.3f;     // FREE => FREE
-            if (previousStatic < 0.9f) return 0.4f;     // UNKNOWN => FREE
-            return 0.4f;                                // OCCUPIED => FREE
-        }
-        else {
-            if (previousStatic < 0.1f) return 0.9f;     // FREE => OCCUPIED
-            if (previousStatic < 0.9f) return 0.6f;     // UNKNOWN => OCCUPIED
-            return 0.3f;                                // OCCUPIED => OCCUPIED
-        }
-    }
-
     private float getMapValue(int x, int y, float[][] map)
     {
-        // log(value / (1 - value)) = map[x][y]
-        // <=> value / (1 - value) = 10^map[x][y]
-        // <=> value = 10^map[x][y] * (1 - value)
-        // <=> value * (1 + 10^map[x][y]) = 10^map[x][y]
+        // ln(value / (1 - value)) = map[x][y]
+        // <=> value / (1 - value) = e^map[x][y]
+        // <=> value = e^map[x][y] * (1 - value)
+        // <=> value * (1 + e^map[x][y]) = e^map[x][y]
 
-        float p = Mathf.Pow(10, map[x][y]);
+        float p = Mathf.Exp(map[x][y]);
 
         return p / (1 + p);
     }
