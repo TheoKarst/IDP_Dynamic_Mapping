@@ -13,8 +13,8 @@ public class RobotBresenham : MonoBehaviour
     public int mapWidth = 50;
     public int mapHeight = 50;
 
-    public int raycastCount = 20;
-    public float raycastDistance = 1;
+    public Lidar lidar;
+    public RobotController controller;
 
     public float maxConfidence = 0.99f;
 
@@ -40,8 +40,7 @@ public class RobotBresenham : MonoBehaviour
     private float maxLogOddValue;
 
     // Start is called before the first frame update
-    void Start()
-    {
+    void Start() {
         // Map width and height should be a multiple of 2:
         mapWidth &= ~1;
         mapHeight &= ~1;
@@ -81,10 +80,12 @@ public class RobotBresenham : MonoBehaviour
 
     // Update is called once per frame
     void Update() {
-        float robotX = gameObject.transform.position.x;
-        float robotY = gameObject.transform.position.z;
-        float robotAngle = Mathf.Deg2Rad * (90 - gameObject.transform.eulerAngles.y);
+        // Get the state of the robot from the controller:
+        float robotX = controller.getRobotX();
+        float robotY = controller.getRobotY();
+        float robotAngle = controller.getRobotAngle();
 
+        // And update the static and dynamic maps using distances values from the LIDAR:
         updateMaps(robotX, robotY, robotAngle);
     }
 
@@ -96,11 +97,11 @@ public class RobotBresenham : MonoBehaviour
             for (int y = 2 * mapHeight; y < 3 * mapHeight; y++)
                 texture.SetPixel(x, y, Color.gray);
 
-        // Compute the distances returned from the LIDAR (-1 if no collision):
-        float[] distances = raycastDistances();
+        // Get the distances returned from the LIDAR (-1 if no collision):
+        float[] distances = lidar.getRaycastDistances();
 
         // Compute the angle in radians between two raycasts:
-        float delta = 2 * Mathf.PI / raycastCount;
+        float delta = 2 * Mathf.PI / distances.Length;
 
         // Position of the robot in the grids:
         int x0 = Mathf.FloorToInt(robotX / cellSize) + mapWidth / 2;
@@ -114,8 +115,8 @@ public class RobotBresenham : MonoBehaviour
             // Compute the position of the end of the ray, in world space:
             float xWorld, yWorld;
             if (distances[i] < 0) {
-                xWorld = robotX + Mathf.Cos(angle) * raycastDistance;
-                yWorld = robotY + Mathf.Sin(angle) * raycastDistance;
+                xWorld = robotX + Mathf.Cos(angle) * lidar.raycastDistance;
+                yWorld = robotY + Mathf.Sin(angle) * lidar.raycastDistance;
             }
             else {
                 xWorld = robotX + Mathf.Cos(angle) * distances[i];
@@ -132,29 +133,6 @@ public class RobotBresenham : MonoBehaviour
 
         // Update the texture to reflect the changes on the maps:
         texture.Apply();
-    }
-
-    private float[] raycastDistances() {
-        float[] result = new float[raycastCount];
-
-        Vector3 direction = transform.TransformDirection(Vector3.forward);
-
-        for (int i = 0; i < raycastCount; i++) {
-            RaycastHit hit;
-            if (Physics.Raycast(transform.position, direction, out hit, raycastDistance)) {
-                Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
-                result[i] = hit.distance;
-            }
-            else {
-                Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
-                result[i] = -1;
-            }
-
-            // Rotate the direction of the raycast counterclockwise:
-            direction = Quaternion.AngleAxis(-360f / raycastCount, Vector3.up) * direction;
-        }
-
-        return result;
     }
 
     private void bresenham(int x0, int y0, int x1, int y1, bool collision) {
