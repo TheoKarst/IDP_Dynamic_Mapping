@@ -7,6 +7,8 @@ public class Lidar : MonoBehaviour
     public int raycastCount = 20;
     public float raycastDistance = 1;
 
+    public float a = 0.1f, b = 0;
+
     private float[] raycastDistances;
 
 

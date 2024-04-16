@@ -2021,6 +2021,7 @@ MonoBehaviour:
   mapWidth: 250
   mapHeight: 150
   lidar: {fileID: 1040413680}
+  controller: {fileID: 976047841}
   maxConfidence: 0.95
   framesToConsiderStatic: 60
   framesToConsiderDynamic: 20
