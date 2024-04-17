@@ -4,16 +4,22 @@ using MathNet.Numerics.LinearAlgebra.Double;
 using System.Collections;
 using System.Collections.Generic;
 using Unity.VisualScripting;
+using System;
 
 public class RobotController : MonoBehaviour
 {
+    // Matrix builder used as a shortcut for vector and matrix creation:
+    private static MatrixBuilder<double> M = Matrix<double>.Build;
+    private static VectorBuilder<double> V = Vector<double>.Build;
+
     public struct Landmark {
-        public float x;
-        public float y;
+        public Vector<double> position;
         public Landmark(float x, float y) {
-            this.x = x;
-            this.y = y;
+            position = V.Dense(new double[] { x, y });
         }
+
+        public float x() { return (float) position[0]; }
+        public float y() { return (float) position[1]; }
     }
 
     public struct State {
@@ -38,6 +44,28 @@ public class RobotController : MonoBehaviour
         }
     }
 
+    // Create a structure to represent P(i|j), which is a block matrix
+    public struct MapCovarianceMatrix {
+        /* P(i|j) = [ Pvv(i|j),              Pvm(i|j) ]
+         *          [ Pvm(i|j).Transpose(),  Pmm(i|j) ]
+         * 
+         * Pvv(i|j): error covariance matrix associated with the vehicle state estimate
+         * Pmm(i|j): map covariance matrix associated with the landmarks state estimates
+         * Pvm(i|j): cross-covariance matrix between vehicle and landmark states
+         */
+
+        public Matrix<double> Pvv;
+        public Matrix<double> Pvm;
+        public Matrix<double> Pmm;
+
+        private const int landmarkDim = 2;      // (x, y)
+        private const int stateDim = 3;         // (x, y, phi)
+
+        public Matrix<double> extractLandmarkCovariance(int landmarkIndex) {
+            return Pmm.SubMatrix(landmarkIndex * landmarkDim, landmarkDim, landmarkIndex * landmarkDim, landmarkDim);
+        }
+    }
+
     public Lidar lidar;
 
     public float acceleration = 10;
@@ -55,9 +83,11 @@ public class RobotController : MonoBehaviour
     private List<Landmark> confirmedLandmarks = new List<Landmark>();
     private List<Landmark> potentialLandmarks = new List<Landmark>();
 
-    // Matrix builder used as a shortcut for matrix creation:
-    private MatrixBuilder<double> M = Matrix<double>.Build;
+    // Covariance matrices for the process noise and the observations:
     private Matrix<double> Q, R;
+
+    // Create a block matrix to represent P(k|k):
+    private MapCovarianceMatrix Pkk;
 
     // Start is called before the first frame update
     void Start() {
@@ -112,41 +142,66 @@ public class RobotController : MonoBehaviour
     }
 
     // Process a new observation from the LIDAR, and update the algorithm accordingly:
-    public void processObservation(Observation observation) {
+    public void processObservation(float rf, float thetaf) {
         State state_estimate = new State(0, 0, 0);
+        float dmin = 1;
 
         // Covariance matrix of the vehicle location estimate, extracted from P(k|k):
-        Matrix<double> Pv = M.DenseIdentity(3);
+        Matrix<double> Pv = Pkk.Pvv;    // M(dim(state), dim(state))
 
-        float xk = state_estimate.x;
-        float yk = state_estimate.y;
-        float phik = state_estimate.phi;
-
-        float rf = observation.r;
-        float thetaf = observation.theta;
-
-        float cosphi = Mathf.Cos(phik);
-        float sinphi = Mathf.Sin(phik);
-
-        // Compute pf, the position of the landmark possibly responsible for this observation.
-        // pf = (xf, yf) = g(xk, yk, phik, rf, thetaf):
-        float xf = xk + lidar.a * cosphi - lidar.b * sinphi + rf * Mathf.Cos(phik + thetaf);
-        float yf = yk + lidar.a * sinphi + lidar.b * cosphi + rf * Mathf.Sin(phik + thetaf);
+        float xk = state_estimate.x, yk = state_estimate.y, phik = state_estimate.phi;
+        
+        // Compute pf, the position of the landmark possibly responsible for this observation:
+        Vector<double> pf = g(xk, yk, phik, rf, thetaf);    // M(dim(landmark), 1)
 
         // Compute Pf, the covariance matrix of pf:
-        Matrix<double> gradGxyp = computeGradGxyp(phik, rf, thetaf);
-        Matrix<double> gradGrt = computeGradGrt(phik, rf, thetaf);
+        Matrix<double> gradGxyp = computeGradGxyp(phik, rf, thetaf);    // M(dim(landmark), dim(state))
+        Matrix<double> gradGrt = computeGradGrt(phik, rf, thetaf);      // M(dim(landmark), dim(observation))
 
-        Matrix<double> Pf = gradGxyp * Pv * gradGxyp.Transpose() + gradGrt * R * gradGrt.Transpose();
+        // Pv € M(dim(state), dim(state)) and R € M(dim(observation), dim(observation))
+        // So Pf € M(dim(landmark), dim(landmark)):
+        Matrix<double> Pf = gradGxyp * Pv.TransposeAndMultiply(gradGxyp) 
+                        + gradGrt * R.TransposeAndMultiply(gradGrt);
 
-        // TODO: Compute dfi, compare it to dmin...
-        // ...
+        int acceptedLandmark = -1;
+        Boolean rejectObservation = false;
+        for(int i = 0; i < confirmedLandmarks.Count; i++) {
+            Vector<double> X = pf - confirmedLandmarks[i].position; // X = pf - pi € M(dim(landmark), 1)
+            Matrix<double> Pi = Pkk.extractLandmarkCovariance(i);   // M(dim(landmark), dim(landmark))
 
-        // Get the landmark associated to the observation:
-        Landmark associatedLandmark = confirmedLandmarks[0];
+            float dfi = (float) (X.ToRowMatrix() * ((Pf + Pi).Inverse()) * X)[0];
 
-        // Finally, if the observation is recognized as a landmark, we can use it to perform a new state estimate:
-        updateStateEstimate(observation, associatedLandmark);
+            // If dfi < dmin, then the current landmark is chosen as a candidate for the observation:
+            if(dfi < dmin) {
+
+                // If no other landmark was accepted before, then accept this landmark:
+                if (acceptedLandmark == -1) acceptedLandmark = i;
+
+                // Else if more than one landmark is accepted for this observation, reject the observation:
+                else {
+                    rejectObservation = true;
+                    break;
+                }
+            }
+        }
+
+        // If a confirmed landmark was accepted for the observation, use it to generate a new state estimate:
+        if(acceptedLandmark != -1)
+            updateStateEstimate(new Observation(rf, thetaf), confirmedLandmarks[acceptedLandmark]);
+
+        // Else if the observation was not rejected, we have to check it against the set of potential landmarks:
+        else if(!rejectObservation) {
+            // TODO...
+        }
+    }
+
+    public Vector<double> g(float x, float y, float phi, float rf, float thetaf) {
+        float cosphi = Mathf.Cos(phi);
+        float sinphi = Mathf.Sin(phi);
+
+        return V.Dense(new double[] {
+            x + lidar.a * cosphi - lidar.b * sinphi + rf * Mathf.Cos(phi + thetaf),
+            y + lidar.a * sinphi + lidar.b * cosphi + rf * Mathf.Sin(phi + thetaf)});
     }
 
     // Compute the gradient of g, relatively to x, y and phi:
@@ -218,8 +273,8 @@ public class RobotController : MonoBehaviour
         float xr = predictedState.x + a * cosphi - b * sinphi;
         float yr = predictedState.y + a * sinphi + b * cosphi;
 
-        float dX = landmark.x - xr;
-        float dY = landmark.y - yr;
+        float dX = landmark.x() - xr;
+        float dY = landmark.y() - yr;
 
         float ri = Mathf.Sqrt(dX*dX + dY*dY);
         float thetai = Mathf.Atan(dY / dX) - predictedState.phi;
@@ -249,7 +304,7 @@ public class RobotController : MonoBehaviour
         float xr = predictedState.x + a * cosphi - b * sinphi;
         float yr = predictedState.y + a * sinphi + b * cosphi;
 
-        float dX = xr - landmark.x, dY = yr - landmark.y;
+        float dX = xr - landmark.x(), dY = yr - landmark.y();
         float dX2 = dX * dX, dY2 = dY * dY;
 
         // First row of the matrix:
