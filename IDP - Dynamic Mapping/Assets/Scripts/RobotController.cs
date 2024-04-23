@@ -8,19 +8,15 @@ using System;
 
 public class RobotController : MonoBehaviour
 {
+    // Define some constants for the dimensions of the state, landmarks and observations:
+    private const int STATE_DIM = 3;            // (x, y, phi)
+    private const int LANDMARK_DIM = 2;         // (x, y)
+    private const int OBSERVATION_DIM = 2;      // (r, theta)
+
+
     // Matrix builder used as a shortcut for vector and matrix creation:
     private static MatrixBuilder<double> M = Matrix<double>.Build;
     private static VectorBuilder<double> V = Vector<double>.Build;
-
-    public struct Landmark {
-        public Vector<double> position;
-        public Landmark(float x, float y) {
-            position = V.Dense(new double[] { x, y });
-        }
-
-        public float x() { return (float) position[0]; }
-        public float y() { return (float) position[1]; }
-    }
 
     public struct State {
         public float x;
@@ -34,6 +30,16 @@ public class RobotController : MonoBehaviour
         }
     }
 
+    public struct Landmark {
+        public Vector<double> position;
+        public Landmark(float x, float y) {
+            position = V.Dense(new double[] { x, y });
+        }
+
+        public float x() { return (float) position[0]; }
+        public float y() { return (float) position[1]; }
+    }
+    
     public struct Observation {
         public float r;
         public float theta;
@@ -44,8 +50,18 @@ public class RobotController : MonoBehaviour
         }
     }
 
+    public struct Inputs {
+        public float V;
+        public float gamma;
+
+        public Inputs(float V, float gamma) {
+            this.V = V;
+            this.gamma = gamma;
+        }
+    }
+
     // Create a structure to represent P(i|j), which is a block matrix
-    public struct MapCovarianceMatrix {
+    public class StateCovariance {
         /* P(i|j) = [ Pvv(i|j),              Pvm(i|j) ]
          *          [ Pvm(i|j).Transpose(),  Pmm(i|j) ]
          * 
@@ -54,15 +70,57 @@ public class RobotController : MonoBehaviour
          * Pvm(i|j): cross-covariance matrix between vehicle and landmark states
          */
 
-        public Matrix<double> Pvv;
-        public Matrix<double> Pvm;
-        public Matrix<double> Pmm;
+        public Matrix<double> P;
 
-        private const int landmarkDim = 2;      // (x, y)
-        private const int stateDim = 3;         // (x, y, phi)
+        public Matrix<double> Pvv;      // M(STATE_DIM, STATE_DIM)
+        public Matrix<double> Pvm;      // M(STATE_DIM, landmarksCount * LANDMARK_DIM)
+        public Matrix<double> Pmm;      // M(landmarksCount * LANDMARK_DIM, landmarksCount * LANDMARK_DIM)
+
+        public StateCovariance(int landmarksCount) {
+            Pvv = M.DenseIdentity(STATE_DIM);
+            Pvm = M.Dense(STATE_DIM, landmarksCount * LANDMARK_DIM, 0);
+            Pmm = M.DenseIdentity(landmarksCount * LANDMARK_DIM);
+        }
+
+        public StateCovariance(Matrix<double> Pvv, Matrix<double> Pvm, Matrix<double> Pmm) {
+            this.Pvv = Pvv;
+            this.Pvm = Pvm;
+            this.Pmm = Pmm;
+        }
 
         public Matrix<double> extractLandmarkCovariance(int landmarkIndex) {
-            return Pmm.SubMatrix(landmarkIndex * landmarkDim, landmarkDim, landmarkIndex * landmarkDim, landmarkDim);
+            return Pmm.SubMatrix(landmarkIndex * LANDMARK_DIM, LANDMARK_DIM, 
+                                 landmarkIndex * LANDMARK_DIM, LANDMARK_DIM);
+        }
+
+        public StateCovariance predictStateEstimateCovariance(Matrix<double> Fv, Matrix<double> Q) {
+            return new StateCovariance(
+                Fv * Pvv.TransposeAndMultiply(Fv) + Q,
+                Fv * Pvm,
+                Pmm);
+        }
+
+        public (Matrix<double>, Matrix<double>) computeInnovationAndGainMatrices(int landmarkIndex, Matrix<double> Hv, Matrix<double> Hpi, Matrix<double> R) {
+
+            // Hi = [Hv, 0...0, Hpi, 0...0] = [Hv, sparse]:
+            Matrix<double> sparse = M.Sparse(OBSERVATION_DIM, Pmm.RowCount);
+            sparse.SetSubMatrix(0, landmarkIndex * LANDMARK_DIM, Hpi);
+
+            // Compute P * Hi.Transpose():
+            Matrix<double> A = Pvv.TransposeAndMultiply(Hv) + Pvm.TransposeAndMultiply(sparse);
+            Matrix<double> B = Pvm.TransposeThisAndMultiply(Hv.Transpose()) + Pmm.TransposeAndMultiply(sparse);
+
+            // Innovation matrix:
+            // Si = Hi * (P * Hi.Transpose()) + R = [Hv, sparse] * [A, B].Transpose() + R
+            Matrix<double> Si = Hv * A + sparse * B + R;
+
+            // Gain matrix:
+            Matrix<double> Wi = M.Dense(STATE_DIM + Pmm.RowCount, OBSERVATION_DIM);
+            Wi.SetSubMatrix(0, 0, A);           // Matrix(STATE_DIM, OBSERVATION_DIM)
+            Wi.SetSubMatrix(STATE_DIM, 0, B);   // Matrix(landmarksCount * LANDMARK_DIM, OBSERVATION_DIM)
+            Wi = Wi * Si.Inverse();
+
+            return (Si, Wi);
         }
     }
 
@@ -86,13 +144,10 @@ public class RobotController : MonoBehaviour
     // Covariance matrices for the process noise and the observations:
     private Matrix<double> Q, R;
 
-    // Create a block matrix to represent P(k|k):
-    private MapCovarianceMatrix Pkk;
-
     // Start is called before the first frame update
     void Start() {
-        Q = M.DenseIdentity(3);         // Covariance matrix for the process noise errors (x, y, phi)
-        R = M.DenseIdentity(2);         // Covariance matrix for the observation errors (r, theta)
+        Q = M.DenseIdentity(STATE_DIM);             // Covariance matrix for the process noise errors (x, y, phi)
+        R = M.DenseIdentity(OBSERVATION_DIM);       // Covariance matrix for the observation errors (r, theta)
     }
 
     // Update is called once per frame
@@ -164,7 +219,7 @@ public class RobotController : MonoBehaviour
                         + gradGrt * R.TransposeAndMultiply(gradGrt);
 
         int acceptedLandmark = -1;
-        Boolean rejectObservation = false;
+        bool rejectObservation = false;
         for(int i = 0; i < confirmedLandmarks.Count; i++) {
             Vector<double> X = pf - confirmedLandmarks[i].position; // X = pf - pi € M(dim(landmark), 1)
             Matrix<double> Pi = Pkk.extractLandmarkCovariance(i);   // M(dim(landmark), dim(landmark))
@@ -229,37 +284,51 @@ public class RobotController : MonoBehaviour
 
     // Given the observation from the sensor, and the landmark we associated to this observation, update the state
     // estimate of the robot:
-    public void updateStateEstimate(Observation observation, Landmark associatedLandmark) {
+    public void updateStateEstimate(Observation observation, int landmarkIndex) {
         float deltaT = 0; // currentTime - lastTimeUpdate;
 
-        // We start from a current state estimate, and control inputs:
-        State state_estimate = new State(0, 0, 0);      // x_hat(k|k)
-        float V = 0;
-        float gamma = 0;
+        // We start from the previous state estimate, the current control inputs
+        // and the previous estimate of the covariance matrix:
+        State previousStateEstimate = new State(0, 0, 0);       // x_hat(k|k)
+        Inputs inputs = new Inputs(0, 0);                       // Current inputs for the robot
+        StateCovariance Pkk = new StateCovariance(0);           // P(k|k)
 
 
-        // 1. Prediction:
-        State state_prediction = predictStateEstimate(state_estimate, V, gamma, deltaT);                // Equation (10)
-        Observation observation_prediction = predictObservation(state_prediction, associatedLandmark);  // Equation (11)
-        Matrix<double> covariance_prediction = predictStateEstimateCovariance();                        // Equation (12)
+        Landmark associatedLandmark = confirmedLandmarks[landmarkIndex];
 
-        // 2. Observation:
-        float innovation_r = observation.r - observation_prediction.r;
-        float innovation_theta = observation.theta - observation_prediction.theta;
+        //// 1. Prediction:
+        
+        // Equation (10): From the previous state estimate and current inputs,
+        // predict a new state estimate: x_hat(k+1|k)
+        State statePrediction = predictStateEstimate(previousStateEstimate, inputs, deltaT);
 
-        Matrix<double> Hi = computeHi(state_prediction, associatedLandmark);    // Equation (37)
-        Matrix<double> Si = Hi * covariance_prediction * Hi.Transpose() + R;    // Equation (14)
+        // Equation (11): From the state prediction, and the landmark associated with the observation,
+        // predict what the observation should be: z_hat(k+1|k)
+        Observation observationPrediction = predictObservation(statePrediction, associatedLandmark);
 
-        // 3. Update:
+        // Equation (12): From the previous state estimate and the current inputs, compute the new estimate of the
+        // state covariance matrix: P(k+1|k)
+        Matrix<double> Fv = computeFv(previousStateEstimate, inputs, deltaT);
+        StateCovariance covariancePrediction = Pkk.predictStateEstimateCovariance(Fv, Q);
+
+        //// 2. Observation:
+        float innovation_r = observation.r - observationPrediction.r;
+        float innovation_theta = observation.theta - observationPrediction.theta;
+
+        Matrix<double> Hv, Hpi, Si, Wi;
+        (Hv, Hpi) = computeHi(statePrediction, associatedLandmark);                                     // Equation (37)
+        (Si, Wi) = covariancePrediction.computeInnovationAndGainMatrices(landmarkIndex, Hv, Hpi, R);    // Equation (14)
+
+        //// 3. Update:
 
     }
 
-    /** Given the previous state estimate, compute the prediction of the new state estimate 
-     * according to equation (10) */
-    public State predictStateEstimate(State previous, float V, float gamma, float deltaT) {
-        float x = previous.x + deltaT * V * Mathf.Cos(previous.phi);
-        float y = previous.y + deltaT * V * Mathf.Sin(previous.phi);
-        float phi = previous.phi + deltaT * V * Mathf.Tan(gamma) / L;
+    /** Given the previous state estimate and the current inputs, compute the prediction 
+     * of the new state estimate according to equation (10) */
+    public State predictStateEstimate(State previous, Inputs inputs, float deltaT) {
+        float x = previous.x + deltaT * inputs.V * Mathf.Cos(previous.phi);
+        float y = previous.y + deltaT * inputs.V * Mathf.Sin(previous.phi);
+        float phi = previous.phi + deltaT * inputs.V * Mathf.Tan(inputs.gamma) / L;
 
         return new State(x, y, phi);
     }
@@ -282,46 +351,48 @@ public class RobotController : MonoBehaviour
         return new Observation(ri, thetai);
     }
 
-    public Matrix<double> predictStateEstimateCovariance() {
-        return null;
-    }
-
-    public Matrix<double> computeF(float V, float phi, float gamma, float deltaT, float L) {
-        float sinphi = Mathf.Sin(phi);
-        float cosphi = Mathf.Cos(phi);
-        float tangamma = Mathf.Tan(gamma);
+    /* Given the previous state estimate and the current inputs, compute the Jacobian of f(): Fv */
+    public Matrix<double> computeFv(State previous, Inputs inputs, float deltaT) {
+        float cosphi = Mathf.Cos(previous.phi);
+        float sinphi = Mathf.Sin(previous.phi);
 
         return DenseMatrix.OfArray(new double[,] {
-            {1, 0, -deltaT*V*sinphi, deltaT*cosphi, 0},
-            {0, 1, deltaT*V*cosphi, deltaT*sinphi, 0},
-            {0, 0, 1, deltaT*tangamma/L, deltaT*V*(1+tangamma*tangamma)/L } });
+            {1, 0, -deltaT*inputs.V*sinphi},            // Derivative f1(x, y, phi) / dx
+            {0, 1, deltaT*inputs.V*cosphi},             // Derivative f2(x, y, phi) / dy
+            {0, 0, 1 } });                              // Derivative f3(x, y, phi) / dphi
     }
 
-    public Matrix<double> computeHi(State predictedState, Landmark landmark) {
+    public (Matrix<double>, Matrix<double>) computeHi(State predictedState, Landmark landmark) {
         float cosphi = Mathf.Cos(predictedState.phi), sinphi = Mathf.Sin(predictedState.phi);
         float a = lidar.a, b = lidar.b;
 
         float xr = predictedState.x + a * cosphi - b * sinphi;
         float yr = predictedState.y + a * sinphi + b * cosphi;
 
-        float dX = xr - landmark.x(), dY = yr - landmark.y();
+        float dX = landmark.x() - xr, dY = landmark.y() - yr;
         float dX2 = dX * dX, dY2 = dY * dY;
+        float sqrt = Mathf.Sqrt(dX2 + dY2);
 
         // First row of the matrix:
-        float tmp = Mathf.Sqrt(dX2 + dY2);
-
-        float A = dX / tmp;
-        float B = dY / tmp;
-        float C = (dX * (-a * sinphi - b * cosphi) + dY * (a * cosphi - b * sinphi)) / tmp;
+        float A = -dX / sqrt;
+        float B = -dY / sqrt;
+        float C = (dX * (a * sinphi + b * cosphi) + dY * (b * sinphi - a * cosphi)) / sqrt;
 
         // Second row of the matrix:
-        tmp = 1 + dY2 / dX2;
+        float D = dY / (dX2 + dY2);
+        float E = -1 / (dX * (1 + dY2/dX2));
+        float F = ((-(a * cosphi - b * sinphi) * dX - dY * (a * sinphi + b * cosphi)) / (dX2 + dY2)) - 1;
 
-        float D = -dY / (dX2 * tmp);
-        float E = 1 / (dX * tmp);
-        float F = (a * cosphi - b * sinphi) * dX + dY * (a * sinphi + b * cosphi);
-        F = F / (dX2 * tmp) - 1;
+        // Hv = Matrix(OBSERVATION_DIM, STATE_DIM):
+        // (    dr/dx,      dr/dy,      dr/dphi)
+        // (dtheta/dx,  dtheta/dy,  dtheta/dphi)
+        Matrix<double> Hv = DenseMatrix.OfArray(new double[,] { { A, B, C }, { D, E, F } });
 
-        return DenseMatrix.OfArray(new double[,] {{A, B, C}, {D, E, F}});
+        // Hpi = Matrix(OBSERVATION_DIM, LANDMARK_DIM):
+        // (    dr/dxi,     dr/dyi)
+        // (dtheta/dxi, dtheta/dyi)
+        Matrix<double> Hpi = DenseMatrix.OfArray(new double[,] { { -A, -B }, { -D, -E } });
+
+        return (Hv, Hpi);
     }
 }

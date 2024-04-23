@@ -2037,6 +2037,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bfdbb4d2584fb6c4498c27773b9c75ef, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  lidar: {fileID: 1040413680}
   acceleration: 10
   L: 0.3
   maxSpeed: 2
@@ -2104,8 +2105,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 12748d0346ee30b4090d5cecfee22803, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  raycastCount: 100
-  raycastDistance: 2
+  raycastCount: 200
+  raycastDistance: 10
+  a: 0.1
+  b: 0
 --- !u!23 &1040413681
 MeshRenderer:
   m_ObjectHideFlags: 0

@@ -80,10 +80,16 @@ public class RobotBresenham : MonoBehaviour
 
     // Update is called once per frame
     void Update() {
+        /*
         // Get the state of the robot from the controller:
         float robotX = controller.getRobotX();
         float robotY = controller.getRobotY();
-        float robotAngle = controller.getRobotAngle();
+        float robotAngle = controller.getRobotAngle();*/
+
+        // Tempoary fix: Improve this
+        float robotX = lidar.transform.position.x;
+        float robotY = lidar.transform.position.z;
+        float robotAngle = Mathf.Deg2Rad * (90 - lidar.transform.rotation.eulerAngles.y);
 
         // And update the static and dynamic maps using distances values from the LIDAR:
         updateMaps(robotX, robotY, robotAngle);
