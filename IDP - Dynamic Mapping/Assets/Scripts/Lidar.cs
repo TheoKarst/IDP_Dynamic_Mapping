@@ -1,20 +1,15 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class Lidar : MonoBehaviour
 {
     public int raycastCount = 20;
     public float raycastDistance = 1;
-
-    public float a = 0.1f, b = 0;
+    public Transform[] landmarks;
 
     private float[] raycastDistances;
 
-
     // Start is called before the first frame update
-    void Start()
-    {
+    void Start() {
         raycastDistances = new float[raycastCount];
     }
 
@@ -41,5 +36,33 @@ public class Lidar : MonoBehaviour
 
     public float[] getRaycastDistances() {
         return raycastDistances;
+    }
+
+    public float getLidarA() {
+        return transform.localPosition.z;
+    }
+
+    public float getLidarB() {
+        return -transform.localPosition.x;
+    }
+
+    // To update the state of the robot, we should get one landmark observation each frame.
+    // For now, we suppose that the sensor returns a random landmark, no matter its distance from the robot:
+    public (float, float) getLandmark() {
+
+        // Select a random landmark:
+        int landmarkIndex = Random.Range(0, landmarks.Length);
+        Transform landmark = landmarks[landmarkIndex];
+
+        Debug.Log("Selecting landmark: " + landmarkIndex);
+
+        float dX = landmark.position.x - transform.position.x;
+        float dY = landmark.position.z - transform.position.z;
+        float distance = Mathf.Sqrt(dX * dX + dY * dY);
+
+        float lidarAngle = Mathf.Deg2Rad * (90 - gameObject.transform.rotation.eulerAngles.y);
+        float angle = Mathf.Atan2(dY, dX) - lidarAngle;
+
+        return (distance, angle);
     }
 }
