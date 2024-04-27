@@ -1,5 +1,6 @@
 using MathNet.Numerics.Distributions;
 using MathNet.Numerics.LinearAlgebra;
+using UnityEngine;
 
 public struct Landmark {
     private static VectorBuilder<float> V = Vector<float>.Build;
@@ -17,6 +18,9 @@ public struct Landmark {
     }
 
     public override string ToString() {
-        return "[x: " + x + ", y: " + y + "]";
+        float print_x = Mathf.Round(100 * x) / 100;
+        float print_y = Mathf.Round(100 * y) / 100;
+
+        return "[x: " + print_x + ", y: " + print_y + "]";
     }
 }

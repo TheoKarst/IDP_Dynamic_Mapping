@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public class Lidar : MonoBehaviour
 {
@@ -18,14 +19,14 @@ public class Lidar : MonoBehaviour
         // Update the raycast distances each frame:
         Vector3 direction = transform.TransformDirection(Vector3.forward);
 
-        for (int i = 0; i < raycastCount; i++) {
+        for (int i = 0; i < raycastDistances.Length; i++) {
             RaycastHit hit;
             if (Physics.Raycast(transform.position, direction, out hit, raycastDistance)) {
-                Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
+                // Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
                 raycastDistances[i] = hit.distance;
             }
             else {
-                Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
+                // Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
                 raycastDistances[i] = -1;
             }
 
@@ -51,10 +52,7 @@ public class Lidar : MonoBehaviour
     public (float, float) getLandmark() {
 
         // Select a random landmark:
-        int landmarkIndex = Random.Range(0, landmarks.Length);
-        Transform landmark = landmarks[landmarkIndex];
-
-        Debug.Log("Selecting landmark: " + landmarkIndex);
+        Transform landmark = landmarks[Random.Range(0, landmarks.Length)];
 
         float dX = landmark.position.x - transform.position.x;
         float dY = landmark.position.z - transform.position.z;
@@ -64,5 +62,14 @@ public class Lidar : MonoBehaviour
         float angle = Mathf.Atan2(dY, dX) - lidarAngle;
 
         return (distance, angle);
+    }
+
+    public void DrawObservation(Observation observation, Color color) {
+        float duration = 0.05f;
+
+        Vector3 direction = transform.TransformDirection(Vector3.forward);
+        direction = Quaternion.AngleAxis(-observation.theta * Mathf.Rad2Deg, Vector3.up) * direction;
+
+        Debug.DrawRay(transform.position, direction * observation.r, color, duration);
     }
 }

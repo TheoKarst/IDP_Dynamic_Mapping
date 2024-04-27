@@ -20,7 +20,8 @@ public class StateCovariance {
         STATE_DIM = stateDim;
         LANDMARK_DIM = landmarkDim;
 
-        P = M.DenseIdentity(STATE_DIM + landmarksCount * LANDMARK_DIM);
+        int size = STATE_DIM + landmarksCount * LANDMARK_DIM;
+        P = M.DenseDiagonal(size, size, 0.1f);
     }
 
     private StateCovariance(Matrix<float> P) {

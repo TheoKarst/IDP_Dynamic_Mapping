@@ -5,6 +5,9 @@ public class RobotController : MonoBehaviour
     [Tooltip("Sensor attached to the robot controller, in order to estimate the robot state")]
     public Lidar lidar;
 
+    [Tooltip("Cube prefab used to represent the estimated state of the robot")]
+    public GameObject vehicleState;
+
     public float acceleration = 10;
     public float L = 0.3f;
 
@@ -23,7 +26,8 @@ public class RobotController : MonoBehaviour
 
     // Start is called before the first frame update
     void Start() {
-        filter = new KalmanFilter(lidar.getLidarA(), lidar.getLidarB(), L);
+        float x = getRobotX(), y = getRobotY(), phi = getRobotAngle();
+        filter = new KalmanFilter(x, y, phi, lidar, L);
 
         // Initialise the landmarks with some positions (used for testing):
         filter.initLandmarks(lidar.landmarks);
@@ -42,7 +46,14 @@ public class RobotController : MonoBehaviour
             ModelInputs inputs = new ModelInputs(velocity, Mathf.Deg2Rad * steering);
 
             // Use the observation to update the robot state estimate:
+            ModelState realState = new ModelState(getRobotX(), getRobotY(), getRobotAngle());
+
+            Debug.Log("0. Robot real state: " + realState);
             filter.updateStateEstimate(observation, inputs, Time.time);
+
+            // For debugging, show the error estimate on each landmark and on the robot state:
+            filter.resizeLandmarksUsingCovariance(lidar.landmarks);
+            filter.resizeStateUsingCovariance(vehicleState.transform);
             lastTimeMeasure = Time.time;
         }
     }
@@ -60,9 +71,9 @@ public class RobotController : MonoBehaviour
 
         // Update the steering of the robot:
         if (Input.GetKey(KeyCode.LeftArrow))
-            steering = -maxSteering;
-        else if (Input.GetKey(KeyCode.RightArrow))
             steering = maxSteering;
+        else if (Input.GetKey(KeyCode.RightArrow))
+            steering = -maxSteering;
         else
             steering = 0;
 
@@ -77,7 +88,7 @@ public class RobotController : MonoBehaviour
 
         // Update the position and orientation of the robot, given the previous values:
         gameObject.transform.position += h * new Vector3(xP, 0, yP);
-        gameObject.transform.Rotate(Vector3.up, h * angleP);
+        gameObject.transform.Rotate(Vector3.up, -h * angleP * Mathf.Rad2Deg);
     }
 
     public float getRobotX() {

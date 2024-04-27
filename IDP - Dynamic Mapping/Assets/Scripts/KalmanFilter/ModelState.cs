@@ -1,4 +1,5 @@
 using MathNet.Numerics.LinearAlgebra;
+using UnityEngine;
 
 public struct ModelState {
     public float x;
@@ -24,6 +25,10 @@ public struct ModelState {
     }
 
     public override string ToString() {
-        return "[x: " + x + ", y: " + y + ", phi: " + phi + "]"; 
+        float print_x = Mathf.Round(100 * x) / 100;
+        float print_y = Mathf.Round(100 * y) / 100;
+        float print_phi = Mathf.Round(100 * phi * Mathf.Rad2Deg) / 100;
+
+        return "[x: " + print_x + ", y: " + print_y + ", phi: " + print_phi + "°]"; 
     }
 }

@@ -1,3 +1,5 @@
+using UnityEngine;
+
 public struct ModelInputs {
     public float V;
     public float gamma;
@@ -8,6 +10,9 @@ public struct ModelInputs {
     }
 
     public override string ToString() {
-        return "[V: " + V + ", gamma: " + gamma + "]";
+        float print_v = Mathf.Round(100 * V) / 100;
+        float print_g = Mathf.Round(100 * gamma * Mathf.Rad2Deg) / 100;
+
+        return "[V: " + print_v + ", gamma: " + print_g + "°]";
     }
 }
