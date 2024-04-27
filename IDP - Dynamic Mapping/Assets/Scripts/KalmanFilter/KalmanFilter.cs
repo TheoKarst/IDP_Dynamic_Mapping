@@ -1,5 +1,6 @@
 using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 public class KalmanFilter {
@@ -28,20 +29,26 @@ public class KalmanFilter {
     private float lastTimeUpdate;
 
     // Local position of the lidar and length of the vehicle, as defined in Dissanayake's paper:
-    private Lidar lidar;
-    private float lidarA, lidarB, vehicleL;
+    private ModelParams model;
 
-    public KalmanFilter(ModelState startState, Lidar lidar, float vehicleL) {
-        this.lidar = lidar;
-        this.lidarA = lidar.getLidarA();
-        this.lidarB = lidar.getLidarB();
-        this.vehicleL = vehicleL;
+    // Log file to write the data from the Kalman Filter:
+    private StreamWriter logFile;
+
+    // Use a pointer to the robot controller to have the real state of the robot (only used for logs):
+    private RobotController controller;
+
+    public KalmanFilter(RobotController controller, ModelState initialState, ModelParams model, StreamWriter logFile) {
+        this.controller = controller;
+        this.model = model;
+        this.logFile = logFile;
+
+        logFile.WriteLine("time;real_x;predict_x;update_x;real_y;predict_y;update_y;real_phi;predict_phi;update_phi");
 
         Q = M.DenseDiagonal(STATE_DIM, 0.1f);           // Covariance matrix for the process noise errors (x, y, phi)
-        R = M.DenseDiagonal(OBSERVATION_DIM, 0.01f);     // Covariance matrix for the observation errors (r, theta)
+        R = M.DenseDiagonal(OBSERVATION_DIM, 0.01f);    // Covariance matrix for the observation errors (r, theta)
 
         // Initialize the state estimate with the given start position of the robot:
-        stateEstimate = startState;
+        stateEstimate = initialState;
         stateCovarianceEstimate = new StateCovariance(STATE_DIM, 0, LANDMARK_DIM);
     }
 
@@ -60,30 +67,6 @@ public class KalmanFilter {
         stateCovarianceEstimate = new StateCovariance(STATE_DIM, positions.Length, LANDMARK_DIM);
     }
 
-    // Used for debugging: show the error on the position of each landmark:
-    public void resizeLandmarksUsingCovariance(Transform[] landmarks) {
-        for(int i = 0; i < landmarks.Length; i++) {
-            Matrix<float> cov = stateCovarianceEstimate.extractLandmarkCovariance(i);
-
-            // The landmark has a probability of 95% to be in this region:
-            float scaleX = 2 * Mathf.Sqrt(cov[0, 0]);
-            float scaleY = 2 * Mathf.Sqrt(cov[1, 1]);
-
-            landmarks[i].localScale = new Vector3(scaleX, 0.1f, scaleY);
-        }
-    }
-
-    public void resizeStateUsingCovariance(Transform transform) {
-        Matrix<float> Pvv = stateCovarianceEstimate.extractPvv();
-
-        // The robot has a probability of 95% to be in this region:
-        float scaleX = 2 * Mathf.Sqrt(Pvv[0, 0]);
-        float scaleY = 2 * Mathf.Sqrt(Pvv[1, 1]);
-
-        transform.localScale = new Vector3(scaleX, 0.1f, scaleY);
-        transform.position = new Vector3(stateEstimate.x, 1, stateEstimate.y);
-    }
-
     // Given an observation from the sensor of the robot, the inputs of the robot and the current time,
     // try to associate the observation with a known landmark and update the robot state using the
     // "Extended Kalman Filter":
@@ -96,8 +79,7 @@ public class KalmanFilter {
         // Equation (10): From the previous state estimate and current inputs,
         // predict a new state estimate: x_hat(k+1|k)
         ModelState statePrediction = predictStateEstimate(stateEstimate, inputs, deltaT);
-        // Debug.Log("1. Previous state: " + stateEstimate + ", Inputs: " + inputs + " => Predicted state: " + statePrediction);
-
+        
         // Equation (12): From the previous state estimate and the current inputs, compute the new estimate of the
         // state covariance matrix: P(k+1|k)
         Matrix<float> Fv = computeFv(stateEstimate, inputs, deltaT);
@@ -118,19 +100,21 @@ public class KalmanFilter {
         //// 2. Observation: Compare the expected observation with the real observation:
         Vector<float> innovation = Observation.substract(observation, observationPrediction);
 
-        lidar.DrawObservation(observation, Color.green);             // Target observation
-        lidar.DrawObservation(observationPrediction, Color.red);     // Predicted observation
-        // Debug.Log("3. Innovation: (" + innovation[0] + ", " + innovation[1] + ")");
-
         Matrix<float> Hi, Si, Wi;
         Hi = computeHi(statePrediction, landmarkIndex, confirmedLandmarks.Count);           // Equation (37)
         (Si, Wi) = stateCovariancePrediction.computeInnovationAndGainMatrices(Hi, R);       // Equations (14) and (17)
 
         //// 3. Update: Update the state estimate from our observation
-        // Debug.Log("4. Updated prediction: " + (statePrediction + Wi * innovation));
-
+        
         stateEstimate = statePrediction + Wi * innovation;                                      // Equation (15)
         stateCovarianceEstimate = stateCovariancePrediction - Wi * Si.TransposeAndMultiply(Wi); // Equation (16)
+
+        // Write data to the log file:
+        ModelState realState = controller.getRobotRealState();
+        logFile.WriteLine(currentTime + ";" 
+                        + realState.x + ";"   + statePrediction.x   + ";" + stateEstimate.x + ";"
+                        + realState.y + ";"   + statePrediction.y   + ";" + stateEstimate.y + ";"
+                        + realState.phi + ";" + statePrediction.phi + ";" + stateEstimate.phi);
     }
 
     // From the observation from the LIDAR, the predicted state, the predicted state covariance estimate
@@ -203,21 +187,21 @@ public class KalmanFilter {
     }
 
     private Vector<float> g(float x, float y, float phi, float rf, float thetaf) {
-        float cosphi = Mathf.Cos(phi);
-        float sinphi = Mathf.Sin(phi);
+        float a = model.a, b = model.b;
+        float cosphi = Mathf.Cos(phi), sinphi = Mathf.Sin(phi);
 
         return V.Dense(new float[] {
-            x + lidarA * cosphi - lidarB * sinphi + rf * Mathf.Cos(phi + thetaf),
-            y + lidarA * sinphi + lidarB * cosphi + rf * Mathf.Sin(phi + thetaf)});
+            x + a * cosphi - b * sinphi + rf * Mathf.Cos(phi + thetaf),
+            y + a * sinphi + b * cosphi + rf * Mathf.Sin(phi + thetaf)});
     }
 
     // Compute the gradient of g, relatively to x, y and phi:
     private Matrix<float> computeGradGxyp(float phi, float rf, float thetaf) {
-        float cosphi = Mathf.Cos(phi);
-        float sinphi = Mathf.Sin(phi);
+        float a = model.a, b = model.b;
+        float cosphi = Mathf.Cos(phi), sinphi = Mathf.Sin(phi);
 
-        float dGx_dphi = -lidarA * sinphi - lidarB * cosphi - rf * Mathf.Sin(phi + thetaf);
-        float dGy_dphi = lidarA * cosphi - lidarB * sinphi + rf * Mathf.Cos(phi + thetaf);
+        float dGx_dphi = -a * sinphi - b * cosphi - rf * Mathf.Sin(phi + thetaf);
+        float dGy_dphi = a * cosphi - b * sinphi + rf * Mathf.Cos(phi + thetaf);
 
         return M.DenseOfArray(new float[,] {
             { 1, 0, dGx_dphi},
@@ -239,7 +223,7 @@ public class KalmanFilter {
     private ModelState predictStateEstimate(ModelState previous, ModelInputs inputs, float deltaT) {
         float x = previous.x + deltaT * inputs.V * Mathf.Cos(previous.phi);
         float y = previous.y + deltaT * inputs.V * Mathf.Sin(previous.phi);
-        float phi = previous.phi + deltaT * inputs.V * Mathf.Tan(inputs.gamma) / vehicleL;
+        float phi = previous.phi + deltaT * inputs.V * Mathf.Tan(inputs.gamma) / model.L;
 
         return new ModelState(x, y, phi);
     }
@@ -248,7 +232,7 @@ public class KalmanFilter {
     // should be, according to equations (11) and (37):
     private Observation predictObservation(ModelState predictedState, int landmarkIndex) {
         float cosphi = Mathf.Cos(predictedState.phi), sinphi = Mathf.Sin(predictedState.phi);
-        float a = lidarA, b = lidarB;
+        float a = model.a, b = model.b;
 
         float xr = predictedState.x + a * cosphi - b * sinphi;
         float yr = predictedState.y + a * sinphi + b * cosphi;
@@ -275,7 +259,7 @@ public class KalmanFilter {
 
     private Matrix<float> computeHi(ModelState predictedState, int landmarkIndex, int landmarkCount) {
         float cosphi = Mathf.Cos(predictedState.phi), sinphi = Mathf.Sin(predictedState.phi);
-        float a = lidarA, b = lidarB;
+        float a = model.a, b = model.b;
 
         float xi = confirmedLandmarks[landmarkIndex].x;
         float yi = confirmedLandmarks[landmarkIndex].y;

@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEngine;
 
 public class RobotController : MonoBehaviour
@@ -26,8 +27,11 @@ public class RobotController : MonoBehaviour
 
     // Start is called before the first frame update
     void Start() {
-        float x = getRobotX(), y = getRobotY(), phi = getRobotAngle();
-        filter = new KalmanFilter(x, y, phi, lidar, L);
+        ModelState initialState = getRobotRealState();
+        ModelParams model = new ModelParams(L, lidar.getLidarA(), lidar.getLidarB());
+        StreamWriter logFile = File.CreateText("log_file.csv");
+
+        filter = new KalmanFilter(this, initialState, model, logFile);
 
         // Initialise the landmarks with some positions (used for testing):
         filter.initLandmarks(lidar.landmarks);
@@ -38,22 +42,7 @@ public class RobotController : MonoBehaviour
         UpdateRobot();
 
         if(Time.time - lastTimeMeasure > waitBetweenMeasures) {
-            // Get an observation from the LIDAR:
-            float landmarkDistance, landmarkAngle;
-            (landmarkDistance, landmarkAngle) = lidar.getLandmark();
-
-            Observation observation = new Observation(landmarkDistance, landmarkAngle);
-            ModelInputs inputs = new ModelInputs(velocity, Mathf.Deg2Rad * steering);
-
-            // Use the observation to update the robot state estimate:
-            ModelState realState = new ModelState(getRobotX(), getRobotY(), getRobotAngle());
-
-            Debug.Log("0. Robot real state: " + realState);
-            filter.updateStateEstimate(observation, inputs, Time.time);
-
-            // For debugging, show the error estimate on each landmark and on the robot state:
-            filter.resizeLandmarksUsingCovariance(lidar.landmarks);
-            filter.resizeStateUsingCovariance(vehicleState.transform);
+            UpdateStateEstimate();
             lastTimeMeasure = Time.time;
         }
     }
@@ -91,6 +80,18 @@ public class RobotController : MonoBehaviour
         gameObject.transform.Rotate(Vector3.up, -h * angleP * Mathf.Rad2Deg);
     }
 
+    private void UpdateStateEstimate() {
+        // Get an observation from the LIDAR:
+        float landmarkDistance, landmarkAngle;
+        (landmarkDistance, landmarkAngle) = lidar.getLandmark();
+
+        Observation observation = new Observation(landmarkDistance, landmarkAngle);
+        ModelInputs inputs = new ModelInputs(velocity, Mathf.Deg2Rad * steering);
+
+        // Use the observation to update the robot state estimate:
+        filter.updateStateEstimate(observation, inputs, Time.time);
+    }
+
     public float getRobotX() {
         return gameObject.transform.position.x;
     }
@@ -101,5 +102,9 @@ public class RobotController : MonoBehaviour
 
     public float getRobotAngle() {
         return Mathf.Deg2Rad * (90 - gameObject.transform.rotation.eulerAngles.y);
+    }
+
+    public ModelState getRobotRealState() {
+        return new ModelState(getRobotX(), getRobotY(), getRobotAngle());
     }
 }
