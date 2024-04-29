@@ -1,7 +1,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
-public struct Landmark {
+public class Landmark {
     private static VectorBuilder<float> V = Vector<float>.Build;
 
     public float x;
@@ -12,8 +12,17 @@ public struct Landmark {
         this.y = y;
     }
 
-    public Vector<float> position() {
+    public Landmark(Vector<float> position) {
+        setPosition(position);
+    }
+
+    public Vector<float> getPosition() {
         return V.DenseOfArray(new float[] { x, y });
+    }
+
+    public void setPosition(Vector<float> position) {
+        this.x = position[0];
+        this.y = position[1];
     }
 
     public override string ToString() {

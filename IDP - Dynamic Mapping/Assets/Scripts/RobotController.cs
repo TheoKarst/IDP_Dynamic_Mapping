@@ -6,8 +6,7 @@ public class RobotController : MonoBehaviour
     [Tooltip("Sensor attached to the robot controller, in order to estimate the robot state")]
     public Lidar lidar;
 
-    [Tooltip("Cube prefab used to represent the estimated state of the robot")]
-    public GameObject vehicleState;
+    public bool writeLogFile = false;
 
     public float acceleration = 10;
     public float L = 0.3f;
@@ -29,12 +28,12 @@ public class RobotController : MonoBehaviour
     void Start() {
         ModelState initialState = getRobotRealState();
         ModelParams model = new ModelParams(L, lidar.getLidarA(), lidar.getLidarB());
-        StreamWriter logFile = File.CreateText("log_file.csv");
+        StreamWriter logFile = writeLogFile ? File.CreateText("log_file.csv") : null;
 
         filter = new KalmanFilter(this, initialState, model, logFile);
 
         // Initialise the landmarks with some positions (used for testing):
-        filter.initLandmarks(lidar.landmarks);
+        // filter.initLandmarks(lidar.landmarks);
     }
 
     // Update is called once per frame
@@ -45,6 +44,11 @@ public class RobotController : MonoBehaviour
             UpdateStateEstimate();
             lastTimeMeasure = Time.time;
         }
+    }
+
+    public void OnDrawGizmos() {
+        if(filter != null)
+            filter.drawGizmos();
     }
 
     private void UpdateRobot() {

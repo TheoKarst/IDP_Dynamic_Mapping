@@ -1,7 +1,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
-public struct Observation {
+public class Observation {
     public float r;
     public float theta;
 

@@ -21,7 +21,7 @@ public class StateCovariance {
         LANDMARK_DIM = landmarkDim;
 
         int size = STATE_DIM + landmarksCount * LANDMARK_DIM;
-        P = M.DenseDiagonal(size, size, 0.1f);
+        P = M.DenseDiagonal(size, size, 0);
     }
 
     private StateCovariance(Matrix<float> P) {
@@ -43,6 +43,14 @@ public class StateCovariance {
     public Matrix<float> extractLandmarkCovariance(int landmarkIndex) {
         int index = STATE_DIM + landmarkIndex * LANDMARK_DIM;
         return P.SubMatrix(index, LANDMARK_DIM, index, LANDMARK_DIM);
+    }
+
+    public void addLandmark(Matrix<float> landmarkCovariance) {
+        Matrix<float> newP = M.Dense(P.RowCount+LANDMARK_DIM, P.ColumnCount+LANDMARK_DIM);
+        newP.SetSubMatrix(0, 0, P);
+        newP.SetSubMatrix(P.RowCount, P.ColumnCount, landmarkCovariance);
+
+        P = newP;
     }
 
     public StateCovariance predictStateEstimateCovariance(Matrix<float> Fv, Matrix<float> Q) {
