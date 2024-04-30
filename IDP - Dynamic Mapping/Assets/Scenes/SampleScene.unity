@@ -579,6 +579,37 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1864106899}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &601902075
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 601902076}
+  m_Layer: 0
+  m_Name: Landmark (2)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &601902076
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 601902075}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.29900002, y: 0, z: 0.761}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1071717507}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -785,7 +816,7 @@ GameObject:
   m_Component:
   - component: {fileID: 853304199}
   m_Layer: 0
-  m_Name: Landmark
+  m_Name: Landmark (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -800,7 +831,7 @@ Transform:
   m_GameObject: {fileID: 853304198}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4.5, y: 0, z: 0}
+  m_LocalPosition: {x: 0.277, y: 0, z: 0.83}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -968,13 +999,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   lidar: {fileID: 1040413680}
-  writeLogFile: 0
+  writeLogFile: 1
   acceleration: 10
   L: 0.3
-  maxSpeed: 2
+  maxSpeed: 1
   maxSteering: 10
   friction: 10
   waitBetweenMeasures: 0.2
+  drawConfirmedLandmarks: 1
+  drawPotentialLandmarks: 1
+  drawObservations: 1
 --- !u!1 &987848140
 GameObject:
   m_ObjectHideFlags: 0
@@ -1037,10 +1071,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 12748d0346ee30b4090d5cecfee22803, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  raycastCount: 100
-  raycastDistance: 10
+  raycastCount: 500
+  raycastDistance: 5
   deltaCorners: 1
   angleThreshold: 80
+  drawRays: 0
 --- !u!23 &1040413681
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1136,14 +1171,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   robot: {fileID: 1873789702}
-  landmark: {fileID: 853304199}
-  lidarA: 0.1
-  lidarB: 0
+  landmark1: {fileID: 853304199}
+  landmark2: {fileID: 601902076}
   robotErrorX: 0.1
   robotErrorY: 0.1
-  robotErrorPhi: 10
+  robotErrorPhi: 1.89
   Rr: 0.1
-  Rtheta: 10
+  Rtheta: 1.14
 --- !u!4 &1071717507
 Transform:
   m_ObjectHideFlags: 0
@@ -1153,12 +1187,13 @@ Transform:
   m_GameObject: {fileID: 1071717505}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: -0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1873789702}
   - {fileID: 853304199}
+  - {fileID: 601902076}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1079172984

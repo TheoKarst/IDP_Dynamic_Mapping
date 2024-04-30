@@ -3,6 +3,22 @@ using UnityEngine;
 
 public class RobotController : MonoBehaviour
 {
+    public class ErrorEstimates {
+        public float errorX;
+        public float errorY;
+        public float errorPhi;
+        public float errorR;
+        public float errorTheta;
+
+        public ErrorEstimates(float errorX, float errorY, float errorPhi, float errorR, float errorTheta) {
+            this.errorX = errorX;
+            this.errorY = errorY;
+            this.errorPhi = errorPhi;
+            this.errorR = errorR;
+            this.errorTheta = errorTheta;
+        }
+    }
+
     [Tooltip("Sensor attached to the robot controller, in order to estimate the robot state")]
     public Lidar lidar;
 
@@ -18,9 +34,12 @@ public class RobotController : MonoBehaviour
 
     public float waitBetweenMeasures = 1;
 
+    public bool drawConfirmedLandmarks, drawPotentialLandmarks, drawObservations;
+
     private float velocity = 0;
     private float steering = 0;
 
+    private bool startKalmanFilter = false;
     private KalmanFilter filter;
     private float lastTimeMeasure;
 
@@ -30,17 +49,22 @@ public class RobotController : MonoBehaviour
         ModelParams model = new ModelParams(L, lidar.getLidarA(), lidar.getLidarB());
         StreamWriter logFile = writeLogFile ? File.CreateText("log_file.csv") : null;
 
-        filter = new KalmanFilter(this, initialState, model, logFile);
+        // Estimates of the different errors in the model:
+        ErrorEstimates errorEstimates = new ErrorEstimates(
+            0.4f,
+            0.4f,
+            2 * Mathf.Deg2Rad,
+            0.4f,
+            2 * Mathf.Deg2Rad);
 
-        // Initialise the landmarks with some positions (used for testing):
-        // filter.initLandmarks(lidar.landmarks);
+        filter = new KalmanFilter(this, initialState, model, logFile, errorEstimates);
     }
 
     // Update is called once per frame
     void Update() {
         UpdateRobot();
 
-        if(Time.time - lastTimeMeasure > waitBetweenMeasures) {
+        if(startKalmanFilter && Time.time - lastTimeMeasure > waitBetweenMeasures) {
             UpdateStateEstimate();
             lastTimeMeasure = Time.time;
         }
@@ -48,7 +72,7 @@ public class RobotController : MonoBehaviour
 
     public void OnDrawGizmos() {
         if(filter != null)
-            filter.drawGizmos();
+            filter.drawGizmos(drawConfirmedLandmarks, drawPotentialLandmarks, drawObservations);
     }
 
     private void UpdateRobot() {
@@ -70,6 +94,10 @@ public class RobotController : MonoBehaviour
         else
             steering = 0;
 
+        // Start to run the Kalman Filter when we start moving the vehicle:
+        if (velocity != 0)
+            startKalmanFilter = true;
+
         // Clamp the velocity between boundaries:
         velocity = Mathf.Clamp(velocity, -maxSpeed, maxSpeed);
 
@@ -85,15 +113,13 @@ public class RobotController : MonoBehaviour
     }
 
     private void UpdateStateEstimate() {
-        // Get an observation from the LIDAR:
-        float landmarkDistance, landmarkAngle;
-        (landmarkDistance, landmarkAngle) = lidar.getLandmark();
-
-        Observation observation = new Observation(landmarkDistance, landmarkAngle);
         ModelInputs inputs = new ModelInputs(velocity, Mathf.Deg2Rad * steering);
 
-        // Use the observation to update the robot state estimate:
-        filter.updateStateEstimate(observation, inputs, Time.time);
+        // Get all the observations from the LIDAR:
+        Observation[] observations = lidar.getObservations();
+
+        // Use these observations to update the robot state estimate:
+        filter.updateStateEstimate(observations, inputs, Time.time);
     }
 
     public float getRobotX() {

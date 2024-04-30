@@ -11,10 +11,11 @@ public class Test : MonoBehaviour
     private static VectorBuilder<float> V = Vector<float>.Build;
 
     public Transform robot;
-    public Transform landmark;
-    public float lidarA = 0.1f, lidarB = 0f;
+    public Transform landmark1, landmark2;
     public float robotErrorX = 1, robotErrorY = 1, robotErrorPhi = 1;
     public float Rr = 1, Rtheta = 1;
+
+    private const float lidarA = 0.1f, lidarB = 0f;
 
     // Start is called before the first frame update
     void Start()
@@ -29,16 +30,12 @@ public class Test : MonoBehaviour
     }
 
     private void OnDrawGizmos() {
+        if(robot == null || landmark1 == null || landmark2 == null)
+            return;
+
         float xk = robot.position.x;
         float yk = robot.position.z;
         float phik = Mathf.Deg2Rad * (90 - robot.rotation.eulerAngles.y);
-
-        float dX = landmark.position.x - robot.position.x;
-        float dY = landmark.position.z - robot.position.z;
-        float rf = Mathf.Sqrt(dX * dX + dY * dY);
-
-        float lidarAngle = Mathf.Deg2Rad * (90 - robot.rotation.eulerAngles.y);
-        float thetaf = Mathf.Atan2(dY, dX) - lidarAngle;
 
         Matrix<float> Pv = M.Diagonal(new float[] { 
             robotErrorX * robotErrorX, 
@@ -49,6 +46,34 @@ public class Test : MonoBehaviour
             Rr * Rr,
             (Mathf.Deg2Rad * Rtheta) * (Mathf.Deg2Rad * Rtheta) });
 
+        Vector<float> pf1, pf2;
+        Matrix<float> Pf1, Pf2;
+        (pf1, Pf1) = positionEstimate(Pv, R, landmark1, xk, yk, phik);
+        (pf2, Pf2) = positionEstimate(Pv, R, landmark2, xk, yk, phik);
+
+        Gizmos.color = Color.red;
+        Gizmos.DrawCube(new Vector3(xk, robot.position.y, yk),
+                        new Vector3(robotErrorX, 0, robotErrorY));
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawCube(new Vector3(pf1[0], landmark1.position.y, pf1[1]),
+                        new Vector3(Mathf.Sqrt(Pf1[0, 0]), 0, Mathf.Sqrt(Pf1[1, 1])));
+
+        Gizmos.DrawCube(new Vector3(pf2[0], landmark2.position.y, pf2[1]),
+                        new Vector3(Mathf.Sqrt(Pf2[0, 0]), 0, Mathf.Sqrt(Pf2[1, 1])));
+
+        Vector<float> X = pf1 - pf2;
+        float distance = (float)(X.ToRowMatrix() * (Pf1 + Pf2).Inverse() * X)[0];
+
+        Debug.Log("Mahalanobis distance between landmarks: " + distance);
+    }
+
+    private (Vector<float>, Matrix<float>) positionEstimate(Matrix<float> Pv, Matrix<float> R, Transform landmark, float xk, float yk, float phik) {
+        float dX = landmark.position.x - xk;
+        float dY = landmark.position.z - yk;
+        float rf = Mathf.Sqrt(dX * dX + dY * dY);
+        float thetaf = Mathf.Atan2(dY, dX) - phik;
+
         Vector<float> pf = g(xk, yk, phik, rf, thetaf);
         Matrix<float> gradGxyp = computeGradGxyp(phik, rf, thetaf);    // Matrix(LANDMARK_DIM, STATE_DIM)
         Matrix<float> gradGrt = computeGradGrt(phik, rf, thetaf);      // Matrix(LANDMARK_DIM, OBSERVATION_DIM)
@@ -57,13 +82,7 @@ public class Test : MonoBehaviour
         Matrix<float> Pf = gradGxyp * Pv.TransposeAndMultiply(gradGxyp)
                         + gradGrt * R.TransposeAndMultiply(gradGrt);
 
-        Gizmos.color = Color.red;
-        Gizmos.DrawCube(new Vector3(xk, robot.position.y, yk),
-                        new Vector3(robotErrorX, 0, robotErrorY));
-
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawCube(new Vector3(pf[0], landmark.position.y, pf[1]),
-                        new Vector3(Mathf.Sqrt(Pf[0,0]), 0, Mathf.Sqrt(Pf[1,1])));
+        return (pf, Pf);
     }
 
     private Vector<float> g(float x, float y, float phi, float rf, float thetaf) {

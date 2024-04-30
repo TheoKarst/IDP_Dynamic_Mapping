@@ -23,6 +23,8 @@ public class Lidar : MonoBehaviour
     // The minimum angle for a corner to be detected as such:
     public float angleThreshold = 80;
 
+    public bool drawRays = true;
+
     private float[] raycastDistances;
     private Vector3[] hitPoints;
     private List<Corner> corners;
@@ -41,12 +43,12 @@ public class Lidar : MonoBehaviour
         for (int i = 0; i < raycastDistances.Length; i++) {
             RaycastHit hit;
             if (Physics.Raycast(transform.position, direction, out hit, raycastDistance)) {
-                Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
+                if(drawRays) Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
                 raycastDistances[i] = hit.distance;
                 hitPoints[i] = hit.point;
             }
             else {
-                Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
+                if(drawRays) Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
                 raycastDistances[i] = -1;
                 hitPoints[i] = Vector3.zero;
             }
@@ -118,7 +120,7 @@ public class Lidar : MonoBehaviour
         return -transform.localPosition.x;
     }
 
-    // To update the state of the robot, we should get one landmark observation each frame.
+    /*// To update the state of the robot, we should get one landmark observation each frame.
     // For now, we suppose that the sensor returns a random corner, no matter its distance from the robot:
     public (float, float) getLandmark() {
 
@@ -133,10 +135,27 @@ public class Lidar : MonoBehaviour
         float angle = Mathf.Atan2(dY, dX) - lidarAngle;
 
         return (distance, angle);
+    }*/
+
+    // Return the set of all possible landmarks that could be used to update our state estimate:
+    public Observation[] getObservations() {
+        float lidarAngle = Mathf.Deg2Rad * (90 - gameObject.transform.rotation.eulerAngles.y);
+        Observation[] observations = new Observation[corners.Count];
+        
+        for (int i = 0; i < observations.Length; i++) {
+            float dX = corners[i].position.x - transform.position.x;
+            float dY = corners[i].position.z - transform.position.z;
+            float r = Mathf.Sqrt(dX * dX + dY * dY);
+            float theta = Mathf.Atan2(dY, dX) - lidarAngle;
+
+            observations[i] =  new Observation(r, theta);
+        }
+
+        return observations;
     }
 
     public void DrawObservation(Observation observation, Color color) {
-        float duration = 0.05f;
+        float duration = 0.1f;
 
         Vector3 direction = transform.TransformDirection(Vector3.forward);
         direction = Quaternion.AngleAxis(-observation.theta * Mathf.Rad2Deg, Vector3.up) * direction;

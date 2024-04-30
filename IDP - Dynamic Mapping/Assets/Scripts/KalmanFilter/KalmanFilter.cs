@@ -2,6 +2,7 @@ using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
+using static RobotController;
 
 public class KalmanFilter {
     // Define some constants for the dimensions of the state, landmarks and observations:
@@ -29,8 +30,13 @@ public class KalmanFilter {
     private ModelState stateEstimate;                        // x_hat(k|k)
     private StateCovariance stateCovarianceEstimate;         // P(k|k)
 
+    // This represent the state estimate with state prediction only
+    // (without using Kalman filter update from observations). This is used to show the impact of the EKF
+    // on the state estimate:
+    private ModelState stateEstimateNoUpdate;
+
     // Save the last time of an update to determine the elapsed time between two updates:
-    private float lastTimeUpdate;
+    private float lastTimeUpdate = -1;
 
     // Local position of the lidar and length of the vehicle, as defined in Dissanayake's paper:
     private ModelParams model;
@@ -41,7 +47,14 @@ public class KalmanFilter {
     // Use a pointer to the robot controller to have the real state of the robot (only used for logs):
     private RobotController controller;
 
-    public KalmanFilter(RobotController controller, ModelState initialState, ModelParams model, StreamWriter logFile) {
+    // TESTING: Save the observations to draw them:
+    private List<Vector<float>> observationsPos;
+    private List<Matrix<float>> observationsCov;
+    private int debugLandmarkIndex = -1, debugObservationIndex = -1;
+
+    public KalmanFilter(RobotController controller, ModelState initialState, 
+        ModelParams model, StreamWriter logFile, ErrorEstimates errorEstimates) {
+
         this.controller = controller;
         this.model = model;
         this.logFile = logFile;
@@ -49,14 +62,20 @@ public class KalmanFilter {
         if(logFile != null )
             logFile.WriteLine("time;real_x;predict_x;update_x;real_y;predict_y;update_y;real_phi;predict_phi;update_phi");
 
-        const float eX = 0.1f, ey = 0.1f, ephi = Mathf.Deg2Rad * 5;
-        const float eR = 0.1f, etheta = Mathf.Deg2Rad * 5;
+        float eX = errorEstimates.errorX;
+        float eY = errorEstimates.errorY;
+        float ePhi = errorEstimates.errorPhi;
+        float eR = errorEstimates.errorR;
+        float eTheta = errorEstimates.errorTheta;
+        Debug.Log("Error estimates: (eX, eY, ePhi°, eR, eTheta°) = (" 
+            + eX + ", " + eY + ", " + Mathf.Rad2Deg * ePhi + ", " + eR + ", " + Mathf.Rad2Deg * eTheta + ")");
 
-        Q = M.Diagonal(new float[] {eX*eX, ey*ey, ephi*ephi});      // Covariance matrix for the process noise errors (x, y, phi)
-        R = M.Diagonal(new float[] {eR*eR, etheta*etheta});         // Covariance matrix for the observation errors (r, theta)
+        Q = M.Diagonal(new float[] {eX*eX, eY*eY, ePhi*ePhi});      // Covariance matrix for the process noise errors (x, y, phi)
+        R = M.Diagonal(new float[] {eR*eR, eTheta*eTheta});         // Covariance matrix for the observation errors (r, theta)
 
         // Initialize the state estimate with the given start position of the robot:
         stateEstimate = initialState;
+        stateEstimateNoUpdate = initialState;
         stateCovarianceEstimate = new StateCovariance(STATE_DIM, 0, LANDMARK_DIM);
     }
 
@@ -77,70 +96,133 @@ public class KalmanFilter {
 
     // For debugging, draw cubes to represent the position of the robot (red), and
     // the confirmed (green) and potential (yellow) landmarks:
-    public void drawGizmos() {
+    public void drawGizmos(bool drawConfirmedLandmarks, bool drawPotentialLandmarks, bool drawObservations) {
         Matrix<float> cov;
         Vector<float> position;
 
         // Position and error estimate of the robot:
         Gizmos.color = Color.red;
         cov = stateCovarianceEstimate.extractPvv();
-        Gizmos.DrawCube(new Vector3(stateEstimate.x, 0.5f, stateEstimate.y),
-                        new Vector3(Mathf.Sqrt(cov[0, 0]), 0, Mathf.Sqrt(cov[1, 1])));
+        Vector3 robotCenter = new Vector3(stateEstimate.x, 0.5f, stateEstimate.y);
+        Gizmos.DrawCube(robotCenter,
+                        new Vector3(Mathf.Sqrt(cov[0,0]), Mathf.Sqrt(cov[2,2]), Mathf.Sqrt(cov[1,1])));
 
+        Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * stateEstimate.phi, Vector3.up)
+            * Vector3.right;
+        Gizmos.DrawLine(robotCenter, robotCenter + direction);
 
-        // Position and error estimate of the confirmed landmarks:
-        Gizmos.color = Color.green;
-        for(int i = 0; i < confirmedLandmarks.Count; i++) {
-            position = confirmedLandmarks[i].getPosition();
-            cov = stateCovarianceEstimate.extractLandmarkCovariance(i);
-            Gizmos.DrawCube(new Vector3(position[0], 0.5f, position[1]), 
-                            new Vector3(Mathf.Sqrt(cov[0, 0]), 0, Mathf.Sqrt(cov[1, 1])));
+        if (drawConfirmedLandmarks) {
+            // Position and error estimate of the confirmed landmarks:
+            for (int i = 0; i < confirmedLandmarks.Count; i++) {
+                position = confirmedLandmarks[i].getPosition();
+                cov = stateCovarianceEstimate.extractLandmarkCovariance(i);
+
+                Gizmos.color = i == debugLandmarkIndex ? Color.yellow : Color.green;
+                Gizmos.DrawCube(new Vector3(position[0], 0.5f, position[1]),
+                                new Vector3(Mathf.Sqrt(cov[0, 0]), 0, Mathf.Sqrt(cov[1, 1])));
+            }
         }
 
-        // Position and error estimate of the potential landmarks:
-        Gizmos.color = Color.yellow;
-        foreach(PotentialLandmark landmark in potentialLandmarks) {
-            position = landmark.getPosition();
-            cov = landmark.getCovariance();
+        if(drawPotentialLandmarks) {
+            // Position and error estimate of the potential landmarks:
+            Gizmos.color = Color.red;
+            foreach (PotentialLandmark landmark in potentialLandmarks) {
+                position = landmark.getPosition();
+                cov = landmark.getCovariance();
 
-            Gizmos.DrawCube(new Vector3(position[0], 0.8f, position[1]),
-                            new Vector3(Mathf.Sqrt(cov[0, 0]), 0, Mathf.Sqrt(cov[1, 1])));
+                Gizmos.DrawCube(new Vector3(position[0], 0.5f, position[1]),
+                                new Vector3(Mathf.Sqrt(cov[0, 0]), 0, Mathf.Sqrt(cov[1, 1])));
+            }
+        }
+
+        if (observationsPos != null && drawObservations) {
+            // Also draw the position of the observations position estimates:
+            for (int i = 0; i < observationsPos.Count; i++) {
+                position = observationsPos[i];
+                cov = observationsCov[i];
+
+                Gizmos.color = i == debugObservationIndex ? Color.yellow : Color.blue;
+                Gizmos.DrawCube(new Vector3(position[0], 0.5f, position[1]),
+                                new Vector3(0.1f, 0, 0.1f)); // new Vector3(Mathf.Sqrt(cov[0, 0]), 0, Mathf.Sqrt(cov[1, 1])));
+            }
         }
     }
 
-    // Given an observation from the sensor of the robot, the inputs of the robot and the current time,
-    // try to associate the observation with a known landmark and update the robot state using the
-    // "Extended Kalman Filter". The observation may be null (no interesting candidate). In this case,
+    // Given observations from the sensor of the robot, the inputs of the robot and the current time,
+    // try to associate the observations with known landmarks and update the robot state using the
+    // Extended Kalman Filter. The observation may be empty (no interesting candidate). In this case,
     // we just perform a state prediction without update:
-    public void updateStateEstimate(Observation observation, ModelInputs inputs, float currentTime) {
-        float deltaT = currentTime - lastTimeUpdate;
+    public void updateStateEstimate(Observation[] observations, ModelInputs inputs, float currentTime) {
+        float deltaT = lastTimeUpdate < 0 ? 0 : currentTime - lastTimeUpdate;
         lastTimeUpdate = currentTime;
         timestep++;
-
-        Debug.Log("State estimate: " + stateEstimate);
 
         //// 1. Prediction: Predict the current state estimate from our previous estimate and the current inputs
 
         // Equation (10): From the previous state estimate and current inputs,
         // predict a new state estimate: x_hat(k+1|k)
         ModelState statePrediction = predictStateEstimate(stateEstimate, inputs, deltaT);
+
+        Debug.Log("Estimate: " + stateEstimate + "; Prediction: " + statePrediction
+            + "; Confirmed landmarks: " + confirmedLandmarks.Count + "; Potential: " + potentialLandmarks.Count);
+
+        // TESTING:
+        stateEstimateNoUpdate = predictStateEstimate(stateEstimateNoUpdate, inputs, deltaT);
         
         // Equation (12): From the previous state estimate and the current inputs, compute the new estimate of the
         // state covariance matrix: P(k+1|k)
         Matrix<float> Fv = computeFv(stateEstimate, inputs, deltaT);
         StateCovariance stateCovariancePrediction = stateCovarianceEstimate.predictStateEstimateCovariance(Fv, Q);
 
-        // Use the landmark association algorithm defined in the Appendix II to associate our observation with
-        // a possible landmark:
-        int landmarkIndex = computeLandmarkAssociation(observation, statePrediction, stateCovariancePrediction);
+        observationsPos = new List<Vector<float>>();
+        observationsCov = new List<Matrix<float>>();
+
+        int landmarkIndex = -1, observationIndex = -1;
+        float maxDistance = -1;
+        for(int i = 0; i < observations.Length; i++) {
+            // Use the landmark association algorithm defined in the Appendix II to associate our observation with
+            // a possible landmark:
+            int index; float distance;
+            (index, distance) = computeLandmarkAssociation(observations[i], statePrediction, stateCovariancePrediction);
+
+            // If we have a valid landmark index, and a distance smaller than our previous minimum,
+            // then update the minimum:
+            if(index != -1 && (distance > maxDistance)) {
+                landmarkIndex = index;
+                observationIndex = i;
+                maxDistance = distance;
+            }
+        }
+
+        debugLandmarkIndex = landmarkIndex;
+        debugObservationIndex = observationIndex;
+
+        // Update the set of landmarks:
+        updatePotentialLandmarks(stateCovariancePrediction);
         
         // If no candidate landmark was found for our observation, ignore the update procedure and use the
         // state prediction and covariance prediction as the new state and covariance estimates:
         if (landmarkIndex == -1) {
             stateEstimate = statePrediction;
             stateCovarianceEstimate = stateCovariancePrediction;
+
+            if (logFile != null) {
+                ModelState realState = controller.getRobotRealState();
+                float realPhi = principalDegreeMeasure(realState.phi);
+                float predictPhi = principalDegreeMeasure(stateEstimateNoUpdate.phi);
+                float estimatePhi = principalDegreeMeasure(stateEstimate.phi);
+
+                logFile.WriteLine(currentTime + ";"
+                                + realState.x + ";" + stateEstimateNoUpdate.x + ";" + stateEstimate.x + ";"
+                                + realState.y + ";" + stateEstimateNoUpdate.y + ";" + stateEstimate.y + ";"
+                                + realPhi + ";" + predictPhi + ";" + estimatePhi);
+            }
+
             return;
         }
+
+        // Use the observation with the highest error to update our state estimate:
+        Observation observation = observations[observationIndex];
 
         // Equation (11): From the state prediction, and the landmark associated with the observation,
         // predict what the observation should be: z_hat(k+1|k)
@@ -148,6 +230,10 @@ public class KalmanFilter {
 
         //// 2. Observation: Compare the expected observation with the real observation:
         Vector<float> innovation = Observation.substract(observation, observationPrediction);
+
+        // Debug: Draw the expected observation and the real observation:
+        controller.lidar.DrawObservation(observationPrediction, Color.blue);
+        controller.lidar.DrawObservation(observation, Color.green);
 
         Matrix<float> Hi, Si, Wi;
         Hi = computeHi(statePrediction, landmarkIndex, confirmedLandmarks.Count);           // Equation (37)
@@ -161,25 +247,30 @@ public class KalmanFilter {
         // Write data to the log file:
         if(logFile != null) {
             ModelState realState = controller.getRobotRealState();
+            float realPhi = principalDegreeMeasure(realState.phi);
+            float predictPhi = principalDegreeMeasure(stateEstimateNoUpdate.phi);
+            float updatePhi = principalDegreeMeasure(stateEstimate.phi);
+
             logFile.WriteLine(currentTime + ";"
-                            + realState.x + ";" + statePrediction.x + ";" + stateEstimate.x + ";"
-                            + realState.y + ";" + statePrediction.y + ";" + stateEstimate.y + ";"
-                            + realState.phi + ";" + statePrediction.phi + ";" + stateEstimate.phi);
+                            + realState.x + ";" + stateEstimateNoUpdate.x + ";" + stateEstimate.x + ";"
+                            + realState.y + ";" + stateEstimateNoUpdate.y + ";" + stateEstimate.y + ";"
+                            + realPhi + ";" + predictPhi + ";" + updatePhi);
         }
     }
 
-    // From the observation from the LIDAR, the predicted state, the predicted state covariance estimate
+    private float principalDegreeMeasure(float angle) {
+        while (angle > Mathf.PI)  angle -= 2 * Mathf.PI;
+        while (angle < -Mathf.PI) angle += 2 * Mathf.PI;
+
+        return angle * Mathf.Rad2Deg;
+    }
+
+    // From an observation of the LIDAR, the predicted state, the predicted state covariance estimate
     // and the previous landmarks, return the index of the landmark that is the most likely to correspond
-    // to the observation. If no appropriate landmark is found, the set of potential landmarks is updated.
-    // return -1 if there is no candidate for the landmark
-    private int computeLandmarkAssociation(Observation observation, ModelState statePrediction, StateCovariance stateCovariancePrediction) {
-        if (observation == null)
-            return -1;
-
-        const float dmin = 0.1f;   // Maximum Mahalanobis distance between an observation and a landmark
-        const int cmin = 5;         // Number of associations to consider a potential landmark as stable
-        const int tmax = 100;       // Number of timesteps after which an unstable potential landmark is removed
-
+    // to the observation, as well as the Mahalanobis distance between the observation and the landmark.
+    // If no appropriate landmark is found, the set of potential landmarks is updated.
+    // return (-1, -1) if there is no landmark candidate for the observation
+    private (int, float) computeLandmarkAssociation(Observation observation, ModelState statePrediction, StateCovariance stateCovariancePrediction) {
         // Perform some renamings for readability:
         float xk = statePrediction.x, yk = statePrediction.y, phik = statePrediction.phi;
         float rf = observation.r, thetaf = observation.theta;
@@ -199,6 +290,9 @@ public class KalmanFilter {
         Matrix<float> Pf = gradGxyp * Pv.TransposeAndMultiply(gradGxyp)
                         + gradGrt * R.TransposeAndMultiply(gradGrt);
 
+        observationsPos.Add(pf);
+        observationsCov.Add(Pf);
+
         // Compute the minimum distance between the observation and all the confirmed and potential landmarks:
         float minDistance = -1;
 
@@ -216,21 +310,21 @@ public class KalmanFilter {
                 minDistance = dfi;
 
             // If dfi < dmin, then the current landmark is chosen as a candidate for the observation:
-            if (dfi < dmin) {
+            if (dfi < 0.1f) {
                 // If no other landmark was accepted before, then accept this landmark:
                 if (acceptedLandmark == -1) acceptedLandmark = i;
 
                 // Else if more than one landmark is accepted for this observation, reject the observation:
                 else {
                     Debug.LogError("Observation rejected: more than one landmark corresponds to this observation !");
-                    return -1;
+                    return (-1, -1);
                 }
             }
         }
 
         // If a confirmed landmark was accepted for the observation, use it to generate a new state estimate:
         if (acceptedLandmark != -1)
-            return acceptedLandmark;
+            return (acceptedLandmark, minDistance);
 
         // 3. Else we have to check the observation against the set of potential landmarks:
         for (int i = 0; i < potentialLandmarks.Count; i++) {
@@ -245,14 +339,14 @@ public class KalmanFilter {
                 minDistance = dfi;
 
             // If dfi < dmin, then the current landmark is chosen as a candidate for the observation:
-            if (dfi < dmin) {
+            if (dfi < 0.001f) {
                 // If no other landmark was accepted before, then accept this landmark:
                 if (acceptedLandmark == -1) acceptedLandmark = i;
 
                 // Else if more than one landmark is accepted for this observation, reject the observation:
                 else {
                     Debug.LogError("Observation rejected: more than one potential landmark corresponds to this observation !");
-                    return -1;
+                    return (-1, -1);
                 }
             }
         }
@@ -262,16 +356,27 @@ public class KalmanFilter {
             potentialLandmarks[acceptedLandmark].updateState(pf, Pf);
         }
 
-        // 4. Else if the observation is at least 100 times away from the nearest landmark,
+        // 4. Else if the observation has a Mahalanobis distance of 10 from the nearest landmark,
         // it can be considered as a new landmark (we do this to avoid having many landmarks near to each other,
         // which can break the localisation algorithm):
-        else if (minDistance < 0 || minDistance > 100 * dmin) {
+        else if (minDistance < 0 || minDistance > 10) {
             potentialLandmarks.Add(new PotentialLandmark(pf, Pf, timestep));
         }
 
-        // 5. Finally, examine the set of potential landmarks, remove the unused ones and confirm the most stable ones:
+        // Even if we found a potential landmark that matches the observation, still don't use it to update
+        // the state estimate, since this may be an unstable landmark:
+        return (-1, minDistance);
+    }
+
+    // Step 5. of the Appendix II: Examine the set of potential landmarks, remove the unused ones and
+    // confirm the most stable ones:
+    private void updatePotentialLandmarks(StateCovariance stateCovariancePrediction) {
+        const int cmin = 5;         // Number of associations to consider a potential landmark as stable
+        const int tmax = 50;        // Number of timesteps after which an unstable potential landmark is removed
+
         List<PotentialLandmark> newPotentialLandmarks = new List<PotentialLandmark>();
-        for(int i = 0; i < potentialLandmarks.Count; i++) {
+
+        for (int i = 0; i < potentialLandmarks.Count; i++) {
             PotentialLandmark current = potentialLandmarks[i];
 
             // a. If the potential landmark is stable enough, add it to the list of confirmed landmarks:
@@ -285,11 +390,8 @@ public class KalmanFilter {
                 newPotentialLandmarks.Add(current);
             }
         }
-        potentialLandmarks = newPotentialLandmarks;
 
-        // Even if we found a potential landmark that matches the observation, still don't use it to update
-        // the state estimate, since this may be an unstable landmark:
-        return -1;
+        potentialLandmarks = newPotentialLandmarks;
     }
 
     private Vector<float> g(float x, float y, float phi, float rf, float thetaf) {
