@@ -1072,7 +1072,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   raycastCount: 500
-  raycastDistance: 5
+  raycastDistance: 10
   deltaCorners: 1
   angleThreshold: 80
   drawRays: 0
