@@ -1,23 +1,7 @@
 using System.IO;
 using UnityEngine;
 
-public class RobotController : MonoBehaviour
-{
-    public class ErrorEstimates {
-        public float errorX;
-        public float errorY;
-        public float errorPhi;
-        public float errorR;
-        public float errorTheta;
-
-        public ErrorEstimates(float errorX, float errorY, float errorPhi, float errorR, float errorTheta) {
-            this.errorX = errorX;
-            this.errorY = errorY;
-            this.errorPhi = errorPhi;
-            this.errorR = errorR;
-            this.errorTheta = errorTheta;
-        }
-    }
+public class RobotController : MonoBehaviour {
 
     [Tooltip("Sensor attached to the robot controller, in order to estimate the robot state")]
     public Lidar lidar;
@@ -36,6 +20,8 @@ public class RobotController : MonoBehaviour
 
     public bool drawConfirmedLandmarks, drawPotentialLandmarks, drawObservations;
 
+    public float minDistanceBetweenLandmarks = 1;
+
     private float velocity = 0;
     private float steering = 0;
 
@@ -46,18 +32,26 @@ public class RobotController : MonoBehaviour
     // Start is called before the first frame update
     void Start() {
         ModelState initialState = getRobotRealState();
-        ModelParams model = new ModelParams(L, lidar.getLidarA(), lidar.getLidarB());
         StreamWriter logFile = writeLogFile ? File.CreateText("log_file.csv") : null;
 
         // Estimates of the different errors in the model:
-        ErrorEstimates errorEstimates = new ErrorEstimates(
-            0.4f,
-            0.4f,
-            2 * Mathf.Deg2Rad,
-            0.4f,
-            2 * Mathf.Deg2Rad);
+        ModelParams model = new ModelParams();
 
-        filter = new KalmanFilter(this, initialState, model, logFile, errorEstimates);
+        // Dimensions of the model:
+        model.L = L;
+        model.a = lidar.getLidarA();
+        model.b = lidar.getLidarB();
+
+        // Error estimates used in the Kalman Filter:
+        model.errorX = model.errorY = 0.4f;
+        model.errorPhi = 2 * Mathf.Deg2Rad;
+        model.errorR = 0.4f;
+        model.errorTheta = 2 * Mathf.Deg2Rad;
+
+        // Also define the minimum distance between landmarks:
+        model.minDistanceBetweenLandmarks = minDistanceBetweenLandmarks;
+
+        filter = new KalmanFilter(this, initialState, model, logFile);
     }
 
     // Update is called once per frame

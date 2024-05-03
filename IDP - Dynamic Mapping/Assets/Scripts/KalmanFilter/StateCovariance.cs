@@ -66,11 +66,12 @@ public class StateCovariance {
             Pmm);
     }
 
-    public (Matrix<float>, Matrix<float>) computeInnovationAndGainMatrices(Matrix<float> Hi, Matrix<float> R) {
-        Matrix<float> tmp = P.TransposeAndMultiply(Hi);
+    public (Matrix<float>, Matrix<float>) computeInnovationAndGainMatrices(Matrix<float> H, Matrix<float> R) {
+        // H = Matrix(observationsCou
+        Matrix<float> tmp = P.TransposeAndMultiply(H);
 
-        Matrix<float> Si = Hi * tmp + R;           // Matrix(OBSERVATION_DIM, OBSERVATION_DIM)
-        Matrix<float> Wi = tmp * Si.Inverse();     // Matrix(STATE_DIM+landmarkCount*LANDMARK_DIM, OBSERVATION_DIM)
+        Matrix<float> Si = H * tmp + R;           // Matrix(OBSERVATION_DIM, OBSERVATION_DIM)
+        Matrix<float> Wi = tmp * Si.Inverse();    // Matrix(STATE_DIM+landmarkCount*LANDMARK_DIM, OBSERVATION_DIM)
 
         return (Si, Wi);
     }

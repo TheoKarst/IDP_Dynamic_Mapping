@@ -13,13 +13,14 @@ public class PotentialLandmark {
         this.countAssociations = 0;
     }
 
-    public void updateState(Vector<float> position, Matrix<float> covariance) {
-        // We update the landmark covariance and position estimates by doing an average of the
-        // previous estimates and the new ones:
+    public void updateState(Vector<float> newPosEstimate, Matrix<float> newPosCovariance) {
+        // We update the landmark covariance and position estimates using the Kalman gain:
+        Matrix<float> K = covariance * (covariance + newPosCovariance).Inverse();
 
-        this.position = (this.position + position) / 2;
-        this.covariance = (this.covariance + covariance) / 2;
-        this.countAssociations++;
+        position = position + K * (newPosEstimate - position);
+        covariance = covariance - K * covariance;
+        
+        countAssociations++;
     }
 
     public Landmark toLandmark() {

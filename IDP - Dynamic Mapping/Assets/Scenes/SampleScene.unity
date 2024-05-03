@@ -273,7 +273,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &288674149
 Transform:
   m_ObjectHideFlags: 0
@@ -378,7 +378,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &385493018
 Transform:
   m_ObjectHideFlags: 0
@@ -1002,13 +1002,14 @@ MonoBehaviour:
   writeLogFile: 1
   acceleration: 10
   L: 0.3
-  maxSpeed: 1
+  maxSpeed: 2
   maxSteering: 10
   friction: 10
   waitBetweenMeasures: 0.2
   drawConfirmedLandmarks: 1
   drawPotentialLandmarks: 1
   drawObservations: 1
+  minDistanceBetweenLandmarks: 4
 --- !u!1 &987848140
 GameObject:
   m_ObjectHideFlags: 0
@@ -1482,7 +1483,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1134264856
 Transform:
   m_ObjectHideFlags: 0
@@ -1859,7 +1860,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1456052668
 Transform:
   m_ObjectHideFlags: 0
@@ -2691,7 +2692,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2112790226
 Transform:
   m_ObjectHideFlags: 0

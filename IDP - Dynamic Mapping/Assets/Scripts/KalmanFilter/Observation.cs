@@ -12,17 +12,15 @@ public class Observation {
         this.theta = theta;
     }
 
-    public static Vector<float> substract(Observation a, Observation b) {
+    public static void substract(Observation a, Observation b, Vector<float> dest, int index) {
 
         // The error on the angle should be between -pi and pi:
         float deltaAngle = a.theta - b.theta;
         while(deltaAngle > Mathf.PI) deltaAngle -= 2 * Mathf.PI;
         while(deltaAngle < -Mathf.PI) deltaAngle += 2 * Mathf.PI;
 
-        return V.Dense(new float[] {
-            a.r - b.r,
-            deltaAngle
-        });
+        dest[index] = a.r - b.r;
+        dest[index + 1] = deltaAngle;
     }
 
     public override string ToString() {
