@@ -1,36 +1,34 @@
 class MovingEntity {
-  private final float speed;
-  private final float radius;
-  private final int minWaitMillis, maxWaitMillis;
+  private final int minWaitFrames, maxWaitFrames;
   
   private float startX, startY;
   private float targetX, targetY;
-  private float startTimeMillis;          // Time (in milliseconds) at which the entity was at the start position
-  private float endTimeMillis;            // Predicted time at which the entity will reach the target
-  private int targetWaitMillis;         // Duration the entity will wait at the target position before selecting a new target
+  private float startTimeFrame;          // Frame at which the entity was at the start position
+  private float endTimeFrame;            // Predicted frame at which the entity will reach the target
+  private int targetWaitFrames;          // Duration the entity will wait at the target position before selecting a new target
   
-  private float x, y;                     // Current position of the entity
+  public final float speed;
+  public final float radius;
+  protected float x, y;                    // Current position of the entity
   
-  public MovingEntity(float speed, float radius, int minWaitMillis, int maxWaitMillis) {
+  public MovingEntity(float startX, float startY, float speed, float radius, int minWaitFrames, int maxWaitFrames) {
     this.speed = speed;
     this.radius = radius;
-    this.minWaitMillis = minWaitMillis;
-    this.maxWaitMillis = maxWaitMillis;
+    this.minWaitFrames = minWaitFrames;
+    this.maxWaitFrames = maxWaitFrames;
     
-    x = targetX = random(width);
-    y = targetY = random(height);
+    x = targetX = startX;
+    y = targetY = startY;
     
     selectNewTarget();
   }
   
-  public void Update() {
-    int currentTime = millis();
-    
-    if(currentTime < endTimeMillis) {
-      x = map(currentTime, startTimeMillis, endTimeMillis, startX, targetX);
-      y = map(currentTime, startTimeMillis, endTimeMillis, startY, targetY);
+  public void Update() {    
+    if(frameCount < endTimeFrame) {
+      x = map(frameCount, startTimeFrame, endTimeFrame, startX, targetX);
+      y = map(frameCount, startTimeFrame, endTimeFrame, startY, targetY);
     }
-    else if(currentTime < endTimeMillis + targetWaitMillis) {
+    else if(frameCount < endTimeFrame + targetWaitFrames) {
       x = targetX;
       y = targetY;
     }
@@ -72,13 +70,13 @@ class MovingEntity {
     
     targetX = random(width);
     targetY = random(height);
-    targetWaitMillis = (int) random(minWaitMillis, maxWaitMillis);
+    targetWaitFrames = (int) random(minWaitFrames, maxWaitFrames);
     
     float dX = startX - targetX;
     float dY = startY - targetY;
     float distance = sqrt(dX*dX + dY*dY);
     
-    startTimeMillis = millis();
-    endTimeMillis = startTimeMillis + 1000 * distance / speed;
+    startTimeFrame = frameCount;
+    endTimeFrame = startTimeFrame + distance / speed;
   }
 }

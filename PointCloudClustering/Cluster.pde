@@ -1,9 +1,11 @@
 class Cluster {
   private final ArrayList<PVector> points;
-  private final color clusterColor;
+  public color clusterColor;
   
   private float x, y;    // Center of the cluster
   private float clusterSizeX, clusterSizeY, clusterAngle;
+  
+  public float speedX, speedY;
   
   public Cluster(ArrayList<PVector> points, color clusterColor) {
     this.points = points;
@@ -11,6 +13,11 @@ class Cluster {
   }
   
   public void Draw() {
+    final float speedFactor = 10000;
+    
+    stroke(255, 0, 0);
+    line(x, y, x + speedFactor * speedX, y + speedFactor * speedY);
+    
     stroke(0);
     fill(clusterColor, 120);
     
@@ -73,5 +80,29 @@ class Cluster {
     clusterAngle = atan2(u.y, u.x);
     clusterSizeX = 2 * factorU + 10;
     clusterSizeY = 2 * factorV + 10;
+  }
+  
+  // Compute how the two clusters are likely to be the same. The first estimate is to simply return the distance between the rectangles,
+  // but a better estimate would also take into accound their orientation and dimensions...
+  public float distanceTo(Cluster other) {
+    float dX = x - other.x;
+    float dY = y - other.y;
+    
+    return sqrt(dX*dX + dY*dY);
+  }
+  
+  public void updateSpeedEstimate(float estSpeedX, float estSpeedY) {
+    final float memory = 0.9f;
+    
+    this.speedX = (memory * speedX + (1-memory) * estSpeedX);
+    this.speedY = (memory * speedY + (1-memory) * estSpeedY);
+  }
+  
+  public int clusterSize() {
+    return points.size();
+  }
+  
+  public PVector getPosition() {
+    return new PVector(x, y);
   }
 }

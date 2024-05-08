@@ -1,55 +1,20 @@
-class Lidar {  
-  private final float speed;
-  private final float radius;
-  private final int minWaitMillis, maxWaitMillis;
+class Lidar extends MovingEntity {  
+  private RaycastHit[] raycastHits;
   
-  private float startX, startY;
-  private float targetX, targetY;
-  private float startTimeMillis;          // Time (in milliseconds) at which the entity was at the start position
-  private float endTimeMillis;            // Predicted time at which the entity will reach the target
-  private int targetWaitMillis;         // Duration the entity will wait at the target position before selecting a new target
-  
-  private float x, y;                     // Current position of the entity
-  
-  private Point[] intersectPoints;
-  
-  public Lidar(int raycastCount, float startX, float startY, float speed, float radius, int minWaitMillis, int maxWaitMillis) {
-    intersectPoints = new Point[raycastCount];
+  public Lidar(int raycastCount, float startX, float startY, float speed, float radius, int minWaitFrames, int maxWaitFrames) {
+    super(startX, startY, speed, radius, minWaitFrames, maxWaitFrames);
     
-    this.speed = speed;
-    this.radius = radius;
-    this.minWaitMillis = minWaitMillis;
-    this.maxWaitMillis = maxWaitMillis;
-    
-    x = targetX = startX;
-    y = targetY = startY;
-    
-    if(speed != 0)
-      selectNewTarget();
+    raycastHits = new RaycastHit[raycastCount];
   }
   
   public void Update() {
-    if(speed != 0) {
-      int currentTime = millis();
-      
-      // Update the LIDAR position:
-      if(currentTime < endTimeMillis) {
-        x = map(currentTime, startTimeMillis, endTimeMillis, startX, targetX);
-        y = map(currentTime, startTimeMillis, endTimeMillis, startY, targetY);
-      }
-      else if(currentTime < endTimeMillis + targetWaitMillis) {
-        x = targetX;
-        y = targetY;
-      }
-      else
-        selectNewTarget();
-    }
+    super.Update();
       
     // Update the raycast intersections:
     PVector d = new PVector(1, 0);
-    for(int i = 0; i < intersectPoints.length; i++) {
-      intersectPoints[i] = intersectPoint(x, y, d, 400);
-      d.rotate(TWO_PI / intersectPoints.length);
+    for(int i = 0; i < raycastHits.length; i++) {
+      raycastHits[i] = computeRaycastHit(x, y, d, 1000);
+      d.rotate(TWO_PI / raycastHits.length);
     }
   }
   
@@ -60,43 +25,57 @@ class Lidar {
     ellipse(x, y, 2*radius, 2*radius);
     
     stroke(255, 0, 0);
-    for(Point intersect : intersectPoints) {
-      line(x, y, intersect.x, intersect.y);
+    for(RaycastHit hit : raycastHits) {
+      line(x, y, hit.x, hit.y);
     }
   }
   
-  public PVector[] getIntersectPoints() {
+  public PVector[] getHitPoints() {
     int hitCount = 0;
-    for(Point point : intersectPoints)
-      if(point.hit)
+    for(RaycastHit hit : raycastHits)
+      if(hit.valid)
         hitCount++;
         
     PVector[] positions = new PVector[hitCount];
     
     int posIndex = 0;
-    for(Point point : intersectPoints){
-      if(point.hit) {
-        positions[posIndex] = new PVector(point.x, point.y);
+    for(RaycastHit hit : raycastHits){
+      if(hit.valid) {
+        positions[posIndex] = new PVector(hit.x, hit.y);
         posIndex++;
       }
     }
       
     return positions;
   }
+}
+
+class RaycastHit {
+  public final float x, y;
+  public final boolean valid;  // If a hit was found or not
   
-  private void selectNewTarget() {
-    startX = targetX;
-    startY = targetY;
-    
-    targetX = random(width);
-    targetY = random(height);
-    targetWaitMillis = (int) random(minWaitMillis, maxWaitMillis);
-    
-    float dX = startX - targetX;
-    float dY = startY - targetY;
-    float distance = sqrt(dX*dX + dY*dY);
-    
-    startTimeMillis = millis();
-    endTimeMillis = startTimeMillis + 1000 * distance / speed;
+  public RaycastHit(float x, float y, boolean valid) {
+    this.x = x;
+    this.y = y;
+    this.valid = valid;
   }
+}
+
+RaycastHit computeRaycastHit(float originX, float originY, PVector raycastDirection, float maxDistance) {
+  raycastDirection.normalize();
+  
+  boolean hit = false;
+  for(MovingEntity entity : entities) {
+    float distance = entity.intersectDistance(originX, originY, raycastDirection.x, raycastDirection.y);
+    
+    if(distance >= 0 && distance < maxDistance) {
+      maxDistance = distance;
+      hit = true;
+    }
+  }
+    
+  float intersectX = originX + raycastDirection.x * maxDistance;
+  float intersectY = originY + raycastDirection.y * maxDistance;
+  
+  return new RaycastHit(intersectX, intersectY, hit);
 }
