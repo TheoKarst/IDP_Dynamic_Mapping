@@ -1,40 +1,33 @@
 import org.ejml.data.*;
 import org.ejml.simple.*;
 
+// Global parameters:
+final int MIN_POINTS_PER_CLUSTER = 3;
+final float POINT_CLUSTER_VISIBILITY = 30;
+final int POINT_CLUSTER_LIFETIME = 100;
+final float RECT_CLUSTER_MARGIN = 10;
+
+final int LIDAR_RAYCAST_COUNT = 500;
+final int ENTITIES_COUNT = 5;
+
 // Look at: dbscan
-
-ArrayList<Cluster> previousClusters, currentClusters;
-
-Kmeans kmeans;
-MovingEntity entities[] = new MovingEntity[1];
+ClusterManager manager;
+MovingEntity entities[] = new MovingEntity[ENTITIES_COUNT];
 Lidar lidar;
-boolean pause = false;
-boolean clearBackground = true;
 
-boolean showLidar = true;
-boolean showPoints = true;
-boolean showClusters = true;
-boolean showObjects = true;
+boolean pause = false;
+
+boolean showLidar = false;
+boolean showRectClusters = true;
+boolean showPointClusters = true;
+boolean showEntities = true;
 
 color[] defaultColors = new color[] {
-  color(255, 0, 0),
-  color(0, 255, 0),
-  color(0, 0, 255),
-  
-  color(255, 255, 0),
-  color(255, 0, 255),
-  color(0, 255, 255),
-  
-  color(255, 127, 127),
-  color(127, 255, 127),
-  color(127, 127, 255),
-  
-  color(255, 255, 127),
-  color(255, 127, 255),
-  color(127, 255, 255)
+  color(255, 0, 0),     color(0, 255, 0),     color(0, 0, 255),
+  color(255, 255, 0),   color(255, 0, 255),   color(0, 255, 255),
+  color(255, 127, 127), color(127, 255, 127), color(127, 127, 255),
+  color(255, 255, 127), color(255, 127, 255), color(127, 255, 255)
 };
-
-color[] myColors;
 
 void setup() {
   size(1000, 600);
@@ -45,190 +38,84 @@ void setup() {
   // Create entities:
   for(int i = 0; i < entities.length; i++) {
     float speed = 0.6f; //random(0, 0.7f);    // pixels / frames
-    float radius = random(20, 50);
+    float radius = random(30, 50);
     entities[i] = new MovingEntity(random(width), random(height), speed, radius, 8, 25);
   }
     
   // Create the LIDAR:
-  int raycastCount = 200;
   float speed = 0;
   float radius = 5;
   float startX = width / 4;
   float startY = height / 2;
-  lidar = new Lidar(raycastCount, startX, startY, speed, radius, 8, 25);
+  lidar = new Lidar(LIDAR_RAYCAST_COUNT, startX, startY, speed, radius, 8, 25);
   
   // Create colors for clustering:
-  myColors = new color[raycastCount];
+  color myColors[] = new color[LIDAR_RAYCAST_COUNT];
   for(int i = 0; i < myColors.length; i++) {
     myColors[i] = i < defaultColors.length ? defaultColors[i] : color(random(255), random(255), random(255));
   }
   
+  manager = new ClusterManager(myColors, MIN_POINTS_PER_CLUSTER, POINT_CLUSTER_VISIBILITY, POINT_CLUSTER_LIFETIME, RECT_CLUSTER_MARGIN);
+  
   if(pause)
     noLoop();
-  
-  // Run benchmarks for testing:
-  // benchmarks();
 }
 
 void draw() {
-  if(clearBackground) background(255);
+  background(255);
   
   // Update and draw the entities:
   for(MovingEntity entity : entities)
     entity.Update();
   
-  if(showObjects)
+  if(showEntities)
     for(MovingEntity entity : entities) entity.Draw();
   
   // Update and draw the LIDAR:
   lidar.Update();
   if(showLidar) lidar.Draw();
   
-  // Get the hit points from the LIDAR, merge them by distance into clusters:
-  PVector[] points = lidar.getHitPoints();
-  ArrayList<ArrayList<PVector>> pointsClusters = myCreateClusters(points, 20);
+  // Get the hit points from the LIDAR, and use these points to run the whole clustering algorithm:
+  manager.UpdateClusters(lidar.getHitPoints());
   
-  if(showPoints) {
-    stroke(0);
-    for(int i = 0; i < pointsClusters.size(); i++) {
-      fill(myColors[i]);
-      
-      for(PVector point : pointsClusters.get(i))
-        ellipse(point.x, point.y, 10, 10);
-    }
-  }
-  
-  // Create clusters:
-  previousClusters = currentClusters;
-  currentClusters = new ArrayList<Cluster>();
-  for(int i = 0; i < pointsClusters.size(); i++) {
-    Cluster cluster = new Cluster(pointsClusters.get(i), myColors[i]);
-    cluster.build();
-    currentClusters.add(cluster);
-  }
-  
-  // Match previous clusters with the current ones to estimate their speed:
-  // if(previousClusters != null)
-  //   matchClusters();
-  
-  // Draw clusters:
-  if(showClusters)
-    for(Cluster cluster : currentClusters)
-      cluster.Draw();
-      
-  // Draw the kmeans algorithm:
-  if(kmeans == null) {
-    kmeans = new Kmeans(20);
-    kmeans.setupClusters(currentClusters);
-  }
-  
-  kmeans.UpdateClusters(points);
-  kmeans.Draw();
+  // Draw the result of the clustering algorithm:
+  manager.Draw(true, showRectClusters, showPointClusters);
 }
 
-// Match previous clusters with the current ones:
-void matchClusters() {
-  ArrayList<Cluster> matches[] = new ArrayList[currentClusters.size()];
-  for(int i = 0; i < matches.length; i++) matches[i] = new ArrayList<Cluster>();
-  
-  for(Cluster previous : previousClusters) {
-    int match = -1;
-    float minDistance = -1;
-    
-    for(int i = 0; i < currentClusters.size(); i++) {
-      float distance = previous.distanceTo(currentClusters.get(i));
-      
-      if(match == -1 || distance < minDistance) {
-        match = i;
-        minDistance = distance;
-      }
-    }
-    
-    // Update speed estimate of previous:
-    // float dX = currentClusters.get(match).x - previous.x;
-    // float dY = currentClusters.get(match).y - previous.y;
-    
-    // previous.updateSpeedEstimate(dX, dY);
-    matches[match].add(previous);
-  }
-  
-  /*
-  for(int i = 0; i < matches.length; i++) {
-    if(matches[i].size() == 1) {
-      Cluster current = currentClusters.get(i);
-      Cluster previous = matches[i].get(0);
-      
-      // Filter position, orientation, dimensions, speed...
-      final float mem = 0.9f;
-      
-      current.x = mem * previous.x + (1-mem) * current.x;
-      current.y = mem * previous.y + (1-mem) * current.y;
-      current.clusterAngle = mem * previous.clusterAngle + (1-mem) * current.clusterAngle;
-      
-      current.clusterSizeX = mem * previous.clusterSizeX + (1-mem) * current.clusterSizeX;
-      current.clusterSizeY = mem * previous.clusterSizeY + (1-mem) * current.clusterSizeY;
-      
-      current.speedX = mem * previous.speedX + (1-mem) * current.speedX;
-      current.speedY = mem * previous.speedY + (1-mem) * current.speedY;
-    }
-  }*/
-  
-  ArrayList<Cluster> toRemove = new ArrayList<Cluster>();
-  
-  for(int i = 0; i < matches.length; i++) {  
-    float avgSpeedX = 0, avgSpeedY = 0;
-    
-    int totalSize = 0;
-    if(matches[i].size() != 0) {
-      for(Cluster cluster : matches[i]) {
-        avgSpeedX += cluster.speedX * cluster.clusterSize();
-        avgSpeedY += cluster.speedY * cluster.clusterSize();
-        totalSize += cluster.clusterSize();
-      }
-      avgSpeedX /= totalSize;
-      avgSpeedY /= totalSize;
-    }
-    
-    currentClusters.get(i).updateSpeedEstimate(avgSpeedX, avgSpeedY);
-    
-    if(matches[i].size() > 1) {
-      toRemove.add(currentClusters.get(i));
-      
-      for(Cluster cluster : matches[i]) {
-        cluster.updateSpeedEstimate(avgSpeedX, avgSpeedY);
-        cluster.clusterColor = color(currentClusters.get(i).clusterColor, 100);
-        currentClusters.add(cluster);
-      }
-    }
-  }
-  
-  for(Cluster c : toRemove)
-    currentClusters.remove(c);
-}
 
 void keyPressed() {
   if(key == ' ') {
     pause = !pause;
     if(pause) noLoop();
     else {
-      clearBackground = true;
       loop();
     }
   }
   
-  if(pause && key == 'n') {  // Draw next frame without clearing
-    clearBackground = false;
-    redraw();
-  }
-  
-  if(pause && key == 'r') {  // Clear and draw next frame
-    clearBackground = true;
+  if(pause && key == 'n') {  // Draw next frame
+    frameCount += 10;        // Use this to do bigger timesteps
     redraw();
   }
   
   if(key == 'l') showLidar = !showLidar;
-  if(key == 'p') showPoints = !showPoints;
-  if(key == 'c') showClusters = !showClusters;
-  if(key == 'o') showObjects = !showObjects;
+  if(key == 'p') showPointClusters = !showPointClusters;
+  if(key == 'r') showRectClusters = !showRectClusters;
+  if(key == 'e') showEntities = !showEntities;
 }
+
+void drawArrow(float x1, float y1, float x2, float y2, color arrowColor) {
+  PVector u = new PVector(x2 -x1, y2 - y1);
+  float arrowLength = u.mag();
   
+  if(arrowLength == 0)
+    return;
+  
+  float triangleSize = min(40, arrowLength / 3);
+  u.normalize().mult(triangleSize);
+  PVector v = new PVector(u.y / 2, -u.x / 2);
+  
+  fill(arrowColor);
+  stroke(arrowColor);
+  line(x1, y1, x2, y2);
+  triangle(x2, y2, x2 - u.x + v.x, y2 - u.y + v.y, x2 - u.x - v.x, y2 - u.y - v.y);
+}
