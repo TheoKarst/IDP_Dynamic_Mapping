@@ -1,10 +1,12 @@
 class Lidar extends MovingEntity {  
+  private final float raycastDistance;
   private RaycastHit[] raycastHits;
   
-  public Lidar(int raycastCount, float startX, float startY, float speed, float radius, int minWaitFrames, int maxWaitFrames) {
+  public Lidar(int raycastCount, float raycastDistance, float startX, float startY, float speed, float radius, int minWaitFrames, int maxWaitFrames) {
     super(startX, startY, speed, radius, minWaitFrames, maxWaitFrames);
     
-    raycastHits = new RaycastHit[raycastCount];
+    this.raycastDistance = raycastDistance;
+    this.raycastHits = new RaycastHit[raycastCount];
   }
   
   public void Update() {
@@ -13,7 +15,7 @@ class Lidar extends MovingEntity {
     // Update the raycast intersections:
     PVector d = new PVector(1, 0);
     for(int i = 0; i < raycastHits.length; i++) {
-      raycastHits[i] = computeRaycastHit(x, y, d, 1000);
+      raycastHits[i] = computeRaycastHit(x, y, d, raycastDistance);
       d.rotate(TWO_PI / raycastHits.length);
     }
   }
@@ -25,8 +27,8 @@ class Lidar extends MovingEntity {
     ellipse(x, y, 2*radius, 2*radius);
     
     stroke(255, 0, 0);
-    for(RaycastHit hit : raycastHits) {
-      line(x, y, hit.x, hit.y);
+    for(int i = 0; i < raycastHits.length; i++) {
+      line(x, y, raycastHits[i].x, raycastHits[i].y);
     }
   }
   
@@ -48,15 +50,26 @@ class Lidar extends MovingEntity {
       
     return positions;
   }
+  
+  public float[] getHitDistances() {
+    float[] distances = new float[raycastHits.length];
+    
+    for(int i = 0; i < distances.length; i++)    
+      distances[i] = raycastHits[i].hitDistance;
+      
+    return distances;
+  }      
 }
 
 class RaycastHit {
   public final float x, y;
-  public final boolean valid;  // If a hit was found or not
+  public final float hitDistance;
+  public final boolean valid;        // If a hit was found or not
   
-  public RaycastHit(float x, float y, boolean valid) {
+  public RaycastHit(float x, float y, float hitDistance, boolean valid) {
     this.x = x;
     this.y = y;
+    this.hitDistance = hitDistance;
     this.valid = valid;
   }
 }
@@ -77,5 +90,5 @@ RaycastHit computeRaycastHit(float originX, float originY, PVector raycastDirect
   float intersectX = originX + raycastDirection.x * maxDistance;
   float intersectY = originY + raycastDirection.y * maxDistance;
   
-  return new RaycastHit(intersectX, intersectY, hit);
+  return new RaycastHit(intersectX, intersectY, maxDistance, hit);
 }

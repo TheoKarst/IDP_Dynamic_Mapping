@@ -8,6 +8,7 @@ final int POINT_CLUSTER_LIFETIME = 100;
 final float RECT_CLUSTER_MARGIN = 10;
 
 final int LIDAR_RAYCAST_COUNT = 500;
+final float RAYCAST_DISTANCE = 1000;
 final int ENTITIES_COUNT = 5;
 
 // Look at: dbscan
@@ -17,12 +18,13 @@ Lidar lidar;
 
 boolean pause = false;
 
-boolean showLidar = false;
+boolean showLidar = true;
 boolean showRectClusters = true;
 boolean showPointClusters = true;
 boolean showEntities = true;
+boolean showHistogram = true;      // Show a histogram of lidar hit distnaces in the bottom right corner of the screen
 
-color[] defaultColors = new color[] {
+color[] myColors, defaultColors = new color[] {
   color(255, 0, 0),     color(0, 255, 0),     color(0, 0, 255),
   color(255, 255, 0),   color(255, 0, 255),   color(0, 255, 255),
   color(255, 127, 127), color(127, 255, 127), color(127, 127, 255),
@@ -30,27 +32,32 @@ color[] defaultColors = new color[] {
 };
 
 void setup() {
-  size(1000, 600);
+  fullScreen(P2D);
+  //size(2000, 1200, P2D);
   ellipseMode(CENTER);
   rectMode(CENTER);
   strokeWeight(1);
   
   // Create entities:
+  float speed = 0;                          // pixels / frames
+  float radius = 10;
+  //entities[0] = new MovingEntity(width/4 + 200, height/2, speed, radius, 8, 25);
+  
   for(int i = 0; i < entities.length; i++) {
-    float speed = 0.6f; //random(0, 0.7f);    // pixels / frames
-    float radius = random(30, 50);
+    speed = 1.2f;
+    radius = random(60, 100);
     entities[i] = new MovingEntity(random(width), random(height), speed, radius, 8, 25);
   }
     
   // Create the LIDAR:
-  float speed = 0;
-  float radius = 5;
+  speed = 0;
+  radius = 5;
   float startX = width / 4;
   float startY = height / 2;
-  lidar = new Lidar(LIDAR_RAYCAST_COUNT, startX, startY, speed, radius, 8, 25);
+  lidar = new Lidar(LIDAR_RAYCAST_COUNT, RAYCAST_DISTANCE, startX, startY, speed, radius, 8, 25);
   
   // Create colors for clustering:
-  color myColors[] = new color[LIDAR_RAYCAST_COUNT];
+  myColors = new color[LIDAR_RAYCAST_COUNT];
   for(int i = 0; i < myColors.length; i++) {
     myColors[i] = i < defaultColors.length ? defaultColors[i] : color(random(255), random(255), random(255));
   }
@@ -75,11 +82,45 @@ void draw() {
   lidar.Update();
   if(showLidar) lidar.Draw();
   
+  // Testing: draw lidar contours:
+  drawContours(lidar.getHitPoints(), myColors);
+  
   // Get the hit points from the LIDAR, and use these points to run the whole clustering algorithm:
   manager.UpdateClusters(lidar.getHitPoints());
   
   // Draw the result of the clustering algorithm:
-  manager.Draw(true, showRectClusters, showPointClusters);
+  manager.Draw(false, showRectClusters, showPointClusters);
+  
+  // Draw the histogram:
+  if(showHistogram) {
+    float[] distances = lidar.getHitDistances();
+    
+    float Width = width;
+    float Height = height / 8;
+    
+    float dX = Width / distances.length;
+    float dY = Height / RAYCAST_DISTANCE;
+    
+    // First histogram:
+    noStroke();
+    fill(0, 0, 255);
+    for(int i = 0; i < distances.length; i++) {
+      rect(width - Width + dX * (i + 0.5f), height - dY * distances[i] / 2, dX, dY * distances[i]);
+    }
+    
+    // Rescaled histogram:
+    fill(0, 255, 0);
+    float sum = 0;
+    for(int i = 0; i < distances.length; i++)
+      sum += distances[i];
+      
+    float startX = width - Width ;
+    for(int i = 0; i < distances.length; i++) {
+      dX = Width * distances[i] / sum;
+      rect(startX + dX / 2, height - Height - dY * distances[i] / 2, dX, dY * distances[i]);
+      startX += dX;
+    }
+  }
 }
 
 
@@ -93,7 +134,6 @@ void keyPressed() {
   }
   
   if(pause && key == 'n') {  // Draw next frame
-    frameCount += 10;        // Use this to do bigger timesteps
     redraw();
   }
   
@@ -101,6 +141,7 @@ void keyPressed() {
   if(key == 'p') showPointClusters = !showPointClusters;
   if(key == 'r') showRectClusters = !showRectClusters;
   if(key == 'e') showEntities = !showEntities;
+  if(key == 'h') showHistogram = !showHistogram;
 }
 
 void drawArrow(float x1, float y1, float x2, float y2, color arrowColor) {
