@@ -22,7 +22,7 @@ boolean showLidar = true;
 boolean showRectClusters = true;
 boolean showPointClusters = true;
 boolean showEntities = true;
-boolean showHistogram = true;      // Show a histogram of lidar hit distnaces in the bottom right corner of the screen
+boolean showHistogram = false;      // Show a histogram of lidar hit distnaces in the bottom right corner of the screen
 
 color[] myColors, defaultColors = new color[] {
   color(255, 0, 0),     color(0, 255, 0),     color(0, 0, 255),
@@ -32,8 +32,7 @@ color[] myColors, defaultColors = new color[] {
 };
 
 void setup() {
-  fullScreen(P2D);
-  //size(2000, 1200, P2D);
+  size(2000, 1200, P2D);
   ellipseMode(CENTER);
   rectMode(CENTER);
   strokeWeight(1);
@@ -41,8 +40,6 @@ void setup() {
   // Create entities:
   float speed = 0;                          // pixels / frames
   float radius = 10;
-  //entities[0] = new MovingEntity(width/4 + 200, height/2, speed, radius, 8, 25);
-  
   for(int i = 0; i < entities.length; i++) {
     speed = 1.2f;
     radius = random(60, 100);
@@ -82,45 +79,15 @@ void draw() {
   lidar.Update();
   if(showLidar) lidar.Draw();
   
-  // Testing: draw lidar contours:
-  drawContours(lidar.getHitPoints(), myColors);
-  
   // Get the hit points from the LIDAR, and use these points to run the whole clustering algorithm:
   manager.UpdateClusters(lidar.getHitPoints());
   
   // Draw the result of the clustering algorithm:
   manager.Draw(false, showRectClusters, showPointClusters);
   
-  // Draw the histogram:
-  if(showHistogram) {
-    float[] distances = lidar.getHitDistances();
-    
-    float Width = width;
-    float Height = height / 8;
-    
-    float dX = Width / distances.length;
-    float dY = Height / RAYCAST_DISTANCE;
-    
-    // First histogram:
-    noStroke();
-    fill(0, 0, 255);
-    for(int i = 0; i < distances.length; i++) {
-      rect(width - Width + dX * (i + 0.5f), height - dY * distances[i] / 2, dX, dY * distances[i]);
-    }
-    
-    // Rescaled histogram:
-    fill(0, 255, 0);
-    float sum = 0;
-    for(int i = 0; i < distances.length; i++)
-      sum += distances[i];
-      
-    float startX = width - Width ;
-    for(int i = 0; i < distances.length; i++) {
-      dX = Width * distances[i] / sum;
-      rect(startX + dX / 2, height - Height - dY * distances[i] / 2, dX, dY * distances[i]);
-      startX += dX;
-    }
-  }
+  // Draw the histograms:
+  if(showHistogram)
+    drawLidarHistograms();
 }
 
 
@@ -159,4 +126,34 @@ void drawArrow(float x1, float y1, float x2, float y2, color arrowColor) {
   stroke(arrowColor);
   line(x1, y1, x2, y2);
   triangle(x2, y2, x2 - u.x + v.x, y2 - u.y + v.y, x2 - u.x - v.x, y2 - u.y - v.y);
+}
+
+void drawLidarHistograms() {
+  float[] distances = lidar.getHitDistances();
+    
+  float Width = width;
+  float Height = height / 8;
+  
+  float dX = Width / distances.length;
+  float dY = Height / RAYCAST_DISTANCE;
+  
+  // First histogram:
+  noStroke();
+  fill(0, 0, 255);
+  for(int i = 0; i < distances.length; i++) {
+    rect(width - Width + dX * (i + 0.5f), height - dY * distances[i] / 2, dX, dY * distances[i]);
+  }
+  
+  // Rescaled histogram:
+  fill(0, 255, 0);
+  float sum = 0;
+  for(int i = 0; i < distances.length; i++)
+    sum += distances[i];
+    
+  float startX = width - Width ;
+  for(int i = 0; i < distances.length; i++) {
+    dX = Width * distances[i] / sum;
+    rect(startX + dX / 2, height - Height - dY * distances[i] / 2, dX, dY * distances[i]);
+    startX += dX;
+  }
 }
