@@ -1,6 +1,4 @@
 class ClusterManager {
-  private final color clusterColors[];                     // List of colors that are used to draw the clusters
-  
   // Parameters for the cluster algorithm:
   private final int pointClusterLifetime;
   private final float rectClusterMargin;
@@ -8,9 +6,7 @@ class ClusterManager {
   private StaticCluster[] staticClusters;
   private ArrayList<DynamicCluster> dynamicClusters;
   
-  public ClusterManager(color[] clusterColors, int pointClusterLifetime, float rectClusterMargin) {
-    this.clusterColors = clusterColors;
-    
+  public ClusterManager(int pointClusterLifetime, float rectClusterMargin) {
     this.pointClusterLifetime = pointClusterLifetime;
     this.rectClusterMargin = rectClusterMargin;
     
@@ -24,18 +20,22 @@ class ClusterManager {
     // are used to track clusters between frames. We have to match dynamic clusters to static clusters to see if previous objects are
     // still there on the current frame (dynamic clusters are unable to manage cluster creation or destruction, while static clusters
     // are able to do so):
+    ArrayList<DynamicCluster> notMatchedClusters = new ArrayList<DynamicCluster>();
     for(DynamicCluster dynamicCluster : dynamicClusters) {
       StaticCluster match = null;
       
       for(StaticCluster staticCluster : staticClusters) {
-        if(staticCluster.contains(dynamicCluster.position())) {
+        if(staticCluster.matches(dynamicCluster)) {
           match = staticCluster;
           break;
         }
       }
       
       dynamicCluster.matchCluster(match);
-      if(match != null) match.addDynamicClusterMatch(dynamicCluster);
+      if(match == null) 
+        notMatchedClusters.add(dynamicCluster);
+      else
+        match.addDynamicClusterMatch(dynamicCluster);
     }
     
     // Update all the dynamic clusters:
@@ -46,13 +46,14 @@ class ClusterManager {
     // In this situation, a new dynamic cluster has to be created to follow this new object.
     ArrayList<DynamicCluster> newDynamicClusters = new ArrayList<DynamicCluster>();
     for(StaticCluster cluster : staticClusters) {
-      if(!cluster.hasMatch()) {
-        newDynamicClusters.add(cluster.createAndMatchDynamicCluster(clusterColors[dynamicClusters.size()]));
-      }
+      cluster.Update(newDynamicClusters);
+      // if(!cluster.hasMatch()) {
+      //   newDynamicClusters.add(cluster.createAndMatchDynamicCluster(clusterColors[dynamicClusters.size()]));
+      // }
     }
     
     // Remove the dynamic clusters that weren't matched with a static cluster for long enough:
-    for(DynamicCluster cluster : dynamicClusters)
+    for(DynamicCluster cluster : notMatchedClusters)
       if(cluster.getFrameCountNoMatch() <= pointClusterLifetime)
         newDynamicClusters.add(cluster);
         

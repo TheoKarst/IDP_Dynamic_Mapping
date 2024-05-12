@@ -4,7 +4,6 @@ class MovingEntity {
   
   private Shape shape;
   
-  public float x, y;
   private final float speed;
   
   private float startX, startY;
@@ -18,25 +17,23 @@ class MovingEntity {
     this.speed = speed;
     this.shape = shape;
     
-    x = targetX = startX = shape.getX();
-    y = targetY = startY = shape.getY();
+    targetX = startX = shape.center.x;
+    targetY = startY = shape.center.y;
     
     selectNewTarget();
   }
   
-  public void Update() {    
+  public void Update() {
     if(frameCount < endTimeFrame) {
-      x = map(frameCount, startTimeFrame, endTimeFrame, startX, targetX);
-      y = map(frameCount, startTimeFrame, endTimeFrame, startY, targetY);
+      float x = map(frameCount, startTimeFrame, endTimeFrame, startX, targetX);
+      float y = map(frameCount, startTimeFrame, endTimeFrame, startY, targetY);
+      shape.Update(x, y, 0);
     }
-    else if(frameCount < endTimeFrame + targetWaitFrames) {
-      x = targetX;
-      y = targetY;
-    }
+    else if(frameCount < endTimeFrame + targetWaitFrames)
+      shape.Update(targetX, targetY, 0);
+    
     else
       selectNewTarget();
-      
-    shape.Update(x, y, 0);
   }
   
   public void Draw() {
@@ -62,26 +59,41 @@ class MovingEntity {
   public float intersectDistance(Raycast raycast) {
     return shape.intersectDistance(raycast);
   }
+  
+  public PVector position() {
+    return shape.center;
+  }
 }
 
-interface Shape {
-  void Update(float x, float y, float angle);
+abstract class Shape {
+  public PVector center;
+  public float angle;
   
-  void Draw();
+  public Shape(float x, float y, float angle) {
+    this.center = new PVector(x, y);
+    this.angle = angle;
+  }
   
-  float intersectDistance(Raycast raycast);
+  void Update(float x, float y, float angle) {
+    center.set(x, y);
+    this.angle = angle;
+  }
   
-  float getX();
-  float getY();
+  abstract void Draw();
+  
+  abstract float intersectDistance(Raycast raycast);
+  
+  PVector getPosition() {
+    return center;
+  }
 }
 
-class CircleShape implements Shape {
-  private PVector center;
+class CircleShape extends Shape {
   private float radius;
   private color shapeColor;
   
   public CircleShape(float x, float y, float radius, color shapeColor) {
-    this.center = new PVector(x, y);
+    super(x, y, 0);
     this.radius = radius;
     this.shapeColor = shapeColor;
   }
@@ -115,20 +127,16 @@ class CircleShape implements Shape {
     
     return -1;
   }
-  
-  float getX() { return center.x; }
-  float getY() { return center.y; }
 }
 
-public class PolygonShape implements Shape {
-  private final PVector center;
+public class PolygonShape extends Shape {
   private final PVector[] initialPoints;
   private final PVector[] transformedPoints;
   
   private color shapeColor;
   
   public PolygonShape(float x, float y, float angle, PVector[] points, color shapeColor) {
-    this.center = new PVector(x, y);
+    super(x, y, angle);
     this.initialPoints = points;
     
     // Create an array to store the transformed points:
@@ -142,7 +150,7 @@ public class PolygonShape implements Shape {
   }
   
   void Update(float x, float y, float angle) {
-    transformPoints(initialPoints, x, y, angle, transformedPoints);
+    transformPoints(initialPoints, x, y, radians(10), transformedPoints);
   }
   
   void Draw() {

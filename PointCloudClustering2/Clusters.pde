@@ -9,8 +9,6 @@ final float MAX_DISTANCE = 20;
 // and new static clusters are therefore created each frame to match the current set of points:
 
 class StaticCluster {
-  private final float DOUGLAS_PEUCKER_EPSILON = 1;
-  
   // List of dynamic clusters that are inside this static cluster:
   private ArrayList<DynamicCluster> matches = new ArrayList<DynamicCluster>();
   
@@ -26,6 +24,40 @@ class StaticCluster {
     //this.points = DouglasPeucker(points, 0, points.size()-1, DOUGLAS_PEUCKER_EPSILON);
     this.points = points;
     computeBoundingRectangle(rectangleMargin);
+  }
+  
+  // EXPERIMENTAL...
+  public void Update(ArrayList<DynamicCluster> clustersToKeep) {
+    // Merge the points from this cluster, as well as the non visible parts of the dynamic clusters matched with this one, and use these points to update the 
+    // dynamic clusters matched with this one (experimental):
+    
+    ArrayList<PVector> wholeShapePoints = new ArrayList<PVector>();
+    for(PVector point : points) wholeShapePoints.add(new PVector().set(point));
+    
+    for(DynamicCluster cluster : matches) {
+      for(PVector point : cluster.shape) {
+        if(!lidar.isVisible(point, 20))
+          wholeShapePoints.add(new PVector().set(point));
+      }
+    }
+    
+    println("Start format shape");
+    wholeShapePoints = giftWrapping(wholeShapePoints); println("Gift wrapping - OK");
+    wholeShapePoints = DouglasPeucker(wholeShapePoints); println("Douglas Peucker - OK");
+    println("Success !\n");
+    
+    // If there is only one dynamic cluster matched with this one, update its shape:
+    if(matches.size() == 1) {
+      matches.get(0).shape = wholeShapePoints;
+      clustersToKeep.add(matches.get(0));
+    }
+    
+    // Else, create a new dynamic cluster to represent this static cluster:
+    else {
+      DynamicCluster cluster = new DynamicCluster(wholeShapePoints, randomColor());
+      matches.add(cluster);
+      clustersToKeep.add(cluster);
+    }
   }
   
   public void Draw() {
@@ -124,56 +156,21 @@ class StaticCluster {
     this.clusterSizeY = margin + maxV - minV;
   }
   
+  public boolean matches(DynamicCluster cluster) {
+    for(PVector point : cluster.shape)
+      if(contains(point))
+        return true;
+        
+    return false;
+  }
+  
   // Return if the point is inside the rectangle:
-  public boolean contains(PVector point) {
+  private boolean contains(PVector point) {
     PVector delta = new PVector(point.x - centerX, point.y - centerY);
     float alongU = 2 * delta.dot(u);
     float alongV = 2 * delta.dot(v);
     
     return -clusterSizeX <= alongU && alongU <= clusterSizeX && -clusterSizeY <= alongV && alongV <= clusterSizeY;
-  }
-  
-  // Run douglas peucker algorithm on the given list of points, between start and end (inclusives):
-  private ArrayList<PVector> DouglasPeucker(ArrayList<PVector> points, int start, int end, float epsilon) {
-    PVector u = PVector.sub(points.get(start), points.get(end), new PVector());
-    u.normalize();
-    
-    // Find the point with maximum orthogonal distance:
-    int index = -1;
-    float maxDistance = 0;
-    
-    // Tempoary variables to compute the orthogonal distance:
-    PVector v = new PVector();
-    PVector v_along_u = new PVector();
-    
-    PVector startPoint = points.get(start);
-    for(int i = start+1; i < end; i++) {
-      PVector.sub(points.get(i), startPoint, v);
-      PVector.mult(u, v.dot(u), v_along_u);
-      float distance = PVector.sub(v, v_along_u).mag();
-      
-      if(distance >= maxDistance) {
-        maxDistance = distance;
-        index = i;
-      }
-    }    
-    
-    if(maxDistance > epsilon) {
-      ArrayList<PVector> list1 = DouglasPeucker(points, start, index, epsilon);
-      ArrayList<PVector> list2 = DouglasPeucker(points, index, end, epsilon);
-      
-      list1.remove(list1.size()-1);
-      for(PVector point : list2) list1.add(point);
-      
-      return list1;
-    }
-    
-    else {
-      ArrayList<PVector> result = new ArrayList<PVector>();
-      result.add(startPoint);
-      result.add(points.get(end));
-      return result;
-    }
   }
   
   public void addDynamicClusterMatch(DynamicCluster cluster) {
@@ -184,12 +181,13 @@ class StaticCluster {
     return matches.size() > 0;
   }
   
+  /*
   public DynamicCluster createAndMatchDynamicCluster(color clusterColor) {
     DynamicCluster cluster = new DynamicCluster(deepcopy(points), clusterColor);
     matches.add(cluster);
     
     return cluster;
-  }
+  }*/
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -326,6 +324,10 @@ public class DynamicCluster {
     // matched with a real object for sufficiently many frames, it should be deleted:
     if(cluster == null)
       frameCountNoMatch++;
+      
+    // Else, reset the counter:
+    else
+      frameCountNoMatch = 0;
   }
   
   // Return the number of frames this cluster continued to exist without being matched with a real object in the scene.

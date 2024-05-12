@@ -5,22 +5,22 @@ import org.ejml.simple.*;
 final int POINT_CLUSTER_LIFETIME = 100;
 final float RECT_CLUSTER_MARGIN = 10;
 
-final int LIDAR_RAYCAST_COUNT = 500;
+final int LIDAR_RAYCAST_COUNT = 400;
 final float RAYCAST_DISTANCE = 2000;
-final int ENTITIES_COUNT = 1;
+final int ENTITIES_COUNT = 2;
 
 ClusterManager manager;
 MovingEntity entities[] = new MovingEntity[ENTITIES_COUNT];
 Lidar lidar;
 
-boolean pause = true;
+boolean pause = false;
 boolean showPoints = true;
 boolean showLidar = true;
 boolean showEntities = false;
 boolean showStaticClusters = false;
 boolean showDynamicClusters = true;
 
-color[] myColors, defaultColors = new color[] {
+color[] defaultColors = new color[] {
   color(255, 0, 0),     color(0, 255, 0),     color(0, 0, 255),
   color(255, 255, 0),   color(255, 0, 255),   color(0, 255, 255),
   color(255, 127, 127), color(127, 255, 127), color(127, 127, 255),
@@ -47,8 +47,8 @@ void setup() {
     speed = 1.2f;
     radius = random(60, 100);
     color shapeColor = color(0, 0, 255, 120);
-    // Shape shape = new CircleShape(random(width), random(height), radius, shapeColor);
-    Shape shape = new RectShape(startX, startY, 0, 200, 100, shapeColor);
+    Shape shape = new CircleShape(random(width), random(height), radius, shapeColor);
+    // Shape shape = new RectShape(startX, startY, radians(45), 200, 100, shapeColor);
     entities[i] = new MovingEntity(shape, speed);
   }
     
@@ -59,13 +59,7 @@ void setup() {
   radius = 5;  
   lidar = new Lidar(LIDAR_RAYCAST_COUNT, RAYCAST_DISTANCE, startX, startY, speed, radius);
   
-  // Create colors for clustering:
-  myColors = new color[LIDAR_RAYCAST_COUNT];
-  for(int i = 0; i < myColors.length; i++) {
-    myColors[i] = i < defaultColors.length ? defaultColors[i] : color(random(255), random(255), random(255));
-  }
-  
-  manager = new ClusterManager(myColors, POINT_CLUSTER_LIFETIME, RECT_CLUSTER_MARGIN);
+  manager = new ClusterManager(POINT_CLUSTER_LIFETIME, RECT_CLUSTER_MARGIN);
   
   if(pause)
     noLoop();
@@ -146,4 +140,8 @@ void drawArrow(float x1, float y1, float x2, float y2, color arrowColor) {
   stroke(arrowColor);
   line(x1, y1, x2, y2);
   triangle(x2, y2, x2 - u.x + v.x, y2 - u.y + v.y, x2 - u.x - v.x, y2 - u.y - v.y);
+}
+
+color randomColor() {
+  return defaultColors[int(random(defaultColors.length))];
 }
