@@ -1,4 +1,4 @@
-final float MAX_MATCH_DISTANCE = 100;
+final float MAX_MATCH_DISTANCE = 20;
 
 public int[] computeMatching(ArrayList<PVector> initial, ArrayList<PVector> target) {
   int[] matching = new int[initial.size()];

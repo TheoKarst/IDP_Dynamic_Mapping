@@ -9,7 +9,7 @@ final float MAX_DISTANCE = 20;
 // and new static clusters are therefore created each frame to match the current set of points:
 
 class StaticCluster {
-  private final float DOUGLAS_PEUCKER_EPSILON = 0;
+  private final float DOUGLAS_PEUCKER_EPSILON = 1;
   
   // List of dynamic clusters that are inside this static cluster:
   private ArrayList<DynamicCluster> matches = new ArrayList<DynamicCluster>();
@@ -23,7 +23,8 @@ class StaticCluster {
   
   // Use Douglas Peucker algorithm to simplify the list of points that are assigned to this cluster, and build a bounding rectangle for the remaining points:
   public StaticCluster(ArrayList<PVector> points, float rectangleMargin) {
-    this.points = DouglasPeucker(points, 0, points.size()-1, DOUGLAS_PEUCKER_EPSILON);
+    //this.points = DouglasPeucker(points, 0, points.size()-1, DOUGLAS_PEUCKER_EPSILON);
+    this.points = points;
     computeBoundingRectangle(rectangleMargin);
   }
   

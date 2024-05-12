@@ -2,8 +2,8 @@ class Lidar extends MovingEntity {
   private final float raycastDistance;
   private RaycastHit[] raycastHits;
   
-  public Lidar(int raycastCount, float raycastDistance, float startX, float startY, float speed, float radius, int minWaitFrames, int maxWaitFrames) {
-    super(startX, startY, speed, radius, minWaitFrames, maxWaitFrames);
+  public Lidar(int raycastCount, float raycastDistance, float startX, float startY, float speed, float radius) {
+    super(new CircleShape(startX, startY, radius, color(200, 0, 0)), speed);
     
     this.raycastDistance = raycastDistance;
     this.raycastHits = new RaycastHit[raycastCount];
@@ -13,18 +13,15 @@ class Lidar extends MovingEntity {
     super.Update();
       
     // Update the raycast intersections:
-    PVector d = new PVector(1, 0);
+    Raycast raycast = new Raycast(x, y, new PVector(1, 0));
     for(int i = 0; i < raycastHits.length; i++) {
-      raycastHits[i] = computeRaycastHit(x, y, d, raycastDistance);
-      d.rotate(TWO_PI / raycastHits.length);
+      raycastHits[i] = computeRaycastHit(raycast, raycastDistance);
+      raycast.direction.rotate(TWO_PI / raycastHits.length);
     }
   }
   
   public void Draw() {
-    stroke(0);
-    fill(200, 0, 0);
-    
-    ellipse(x, y, 2*radius, 2*radius);
+    super.Draw();
     
     stroke(255, 0, 0);
     for(int i = 0; i < raycastHits.length; i++) {
@@ -74,12 +71,11 @@ class RaycastHit {
   }
 }
 
-RaycastHit computeRaycastHit(float originX, float originY, PVector raycastDirection, float maxDistance) {
-  raycastDirection.normalize();
+RaycastHit computeRaycastHit(Raycast raycast, float maxDistance) {
   
   boolean hit = false;
   for(MovingEntity entity : entities) {
-    float distance = entity.intersectDistance(originX, originY, raycastDirection.x, raycastDirection.y);
+    float distance = entity.intersectDistance(raycast);
     
     if(distance >= 0 && distance < maxDistance) {
       maxDistance = distance;
@@ -87,8 +83,17 @@ RaycastHit computeRaycastHit(float originX, float originY, PVector raycastDirect
     }
   }
     
-  float intersectX = originX + raycastDirection.x * maxDistance;
-  float intersectY = originY + raycastDirection.y * maxDistance;
+  PVector intersect = new PVector().set(raycast.direction).mult(maxDistance).add(raycast.origin);
   
-  return new RaycastHit(intersectX, intersectY, maxDistance, hit);
+  return new RaycastHit(intersect.x, intersect.y, maxDistance, hit);
+}
+
+class Raycast {
+  public final PVector origin;
+  public final PVector direction;
+  
+  public Raycast(float originX, float originY, PVector direction) {
+    this.origin = new PVector(originX, originY);
+    this.direction = direction.normalize();
+  }
 }
