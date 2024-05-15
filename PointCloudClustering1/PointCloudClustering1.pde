@@ -83,7 +83,7 @@ void draw() {
   manager.UpdateClusters(lidar.getHitPoints());
   
   // Draw the result of the clustering algorithm:
-  manager.Draw(false, showRectClusters, showPointClusters);
+  manager.Draw(true, showRectClusters, showPointClusters);
   
   // Draw the histograms:
   if(showHistogram)

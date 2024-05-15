@@ -16,9 +16,9 @@ Lidar lidar;
 boolean pause = false;
 boolean followMouse = false;
 
-boolean showPoints = true;
+boolean showPoints = false;
 boolean showLidar = true;
-boolean showEntities = false;
+boolean showEntities = true;
 boolean showStaticClusters = false;
 boolean showDynamicClusters = true;
 

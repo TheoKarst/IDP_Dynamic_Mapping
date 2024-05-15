@@ -135,7 +135,7 @@ void keyPressed() {
       currentTransformTheta -= timestep * gradient[2];
     }
     
-    println("Current transformation: (dX: " + currentTransformX * normalizationFactor + "; dY: " + currentTransformY * normalizationFactor + "; dTheta: " + currentTransformTheta);
+    println("Transformation estimate:\n(dX: " + currentTransformX * normalizationFactor + "; dY: " + currentTransformY * normalizationFactor + "; dTheta: " + currentTransformTheta);
   }
   
   else if(key == 's') {    // Print data about the error function into a file

@@ -36,7 +36,7 @@ class StaticCluster {
     
     for(DynamicCluster cluster : matches) {
       for(PVector point : cluster.shape) {
-        //if(!lidar.isVisible(point, 0))
+        if(!lidar.isVisible(point, 20))
           wholeShapePoints.add(new PVector().set(point));
       }
     }
@@ -65,6 +65,7 @@ class StaticCluster {
     
     // Use the average color of the dynamic clusters inside this cluster to draw the bounding rectangle of the cluster:
     fill(clusterColor, 120);
+    stroke(0);
     
     // Draw the bounding rectangle:
     pushMatrix();

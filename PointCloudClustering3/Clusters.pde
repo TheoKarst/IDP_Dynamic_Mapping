@@ -6,19 +6,64 @@ final float MAX_MATCH_DISTANCE = 20;
 
 class StaticCluster {
   private final ArrayList<PVector> points;
+  private final boolean[] explained;
   
   public StaticCluster(ArrayList<PVector> points) {
     this.points = points;
+    this.explained = new boolean[points.size()];    // For each point, if it can be explained by a dynamic cluster or not
   }
   
   public void Draw() {
-    stroke(0, 0, 255);
     strokeWeight(1);
     PVector prev = points.get(0);
+    
+    stroke(0);
+    fill(explained[0] ? color(0, 255, 0) : color(255, 0, 0));
+    ellipse(prev.x, prev.y, 10, 10);
+    
     for(int i = 1; i < points.size(); i++) {
       PVector current = points.get(i);
+      
+      // Draw circles for points:
+      stroke(0);
+      fill(explained[i] ? color(0, 255, 0) : color(255, 0, 0));
+      ellipse(current.x, current.y, 10, 10);
+    
+      // Draw lines between points:
+      stroke(0, 0, 255);
       line(prev.x, prev.y, current.x, current.y);
       prev = current;
+    }
+  }
+  
+  public void UpdatePointsExplanation(boolean[] explanations) {
+    for(int i = 0; i < explained.length; i++)
+      if(explanations[i])
+        explained[i] = true;
+  }
+  
+  public void BuildDynamicClusters(ArrayList<DynamicCluster> newClusters, int minPointsPerCluster) {
+    ArrayList<PVector> current = new ArrayList<PVector>();
+    for(int i = 0; i < points.size(); i++) {
+      
+      // For each point that is not explained, a new dynamic cluster has to be created:
+      if(!explained[i]) {
+        current.add(points.get(i));
+      }
+      
+      else {
+        if(current.size() >= minPointsPerCluster) {
+          newClusters.add(new DynamicCluster(current));
+          current = new ArrayList<PVector>();
+        }
+        else if(current.size() > 0)
+          current.clear();
+      }
+    }
+    
+    if(current.size() >= minPointsPerCluster) {
+      newClusters.add(new DynamicCluster(current));
+      current = new ArrayList<PVector>();
     }
   }
 }
@@ -72,9 +117,9 @@ public class Trajectory {
 public class DynamicCluster {
   private color clusterColor;
   
-  private PVector position;                 // Current position of the cluster
-  private PVector speed;                    // Speed of the cluster
-  private ArrayList<PVector> shape;         // Current shape of the cluster
+  private PVector position;               // Current position of the cluster
+  private PVector speed;                  // Speed of the cluster
+  private Curve shape;                    // Current shape of the cluster
   
   private Trajectory trajectory;
   
@@ -85,7 +130,7 @@ public class DynamicCluster {
     
     this.position = computeCenter(shape);
     this.speed = new PVector();
-    this.shape = shape;
+    this.shape = new Curve(shape, 20, 10);
     
     this.trajectory = new Trajectory(clusterColor, 20);
     this.trajectory.addPoint(position);
@@ -97,8 +142,8 @@ public class DynamicCluster {
     currentMatch = null;
     
     for(StaticCluster cluster : clusters) {
-      int matching[] = new int[shape.size()];
-      int score = computeMatching(shape, cluster.points, matching);
+      int matching[] = new int[shape.points.size()];
+      int score = computeMatching(shape.points, cluster.points, matching);
       
       if(score > bestScore) {
         bestMatching = matching;
@@ -109,7 +154,7 @@ public class DynamicCluster {
     
     // If the cluster is matched with a static cluster points, we can update it using this static cluster:
     if(currentMatch != null) {
-      float[] transform = estimateTransform(shape, currentMatch.points, position, bestMatching, 100);
+      float[] transform = estimateTransform(shape.points, currentMatch.points, position, bestMatching, 100);
       
       float dX = transform[0];
       float dY = transform[1];
@@ -121,7 +166,7 @@ public class DynamicCluster {
       speed.y = mem * speed.y + (1-mem) * dY;
       
       // Update the position and orientation of the shape:
-      transformShape(position, shape, dX, dY, dTheta);
+      transformShape(position, shape.points, dX, dY, dTheta);
       
       // Update the position of the cluster:
       position = new PVector(position.x + dX, position.y + dY);
@@ -129,7 +174,7 @@ public class DynamicCluster {
     
     // Else, update the cluster position just from its speed estimate:
     else {
-      transformShape(position, shape, speed.x, speed.y, 0);
+      transformShape(position, shape.points, speed.x, speed.y, 0);
       position = PVector.add(position, speed, new PVector());
     }
   }
@@ -141,47 +186,14 @@ public class DynamicCluster {
     if(currentMatch == null)
       return;
       
-    ArrayList<PVector> newShape = new ArrayList<PVector>();
-    
-    PVector prev = shape.get(shape.size()-1);
-    newShape.add(prev);
-    
-    int index = 0;
-    PVector u = new PVector(), n = new PVector(), v = new PVector();
-    for(PVector current : shape) {
-      PVector.sub(current, prev, u);
-      float uMagSq = u.magSq();
-      
-      n.set(-u.y, u.x).normalize();
-      
-      while(index < currentMatch.points.size()) {
-        PVector point = currentMatch.points.get(index);
-        PVector.sub(point, prev, v);
-        
-        float dotU = v.dot(u);
-        float dotN = v.dot(n);
-        
-        if(dotU >= 0 && dotU <= uMagSq && abs(dotN) <= MAX_MATCH_DISTANCE) {
-          newShape.add(point);
-          index++;
-        }
-        else
-          break;
-      }
-      
-      prev = current;
-      newShape.add(prev);
-    }
-      
-    
+    boolean matches[] = shape.MatchCurve(currentMatch.points);    
+    currentMatch.UpdatePointsExplanation(matches);
   }
   
   public void Draw() {
     trajectory.Draw();
-    
-    strokeWeight(4);
-    drawShape(shape, clusterColor);
-    strokeWeight(1);
+    shape.Draw();
+    // shape.DrawContour();
     
     // Draw the speed estimate (with a scale factor, to avoid being too small):
     final float factor = 50;

@@ -12,8 +12,19 @@ class ClusterManager {
     staticClusters = buildStaticClusters(points);
     
     // Match the dynamic clusters from the previous frame, with the points of the current frame:
-    for(DynamicCluster dynamicCluster : dynamicClusters)
-      dynamicCluster.MatchCluster(staticClusters);
+    for(DynamicCluster cluster : dynamicClusters)
+      cluster.MatchCluster(staticClusters);
+      
+    // TODO: Remove dynamic clusters inconsistency with the LIDAR observations:
+    // ...
+      
+    // Now, with the updated dynamic clusters, try to explain why we have the points we currently have:
+    for(DynamicCluster cluster : dynamicClusters)
+      cluster.ExplainStaticPoints();
+      
+    // Finally, create new dynamic clusters if necessary, if there are still unexplained points:
+    for(StaticCluster cluster : staticClusters)
+      cluster.BuildDynamicClusters(dynamicClusters, 3);
   }
   
   public void Draw(boolean showStaticClusters, boolean showDynamicClusters) {
@@ -83,7 +94,7 @@ class ClusterManager {
     // Now we can build static clusters from the point clusters we just created:
     StaticCluster[] staticClusters = new StaticCluster[pointsClusters.size()];
     for(int i = 0; i < staticClusters.length; i++)
-      staticClusters[i] = new StaticCluster(pointsClusters.get(i), rectClusterMargin);
+      staticClusters[i] = new StaticCluster(pointsClusters.get(i));
       
     return staticClusters;
   }

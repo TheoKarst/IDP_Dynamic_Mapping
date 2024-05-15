@@ -16,10 +16,10 @@ Lidar lidar;
 boolean pause = false;
 boolean followMouse = false;
 
-boolean showPoints = true;
+boolean showPoints = false;
 boolean showLidar = true;
-boolean showEntities = false;
-boolean showStaticClusters = false;
+boolean showEntities = true;
+boolean showStaticClusters = true;
 boolean showDynamicClusters = true;
 
 color[] defaultColors = new color[] {
@@ -50,7 +50,7 @@ void setup() {
     radius = random(60, 100);
     color shapeColor = color(0, 0, 255, 120);
     // Shape shape = new CircleShape(random(width), random(height), radius, shapeColor);
-    Shape shape = new PolygonShape(startX, startY, 0, 200, 200, 5, shapeColor);
+    Shape shape = new PolygonShape(startX, startY, 0, 300, 300, 5, shapeColor);
     entities[i] = new MovingEntity(shape, speed);
   }
     
@@ -61,7 +61,7 @@ void setup() {
   radius = 5;  
   lidar = new Lidar(LIDAR_RAYCAST_COUNT, RAYCAST_DISTANCE, startX, startY, speed, radius);
   
-  manager = new ClusterManager(POINT_CLUSTER_LIFETIME, RECT_CLUSTER_MARGIN);
+  manager = new ClusterManager();
   
   if(pause)
     noLoop();
