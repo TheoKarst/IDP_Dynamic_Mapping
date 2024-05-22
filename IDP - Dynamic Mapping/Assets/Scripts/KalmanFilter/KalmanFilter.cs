@@ -2,7 +2,6 @@ using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
-using static RobotController;
 
 public class KalmanFilter {
     // Define some constants for the dimensions of the state, landmarks and observations:
@@ -27,13 +26,13 @@ public class KalmanFilter {
     private long timestep = 0;
 
     // Current state estimate, and state covariance estimate of the robot:
-    private ModelState stateEstimate;                        // x_hat(k|k)
-    private StateCovariance stateCovarianceEstimate;         // P(k|k)
+    private VehicleState stateEstimate;                        // x_hat(k|k)
+    private StateCovariance stateCovarianceEstimate;           // P(k|k)
 
     // This represent the state estimate with state prediction only
     // (without using Kalman filter update from observations). This is used to show the impact of the EKF
     // on the state estimate:
-    private ModelState stateEstimateNoUpdate;
+    private VehicleState stateEstimateNoUpdate;
 
     // Save the last time of an update to determine the elapsed time between two updates:
     private float lastTimeUpdate = -1;
@@ -51,7 +50,7 @@ public class KalmanFilter {
     private List<Vector<float>> observationsPos;
     private List<Matrix<float>> observationsCov;
 
-    public KalmanFilter(RobotController controller, ModelState initialState, 
+    public KalmanFilter(RobotController controller, VehicleState initialState, 
         ModelParams model, StreamWriter logFile) {
 
         this.controller = controller;
@@ -160,7 +159,7 @@ public class KalmanFilter {
 
         // Equation (10): From the previous state estimate and current inputs,
         // predict a new state estimate: x_hat(k+1|k)
-        ModelState statePrediction = predictStateEstimate(stateEstimate, inputs, deltaT);
+        VehicleState statePrediction = predictStateEstimate(stateEstimate, inputs, deltaT);
 
         Debug.Log("Estimate: " + stateEstimate + "; Prediction: " + statePrediction
             + "; Confirmed landmarks: " + confirmedLandmarks.Count + "; Potential: " + potentialLandmarks.Count);
@@ -202,7 +201,7 @@ public class KalmanFilter {
             stateCovarianceEstimate = stateCovariancePrediction;
 
             if (logFile != null) {
-                ModelState realState = controller.getRobotRealState();
+                VehicleState realState = controller.getRobotRealState();
                 float realPhi = principalDegreeMeasure(realState.phi);
                 float predictPhi = principalDegreeMeasure(stateEstimateNoUpdate.phi);
                 float estimatePhi = principalDegreeMeasure(stateEstimate.phi);
@@ -259,7 +258,7 @@ public class KalmanFilter {
 
         // Write data to the log file:
         if(logFile != null) {
-            ModelState realState = controller.getRobotRealState();
+            VehicleState realState = controller.getRobotRealState();
             float realPhi = principalDegreeMeasure(realState.phi);
             float predictPhi = principalDegreeMeasure(stateEstimateNoUpdate.phi);
             float updatePhi = principalDegreeMeasure(stateEstimate.phi);
@@ -282,13 +281,13 @@ public class KalmanFilter {
     // and the previous landmarks, return the index of the landmark that is the most likely to correspond
     // to the observation. If no appropriate landmark is found, the set of potential landmarks is updated.
     // return -1 if there is no landmark candidate for the observation
-    private int computeLandmarkAssociation(Observation observation, ModelState statePrediction, StateCovariance stateCovariancePrediction) {
+    private int computeLandmarkAssociation(Observation observation, VehicleState statePrediction, StateCovariance stateCovariancePrediction) {
         // Perform some renamings for readability:
         float xk = statePrediction.x, yk = statePrediction.y, phik = statePrediction.phi;
         float rf = observation.r, thetaf = observation.theta;
 
         // Covariance matrix of the vehicle location estimate, extracted from P(k|k):
-        Matrix<float> Pv = stateCovariancePrediction.extractPvv();       // Matrix(STATE_DIM, STATE_DIM)
+        Matrix<float> Pv = stateCovariancePrediction.extractPvv();     // Matrix(STATE_DIM, STATE_DIM)
 
         // 1. Compute pf, the position of the landmark possibly responsible for this observation:
         Vector<float> pf = g(xk, yk, phik, rf, thetaf);                // Matrix(LANDMARK_DIM, 1)
@@ -384,6 +383,25 @@ public class KalmanFilter {
         return -1;
     }
 
+    public (Vector<float>, Matrix<float>) computeObservationPositionEstimate(Observation observation, VehicleState stateEstimate, Matrix<float> stateCovariance) {
+        float x = stateEstimate.x, y = stateEstimate.y, phi = stateEstimate.phi;
+        float r = observation.r, theta = observation.theta;
+        
+        // From the state estimate of the robot, compute the position estimate of the observation in global space:
+        Vector<float> pf = g(x, y, phi, r, theta);                  // Matrix(LANDMARK_DIM, 1)
+
+        // Compute Pf, the covariance matrix of pf:
+        Matrix<float> gradGxyp = computeGradGxyp(phi, r, theta);    // Matrix(LANDMARK_DIM, STATE_DIM)
+        Matrix<float> gradGrt = computeGradGrt(phi, r, theta);      // Matrix(LANDMARK_DIM, OBSERVATION_DIM)
+
+        // stateCovariance = Matrix(STATE_DIM, STATE_DIM) and R = M(OBSERVATION_DIM, OBSERVATION_DIM)
+        // So Pf = Matrix(LANDMARK_DIM, LANDMARK_DIM):
+        Matrix<float> Pf = gradGxyp * stateCovariance.TransposeAndMultiply(gradGxyp)
+                        + gradGrt * R.TransposeAndMultiply(gradGrt);
+
+        return (pf, Pf);
+    }
+
     // Step 5. of the Appendix II: Examine the set of potential landmarks, remove the unused ones and
     // confirm the most stable ones:
     private void updatePotentialLandmarks(StateCovariance stateCovariancePrediction) {
@@ -444,17 +462,17 @@ public class KalmanFilter {
 
     // Given the previous state estimate and the current inputs, compute the prediction 
     // of the new state estimate according to equation (10)
-    private ModelState predictStateEstimate(ModelState previous, ModelInputs inputs, float deltaT) {
+    private VehicleState predictStateEstimate(VehicleState previous, ModelInputs inputs, float deltaT) {
         float x = previous.x + deltaT * inputs.V * Mathf.Cos(previous.phi);
         float y = previous.y + deltaT * inputs.V * Mathf.Sin(previous.phi);
         float phi = previous.phi + deltaT * inputs.V * Mathf.Tan(inputs.gamma) / model.L;
 
-        return new ModelState(x, y, phi);
+        return new VehicleState(x, y, phi);
     }
 
     // Given the estimated position and the landmark associated to the observation, predict what the observation
     // should be, according to equations (11) and (37):
-    private Observation predictObservation(ModelState predictedState, int landmarkIndex) {
+    private Observation predictObservation(VehicleState predictedState, int landmarkIndex) {
         float cosphi = Mathf.Cos(predictedState.phi), sinphi = Mathf.Sin(predictedState.phi);
         float a = model.a, b = model.b;
 
@@ -471,7 +489,7 @@ public class KalmanFilter {
     }
 
     // Given the previous state estimate and the current inputs, compute Fv, the Jacobian of f():
-    private Matrix<float> computeFv(ModelState previous, ModelInputs inputs, float deltaT) {
+    private Matrix<float> computeFv(VehicleState previous, ModelInputs inputs, float deltaT) {
         float cosphi = Mathf.Cos(previous.phi);
         float sinphi = Mathf.Sin(previous.phi);
 
@@ -481,7 +499,7 @@ public class KalmanFilter {
             {0, 0, 1 } });                              // Derivative f3(x, y, phi) / dphi
     }
 
-    private void computeHi(ModelState predictedState, int landmarkIndex, Matrix<float> dest, int index) {
+    private void computeHi(VehicleState predictedState, int landmarkIndex, Matrix<float> dest, int index) {
         float cosphi = Mathf.Cos(predictedState.phi), sinphi = Mathf.Sin(predictedState.phi);
         float a = model.a, b = model.b;
 
@@ -518,7 +536,7 @@ public class KalmanFilter {
         dest.SetSubMatrix(index, STATE_DIM + landmarkIndex * LANDMARK_DIM, Hpi);
     }
 
-    public ModelState getStateEstimate() {
+    public VehicleState getStateEstimate() {
         return stateEstimate.copy();
     }
 }

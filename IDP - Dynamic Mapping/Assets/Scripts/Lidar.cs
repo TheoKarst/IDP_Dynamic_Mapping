@@ -3,16 +3,6 @@ using UnityEngine;
 
 public class Lidar : MonoBehaviour
 {
-    public struct Corner {
-        public Vector3 position;
-        public float angle;
-
-        public Corner(Vector3 position, float angle) {
-            this.position = position;
-            this.angle = angle;
-        }
-    }
-
     public int raycastCount = 20;
     public float raycastDistance = 1;
 
@@ -25,75 +15,99 @@ public class Lidar : MonoBehaviour
 
     public bool drawRays = true;
 
-    private float[] raycastDistances;
+    // Real position of the hit points from the LIDAR (only used for drawing):
     private Vector3[] hitPoints;
-    private List<Corner> corners;
+
+    // List of observations made by the LIDAR, and indices of observations corresponding to 
+    // convex and concave corners:
+    private Observation[] observations;
+    private List<int> convexCorners, concaveCorners;
 
     // Start is called before the first frame update
     void Start() {
-        raycastDistances = new float[raycastCount];
         hitPoints = new Vector3[raycastCount];
+        observations = new Observation[raycastCount];
     }
 
     // Update is called once per frame
     void Update() {
-        // Update the raycast distances each frame:
+        // Compute the raycast intersections with the environment, and update the observations:
+        ComputeObservations();
+
+        // From the observations, detect the ones that correspond to corners (that are used as landmarks):
+        DetectCorners();
+    }
+
+    public void OnDrawGizmos() {
+        if (convexCorners != null) {
+            Gizmos.color = Color.green;
+
+            foreach (int index in convexCorners)
+                Gizmos.DrawSphere(hitPoints[index], 0.1f);
+        }
+
+        if (concaveCorners != null) {
+            Gizmos.color = Color.red;
+
+            foreach (int index in concaveCorners)
+                Gizmos.DrawSphere(hitPoints[index], 0.1f);
+        }
+    }
+
+    // Use raycasting to compute the observations made by the LIDAR:
+    private void ComputeObservations() {
+        float observationAngle = 0;
         Vector3 direction = transform.TransformDirection(Vector3.forward);
 
-        for (int i = 0; i < raycastDistances.Length; i++) {
+        for (int i = 0; i < observations.Length; i++) {
             RaycastHit hit;
             if (Physics.Raycast(transform.position, direction, out hit, raycastDistance)) {
-                if(drawRays) Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
-                raycastDistances[i] = hit.distance;
+                // Used for drawing only:
+                if (drawRays) Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
                 hitPoints[i] = hit.point;
+
+                // Used for localisation, mapping, etc...
+                observations[i] = new Observation(hit.distance, observationAngle);
             }
             else {
-                if(drawRays) Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
-                raycastDistances[i] = -1;
+                // Used for drawing only:
+                if (drawRays) Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
                 hitPoints[i] = Vector3.zero;
+
+                // Used for localisation, mapping, etc...
+                observations[i] = new Observation(-1, observationAngle);
             }
 
             // Rotate the direction of the raycast counterclockwise:
             direction = Quaternion.AngleAxis(-360f / raycastCount, Vector3.up) * direction;
+            observationAngle += 2 * Mathf.PI / raycastCount;
         }
-
-        corners = detectCorners();
     }
 
-    public void OnDrawGizmos() {
-        if (corners == null)
+    private void DetectCorners() {
+        if (observations == null)
             return;
 
-        foreach(Corner corner in corners) {
-            Gizmos.color = corner.angle < 180 ? Color.green : Color.red;
-            Gizmos.DrawSphere(corner.position, 0.1f);
-        }
-    }
-
-    private List<Corner> detectCorners() {
-        if (raycastDistances == null)
-            return null;
-
-        List<Corner> corners = new List<Corner>();
+        convexCorners = new List<int>();
+        concaveCorners = new List<int>();
         
-        int count = raycastDistances.Length;
+        int count = observations.Length;
 
         // Use the same naming convention as the paper "Corner Detection for Room Mapping of Fire Fighting Robot":
         for(int i = 0; i < count; i++) {
-            int prev = (i + count - deltaCorners) % count;
-            int next = (i + deltaCorners) % count;
+            Observation prev = observations[(i + count - deltaCorners) % count];
+            Observation curr = observations[i];
+            Observation next = observations[(i + deltaCorners) % count];
 
-            float b = raycastDistances[prev];
-            float c = raycastDistances[i];
-            float e = raycastDistances[next];
+            float b = prev.r, c = curr.r, e = next.r;
 
             // If any of the measurement found no obstacle, then ignore this point:
             if (b < 0 || c < 0 || e < 0)
                 continue;
 
             // Else, detect if this is a corner using cosine law:
-            float a = (hitPoints[i] - hitPoints[prev]).magnitude;
-            float d = (hitPoints[i] - hitPoints[next]).magnitude;
+            float a = Mathf.Sqrt(b * b + c * c - 2 * b * c * Mathf.Cos(curr.theta - prev.theta));
+            float d = Mathf.Sqrt(c * c + e * e - 2 * c * e * Mathf.Cos(next.theta - curr.theta));
 
             float angleB = Mathf.Acos((a*a + c*c - b*b) / (2*a*c));
             float angleE = Mathf.Acos((d*d + c*c - e*e) / (2*d*c));
@@ -101,57 +115,30 @@ public class Lidar : MonoBehaviour
             // Angle in degrees of the corner:
             float theta = Mathf.Rad2Deg * (angleB + angleE);
 
-            if(theta < 140 || theta > 220)
-                corners.Add(new Corner(hitPoints[i], theta));
+            if (theta < 140)
+                concaveCorners.Add(i);
+
+            else if (theta > 220)
+                convexCorners.Add(i);
         }
-
-        return corners;
     }
 
-    public float[] getRaycastDistances() {
-        return raycastDistances;
+    public (float, float) GetLocalPosition() {
+        return (transform.localPosition.z, -transform.localPosition.x);
     }
 
-    public float getLidarA() {
-        return transform.localPosition.z;
-    }
-
-    public float getLidarB() {
-        return -transform.localPosition.x;
-    }
-
-    /*// To update the state of the robot, we should get one landmark observation each frame.
-    // For now, we suppose that the sensor returns a random corner, no matter its distance from the robot:
-    public (float, float) getLandmark() {
-
-        // Select a random corner:
-        Corner corner = corners[Random.Range(0, corners.Count)];
-
-        float dX = corner.position.x - transform.position.x;
-        float dY = corner.position.z - transform.position.z;
-        float distance = Mathf.Sqrt(dX * dX + dY * dY);
-
-        float lidarAngle = Mathf.Deg2Rad * (90 - gameObject.transform.rotation.eulerAngles.y);
-        float angle = Mathf.Atan2(dY, dX) - lidarAngle;
-
-        return (distance, angle);
-    }*/
-
-    // Return the set of all possible landmarks that could be used to update our state estimate:
-    public Observation[] getObservations() {
-        float lidarAngle = Mathf.Deg2Rad * (90 - gameObject.transform.rotation.eulerAngles.y);
-        Observation[] observations = new Observation[corners.Count];
-        
-        for (int i = 0; i < observations.Length; i++) {
-            float dX = corners[i].position.x - transform.position.x;
-            float dY = corners[i].position.z - transform.position.z;
-            float r = Mathf.Sqrt(dX * dX + dY * dY);
-            float theta = Mathf.Atan2(dY, dX) - lidarAngle;
-
-            observations[i] =  new Observation(r, theta);
-        }
-
+    public Observation[] GetObservations() {
         return observations;
+    }
+
+    // Use the convex corners as landmarks to update our state estimate:
+    public Observation[] GetLandmarkCandidates() {
+        Observation[] landmarks = new Observation[convexCorners.Count];
+        
+        for (int i = 0; i < landmarks.Length; i++)
+            landmarks[i] = observations[convexCorners[i]];
+
+        return landmarks;
     }
 
     public void DrawObservation(Observation observation, Color color) {

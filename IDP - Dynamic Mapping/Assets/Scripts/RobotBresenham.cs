@@ -103,11 +103,8 @@ public class RobotBresenham : MonoBehaviour
             for (int y = 2 * mapHeight; y < 3 * mapHeight; y++)
                 texture.SetPixel(x, y, Color.gray);
 
-        // Get the distances returned from the LIDAR (-1 if no collision):
-        float[] distances = lidar.getRaycastDistances();
-
-        // Compute the angle in radians between two raycasts:
-        float delta = 2 * Mathf.PI / distances.Length;
+        // Get the observations returned from the LIDAR (-1 if no collision):
+        Observation[] observations = lidar.GetObservations();
 
         // Position of the robot in the grids:
         int x0 = Mathf.FloorToInt(robotX / cellSize) + mapWidth / 2;
@@ -115,18 +112,21 @@ public class RobotBresenham : MonoBehaviour
 
         // For each raycast, use Bresenham's algorithm to compute the intersection between the
         // raycast and the grids, and update the cells accordingly:
-        for (int i = 0; i < distances.Length; i++) {
-            float angle = robotAngle + i * delta;
+        foreach (Observation observation in observations) {
+            if(observation == null) 
+                continue;
+
+            float angle = robotAngle + observation.theta;
 
             // Compute the position of the end of the ray, in world space:
             float xWorld, yWorld;
-            if (distances[i] < 0) {
+            if (observation.r < 0) {
                 xWorld = robotX + Mathf.Cos(angle) * lidar.raycastDistance;
                 yWorld = robotY + Mathf.Sin(angle) * lidar.raycastDistance;
             }
             else {
-                xWorld = robotX + Mathf.Cos(angle) * distances[i];
-                yWorld = robotY + Mathf.Sin(angle) * distances[i];
+                xWorld = robotX + Mathf.Cos(angle) * observation.r;
+                yWorld = robotY + Mathf.Sin(angle) * observation.r;
             }
 
             // Convert the world position into a cell position:
@@ -134,7 +134,7 @@ public class RobotBresenham : MonoBehaviour
             int y1 = Mathf.FloorToInt(yWorld / cellSize) + mapHeight / 2;
 
             // Update the cells touched by the raycast:
-            bresenham(x0, y0, x1, y1, distances[i] >= 0);
+            bresenham(x0, y0, x1, y1, observation.r >= 0);
         }
 
         // Update the texture to reflect the changes on the maps:

@@ -31,7 +31,7 @@ public class RobotController : MonoBehaviour {
 
     // Start is called before the first frame update
     void Start() {
-        ModelState initialState = getRobotRealState();
+        VehicleState initialState = getRobotRealState();
         StreamWriter logFile = writeLogFile ? File.CreateText("log_file.csv") : null;
 
         // Estimates of the different errors in the model:
@@ -39,8 +39,7 @@ public class RobotController : MonoBehaviour {
 
         // Dimensions of the model:
         model.L = L;
-        model.a = lidar.getLidarA();
-        model.b = lidar.getLidarB();
+        (model.a, model.b) = lidar.GetLocalPosition();
 
         // Error estimates used in the Kalman Filter:
         model.errorX = model.errorY = 0.4f;
@@ -109,8 +108,8 @@ public class RobotController : MonoBehaviour {
     private void UpdateStateEstimate() {
         ModelInputs inputs = new ModelInputs(velocity, Mathf.Deg2Rad * steering);
 
-        // Get all the observations from the LIDAR:
-        Observation[] observations = lidar.getObservations();
+        // Get the observations from the LIDAR, that are good landmark candidates:
+        Observation[] observations = lidar.GetLandmarkCandidates();
 
         // Use these observations to update the robot state estimate:
         filter.updateStateEstimate(observations, inputs, Time.time);
@@ -128,7 +127,7 @@ public class RobotController : MonoBehaviour {
         return Mathf.Deg2Rad * (90 - gameObject.transform.rotation.eulerAngles.y);
     }
 
-    public ModelState getRobotRealState() {
-        return new ModelState(getRobotX(), getRobotY(), getRobotAngle());
+    public VehicleState getRobotRealState() {
+        return new VehicleState(getRobotX(), getRobotY(), getRobotAngle());
     }
 }
