@@ -92,19 +92,22 @@ public class RobotBresenham : MonoBehaviour
         float robotAngle = Mathf.Deg2Rad * (90 - lidar.transform.rotation.eulerAngles.y);
 
         // And update the static and dynamic maps using distances values from the LIDAR:
-        updateMaps(robotX, robotY, robotAngle);
+        UpdateMaps(robotX, robotY, robotAngle);
     }
 
 
-    private void updateMaps(float robotX, float robotY, float robotAngle) {
+    private void UpdateMaps(float robotX, float robotY, float robotAngle) {
+
+        // Get the observations returned from the LIDAR (-1 if no collision):
+        Observation[] observations = lidar.GetObservations();
+
+        if (observations == null)
+            return;
 
         // Erase current map:
         for (int x = 0; x < mapWidth; x++)
             for (int y = 2 * mapHeight; y < 3 * mapHeight; y++)
                 texture.SetPixel(x, y, Color.gray);
-
-        // Get the observations returned from the LIDAR (-1 if no collision):
-        Observation[] observations = lidar.GetObservations();
 
         // Position of the robot in the grids:
         int x0 = Mathf.FloorToInt(robotX / cellSize) + mapWidth / 2;
@@ -113,9 +116,6 @@ public class RobotBresenham : MonoBehaviour
         // For each raycast, use Bresenham's algorithm to compute the intersection between the
         // raycast and the grids, and update the cells accordingly:
         foreach (Observation observation in observations) {
-            if(observation == null) 
-                continue;
-
             float angle = robotAngle + observation.theta;
 
             // Compute the position of the end of the ray, in world space:
@@ -134,14 +134,14 @@ public class RobotBresenham : MonoBehaviour
             int y1 = Mathf.FloorToInt(yWorld / cellSize) + mapHeight / 2;
 
             // Update the cells touched by the raycast:
-            bresenham(x0, y0, x1, y1, observation.r >= 0);
+            Bresenham(x0, y0, x1, y1, observation.r >= 0);
         }
 
         // Update the texture to reflect the changes on the maps:
         texture.Apply();
     }
 
-    private void bresenham(int x0, int y0, int x1, int y1, bool collision) {
+    private void Bresenham(int x0, int y0, int x1, int y1, bool collision) {
         int dx = Mathf.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
         int dy = Mathf.Abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
         int err = (dx > dy ? dx : -dy) / 2, e2;
@@ -151,12 +151,12 @@ public class RobotBresenham : MonoBehaviour
 
                 // If there was a collision, the last cell touched by the raycast is occupied.
                 // Else, it's free:
-                updateCell(x0, y0, collision ? OCCUPIED : FREE);
+                UpdateCell(x0, y0, collision ? OCCUPIED : FREE);
                 break;
             }
 
             // All the cells traversed by the raycast are free:
-            updateCell(x0, y0, FREE);
+            UpdateCell(x0, y0, FREE);
 
             e2 = err;
             if (e2 > -dx) { err -= dy; x0 += sx; }
@@ -164,7 +164,7 @@ public class RobotBresenham : MonoBehaviour
         }
     }
 
-    private void updateCell(int x, int y, int state) {
+    private void UpdateCell(int x, int y, int state) {
         if (state == UNKNOWN || x < 0 || x >= mapWidth || y < 0 || y >= mapHeight)
             return;
 

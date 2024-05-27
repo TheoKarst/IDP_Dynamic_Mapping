@@ -84,8 +84,7 @@ public class VehicleModel {
     // From the vehicle state estimate and covariance, compute the position of the given observation in
     // global space, as well as the associated covariance matrix:
     public (Vector<float>, Matrix<float>) ComputeObservationPositionEstimate(
-        VehicleState stateEstimate, Matrix<float> stateCovariance,
-        Observation observation, Matrix<float> observationCovariance) {
+        VehicleState stateEstimate, Matrix<float> stateCovariance, Observation observation) {
 
         // Perform renamings for simplification:
         float x = stateEstimate.x, y = stateEstimate.y, phi = stateEstimate.phi;
@@ -113,7 +112,7 @@ public class VehicleModel {
 
         // 4. Now we can compute the covariance matrix associated to the observation position estimate:
         Matrix<float> Cp = F * stateCovariance.TransposeAndMultiply(F)
-                        + G * observationCovariance.TransposeAndMultiply(G);
+                        + G * ObservationError.TransposeAndMultiply(G);
 
         return (Xp, Cp);
     }

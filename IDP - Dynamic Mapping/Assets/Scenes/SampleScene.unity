@@ -940,6 +940,7 @@ GameObject:
   - component: {fileID: 976047838}
   - component: {fileID: 976047840}
   - component: {fileID: 976047841}
+  - component: {fileID: 976047842}
   m_Layer: 0
   m_Name: Robot
   m_TagString: Untagged
@@ -1010,6 +1011,25 @@ MonoBehaviour:
   drawPotentialLandmarks: 1
   drawObservations: 1
   minDistanceBetweenLandmarks: 2
+--- !u!114 &976047842
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 976047837}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 92c7567aebdb06e4c88242fb915722f8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lidar: {fileID: 1040413680}
+  controller: {fileID: 976047841}
+  POINT_CRITICAL_DISTANCE: 0.2
+  LINE_CRITICAL_DISTANCE: 0.06
+  CRITICAL_ALPHA: 5
+  drawPoints: 0
+  drawLines: 1
 --- !u!1 &987848140
 GameObject:
   m_ObjectHideFlags: 0

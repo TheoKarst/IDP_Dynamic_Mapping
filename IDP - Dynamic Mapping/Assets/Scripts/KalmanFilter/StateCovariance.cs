@@ -36,16 +36,16 @@ public class StateCovariance {
         P.SetSubMatrix(STATE_DIM, STATE_DIM, Pmm);
     }
 
-    public Matrix<float> extractPvv() {
+    public Matrix<float> ExtractPvv() {
         return P.SubMatrix(0, STATE_DIM, 0, STATE_DIM);
     }
 
-    public Matrix<float> extractLandmarkCovariance(int landmarkIndex) {
+    public Matrix<float> ExtractLandmarkCovariance(int landmarkIndex) {
         int index = STATE_DIM + landmarkIndex * LANDMARK_DIM;
         return P.SubMatrix(index, LANDMARK_DIM, index, LANDMARK_DIM);
     }
 
-    public void addLandmark(Matrix<float> landmarkCovariance) {
+    public void AddLandmark(Matrix<float> landmarkCovariance) {
         Matrix<float> newP = M.Dense(P.RowCount+LANDMARK_DIM, P.ColumnCount+LANDMARK_DIM);
         newP.SetSubMatrix(0, 0, P);
         newP.SetSubMatrix(P.RowCount, P.ColumnCount, landmarkCovariance);
@@ -53,7 +53,7 @@ public class StateCovariance {
         P = newP;
     }
 
-    public StateCovariance predictStateEstimateCovariance(Matrix<float> Fv, Matrix<float> Q) {
+    public StateCovariance PredictStateEstimateCovariance(Matrix<float> Fv, VehicleModel model) {
         int landmarksSize = P.ColumnCount - STATE_DIM;
 
         Matrix<float> Pvv = P.SubMatrix(0, STATE_DIM, 0, STATE_DIM);
@@ -61,13 +61,12 @@ public class StateCovariance {
         Matrix<float> Pmm = P.SubMatrix(STATE_DIM, landmarksSize, STATE_DIM, landmarksSize);
 
         return new StateCovariance(
-            Fv * Pvv.TransposeAndMultiply(Fv) + Q,
+            Fv * Pvv.TransposeAndMultiply(Fv) + model.ProcessNoiseError,
             Fv * Pvm,
             Pmm);
     }
 
-    public (Matrix<float>, Matrix<float>) computeInnovationAndGainMatrices(Matrix<float> H, Matrix<float> R) {
-        // H = Matrix(observationsCou
+    public (Matrix<float>, Matrix<float>) ComputeInnovationAndGainMatrices(Matrix<float> H, Matrix<float> R) {
         Matrix<float> tmp = P.TransposeAndMultiply(H);
 
         Matrix<float> Si = H * tmp + R;           // Matrix(OBSERVATION_DIM, OBSERVATION_DIM)

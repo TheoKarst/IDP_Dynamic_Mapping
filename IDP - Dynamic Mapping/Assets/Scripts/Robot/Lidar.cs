@@ -128,6 +128,9 @@ public class Lidar : MonoBehaviour
     }
 
     public Observation[] GetObservations() {
+        if (observations == null || observations[0] == null)
+            return null;
+
         return observations;
     }
 

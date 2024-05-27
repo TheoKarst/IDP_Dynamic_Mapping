@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 
 class Line {
@@ -15,8 +16,14 @@ class Line {
     // Endpoints of the line:
     private Vector2 beginPoint, endPoint;
 
-    public void Draw() {
-        // TODO: Implement this
+    public void DrawGizmos() {
+        //Gizmos.color = Color.red;
+        //Gizmos.DrawLine(new Vector3(beginPoint.x, 0.5f, beginPoint.y), 
+        //                new Vector3(endPoint.x, 0.5f, endPoint.y));
+
+        Vector3 p1 = new Vector3(beginPoint.x, 0.5f, beginPoint.y);
+        Vector3 p2 = new Vector3(endPoint.x, 0.5f, endPoint.y);
+        Handles.DrawBezier(p1, p2, p1, p2, Color.red, null, 4);
     }
 
     // Add a point to the line, and update the line parameters:

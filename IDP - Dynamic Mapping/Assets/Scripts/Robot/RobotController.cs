@@ -25,8 +25,9 @@ public class RobotController : MonoBehaviour {
     private float velocity = 0;
     private float steering = 0;
 
+    private VehicleModel vehicleModel;
     private KalmanFilter filter;
-    private float lastTimeMeasure;
+    private float lastTimeMeasure = 0;
 
     // Start is called before the first frame update
     void Start() {
@@ -34,10 +35,10 @@ public class RobotController : MonoBehaviour {
 
         // Instantiate a vehicle model:
         float a, b; (a, b) = lidar.GetLocalPosition();
-        VehicleModel model = new VehicleModel(a, b, L);
+        vehicleModel = new VehicleModel(a, b, L);
 
         Logger kalmanLogger = writeLogFile ? new Logger(false, "log_file.csv") : new Logger(false);
-        filter = new KalmanFilter(this, initialState, model, minDistanceBetweenLandmarks, kalmanLogger);
+        filter = new KalmanFilter(this, initialState, vehicleModel, minDistanceBetweenLandmarks, kalmanLogger);
     }
 
     // Update is called once per frame
@@ -112,7 +113,11 @@ public class RobotController : MonoBehaviour {
         return Mathf.Deg2Rad * (90 - gameObject.transform.rotation.eulerAngles.y);
     }
 
-    public (Vector<float>, Matrix<float>) GetRobotStateEstimate() {
+    public VehicleModel GetVehicleModel() {
+        return vehicleModel;
+    }
+
+    public (VehicleState, Matrix<float>) GetRobotStateEstimate() {
         return filter.GetStateEstimate();
     }
 
