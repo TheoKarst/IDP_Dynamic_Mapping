@@ -1,4 +1,4 @@
-using System.IO;
+using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
 public class RobotController : MonoBehaviour {
@@ -25,39 +25,28 @@ public class RobotController : MonoBehaviour {
     private float velocity = 0;
     private float steering = 0;
 
-    private bool startKalmanFilter = false;
     private KalmanFilter filter;
     private float lastTimeMeasure;
 
     // Start is called before the first frame update
     void Start() {
-        VehicleState initialState = getRobotRealState();
-        StreamWriter logFile = writeLogFile ? File.CreateText("log_file.csv") : null;
+        VehicleState initialState = GetRobotRealState();
 
-        // Estimates of the different errors in the model:
-        ModelParams model = new ModelParams();
+        // Instantiate a vehicle model:
+        float a, b; (a, b) = lidar.GetLocalPosition();
+        VehicleModel model = new VehicleModel(a, b, L);
 
-        // Dimensions of the model:
-        model.L = L;
-        (model.a, model.b) = lidar.GetLocalPosition();
-
-        // Error estimates used in the Kalman Filter:
-        model.errorX = model.errorY = 0.4f;
-        model.errorPhi = 2 * Mathf.Deg2Rad;
-        model.errorR = 0.4f;
-        model.errorTheta = 2 * Mathf.Deg2Rad;
-
-        // Also define the minimum distance between landmarks:
-        model.minDistanceBetweenLandmarks = minDistanceBetweenLandmarks;
-
-        filter = new KalmanFilter(this, initialState, model, logFile);
+        Logger kalmanLogger = writeLogFile ? new Logger(false, "log_file.csv") : new Logger(false);
+        filter = new KalmanFilter(this, initialState, model, minDistanceBetweenLandmarks, kalmanLogger);
     }
 
     // Update is called once per frame
     void Update() {
         UpdateRobot();
 
-        if(startKalmanFilter && Time.time - lastTimeMeasure > waitBetweenMeasures) {
+        // Wait before updating the state estimate, to have a realistic simulation. Otherwise, the
+        // prediction step of the Kalman Filter will always be 100% accurate, which is not realistic
+        if(Time.time - lastTimeMeasure > waitBetweenMeasures) {
             UpdateStateEstimate();
             lastTimeMeasure = Time.time;
         }
@@ -65,7 +54,7 @@ public class RobotController : MonoBehaviour {
 
     public void OnDrawGizmos() {
         if(filter != null)
-            filter.drawGizmos(drawConfirmedLandmarks, drawPotentialLandmarks, drawObservations);
+            filter.DrawGizmos(drawConfirmedLandmarks, drawPotentialLandmarks, drawObservations);
     }
 
     private void UpdateRobot() {
@@ -87,15 +76,11 @@ public class RobotController : MonoBehaviour {
         else
             steering = 0;
 
-        // Start to run the Kalman Filter when we start moving the vehicle:
-        if (velocity != 0)
-            startKalmanFilter = true;
-
         // Clamp the velocity between boundaries:
         velocity = Mathf.Clamp(velocity, -maxSpeed, maxSpeed);
 
         // Compute the derivative of the position and orientation of the robot:
-        float robotAngle = getRobotAngle();
+        float robotAngle = GetRobotAngle();
         float xP = velocity * Mathf.Cos(robotAngle);
         float yP = velocity * Mathf.Sin(robotAngle);
         float angleP = velocity * Mathf.Tan(Mathf.Deg2Rad * steering) / L;
@@ -112,22 +97,27 @@ public class RobotController : MonoBehaviour {
         Observation[] observations = lidar.GetLandmarkCandidates();
 
         // Use these observations to update the robot state estimate:
-        filter.updateStateEstimate(observations, inputs, Time.time);
+        filter.UpdateStateEstimate(observations, inputs, Time.time);
     }
 
-    public float getRobotX() {
+    public float GetRobotX() {
         return gameObject.transform.position.x;
     }
 
-    public float getRobotY() {
+    public float GetRobotY() {
         return gameObject.transform.position.z;
     }
 
-    public float getRobotAngle() {
+    public float GetRobotAngle() {
         return Mathf.Deg2Rad * (90 - gameObject.transform.rotation.eulerAngles.y);
     }
 
-    public VehicleState getRobotRealState() {
-        return new VehicleState(getRobotX(), getRobotY(), getRobotAngle());
+    public (Vector<float>, Matrix<float>) GetRobotStateEstimate() {
+        return filter.GetStateEstimate();
+    }
+
+    // For log purposes:
+    public VehicleState GetRobotRealState() {
+        return new VehicleState(GetRobotX(), GetRobotY(), GetRobotAngle());
     }
 }

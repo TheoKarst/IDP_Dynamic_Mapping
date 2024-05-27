@@ -2,8 +2,8 @@ using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
 public class Landmark {
-    private static VectorBuilder<float> V = Vector<float>.Build;
-
+    public const int DIMENSION = 2;
+    
     public float x;
     public float y;
 
@@ -17,7 +17,7 @@ public class Landmark {
     }
 
     public Vector<float> getPosition() {
-        return V.DenseOfArray(new float[] { x, y });
+        return Vector<float>.Build.DenseOfArray(new float[] { x, y });
     }
 
     public void setPosition(Vector<float> position) {

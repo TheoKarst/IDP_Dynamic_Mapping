@@ -2,6 +2,8 @@ using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
 public struct VehicleState {
+    public const int DIMENSION = 3;
+
     public float x;
     public float y;
     public float phi;
@@ -20,8 +22,8 @@ public struct VehicleState {
         return new VehicleState(state.x - other[0], state.y - other[1], state.phi - other[2]);
     }
 
-    public VehicleState copy() {
-        return new VehicleState(x, y, phi);
+    public Vector<float> ToVector() {
+        return Vector<float>.Build.Dense(new float[] { x, y, phi });
     }
 
     public override string ToString() {

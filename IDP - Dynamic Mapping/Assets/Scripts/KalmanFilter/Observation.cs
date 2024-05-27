@@ -2,17 +2,17 @@ using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
 public class Observation {
+    public const int DIMENSION = 2;
+
     public float r;
     public float theta;
-
-    private static VectorBuilder<float> V = Vector<float>.Build;
 
     public Observation(float r, float theta) {
         this.r = r;
         this.theta = theta;
     }
 
-    public static void substract(Observation a, Observation b, Vector<float> dest, int index) {
+    public static void Substract(Observation a, Observation b, Vector<float> dest, int index) {
 
         // The error on the angle should be between -pi and pi:
         float deltaAngle = a.theta - b.theta;
