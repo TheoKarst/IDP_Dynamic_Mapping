@@ -1,8 +1,11 @@
+using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
 class Line {
+    // Matrix builder used as a shortcut for matrix creation:
+    private static MatrixBuilder<float> M = Matrix<float>.Build;
 
     // Points representing this line:
     private List<Point> points = new List<Point>();
@@ -15,6 +18,9 @@ class Line {
 
     // Endpoints of the line:
     private Vector2 beginPoint, endPoint;
+
+    // Covariance matrix of the parameters (rho, theta) of the line:
+    private Matrix<float> covariance;
 
     public void DrawGizmos() {
         //Gizmos.color = Color.red;
@@ -91,5 +97,62 @@ class Line {
 
         beginPoint = new Vector2(x + pFirst * u.x, y + pFirst * u.y);
         endPoint = new Vector2(x + pLast * u.x, y + pLast * u.y);
+    }
+
+    public void ComputeCovariance() {
+        // Step 1: Compute Cv (covariance matrix on m,q or s,t):
+        Matrix<float> Cv = M.Dense(2, 2, 0);    // 2*2 Zero Matrix
+
+        int n = points.Count;
+        float N1 = Rxx * n - Rx * Rx;
+        float N2 = Ryy * n - Ry * Ry;
+        float T = Rxy * n - Rx * Ry;
+
+        if (N1 >= N2) {     // We use (m,q) representation
+            float m = T / N1;
+
+            for(int i = 0; i < points.Count; i++) {
+                Matrix<float> J = JacobianMQi(m, N1, T, i);
+                Matrix<float> Cp = points[i].Cp;
+                Cv += J * Cp.TransposeAndMultiply(J);
+            }
+        }
+        else {              // We use (s,t) representation
+            float s = T / N2;
+
+            for (int i = 0; i < points.Count; i++) {
+                Matrix<float> J = JacobianSTi(s, N2, T, i);
+                Matrix<float> Cp = points[i].Cp;
+                Cv += J * Cp.TransposeAndMultiply(J);
+            }
+        }
+    }
+
+    private Matrix<float> JacobianMQi(float m, float N1, float T, int i) {
+        int n = points.Count;
+        float xpi = points[i].x, ypi = points[i].y;
+
+        float dm_dx = (N1 * (n * ypi - Ry) - 2 * T * (n * xpi - Rx)) / (N1 * N1);
+        float dm_dy = (n * xpi - Rx) / N1;
+        float dq_dx = -(Rx * dm_dx + m) / n;
+        float dq_dy = (1 - Rx * dm_dy) / n;
+
+        return M.DenseOfArray(new float[,] { 
+            { dm_dx, dm_dy }, 
+            { dq_dx, dq_dy } });
+    }
+
+    private Matrix<float> JacobianSTi(float s, float N2, float T, int i) {
+        int n = points.Count;
+        float xpi = points[i].x, ypi = points[i].y;
+
+        float ds_dx = (n * ypi - Ry) / N2;
+        float ds_dy = (N2 * (n * xpi - Rx) - 2 * T * (n * ypi - Ry)) / (N2 * N2);
+        float dt_dx = (1 - Ry * ds_dx) / n;
+        float dt_dy = -(Ry * ds_dy + s) / n;
+
+        return M.DenseOfArray(new float[,] {
+            { ds_dx, ds_dy },
+            { dt_dx, dt_dy } });
     }
 }
