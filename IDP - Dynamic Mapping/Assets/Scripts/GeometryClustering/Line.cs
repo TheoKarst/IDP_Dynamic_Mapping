@@ -20,7 +20,7 @@ class Line {
     private Vector2 beginPoint, endPoint;
 
     // Covariance matrix of the parameters (rho, theta) of the line:
-    private Matrix<float> covariance;
+    private Matrix<float> Cl;
 
     public void DrawGizmos() {
         //Gizmos.color = Color.red;
@@ -80,7 +80,16 @@ class Line {
         return points.Count;
     }
 
-    public void ComputeEndpoints() {
+    public void Build() {
+        // Compute the endpoints of the line, and the covariance matrix of the
+        // parameters (rho, theta) of the line, depending on the covariance matrices
+        // of the points belonging to the line:
+
+        ComputeEndpoints();
+        ComputeCovariance();
+    }
+
+    private void ComputeEndpoints() {
         float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
         float x = rho * costheta;
         float y = rho * sintheta;
@@ -99,7 +108,7 @@ class Line {
         endPoint = new Vector2(x + pLast * u.x, y + pLast * u.y);
     }
 
-    public void ComputeCovariance() {
+    private void ComputeCovariance() {
         // Step 1: Compute Cv (covariance matrix on m,q or s,t):
         Matrix<float> Cv = M.Dense(2, 2, 0);    // 2*2 Zero Matrix
 
@@ -108,24 +117,53 @@ class Line {
         float N2 = Ryy * n - Ry * Ry;
         float T = Rxy * n - Rx * Ry;
 
+        Matrix<float> Hl;
         if (N1 >= N2) {     // We use (m,q) representation
             float m = T / N1;
+            float q = (Ry - m * Rx) / n;
 
-            for(int i = 0; i < points.Count; i++) {
+            for (int i = 0; i < points.Count; i++) {
                 Matrix<float> J = JacobianMQi(m, N1, T, i);
                 Matrix<float> Cp = points[i].Cp;
                 Cv += J * Cp.TransposeAndMultiply(J);
             }
+
+            // Compute Hl, Jacobian of (rho, theta) with respect to (m, q):
+            float tmp = 1 + m * m;
+            float drho_dm = -m * Mathf.Abs(q) / Mathf.Pow(tmp, 1.5f);
+            float drho_dq = Mathf.Sign(q) / Mathf.Sqrt(tmp);
+            float dtheta_dm = 1 / tmp;
+            float dtheta_dq = 0;
+
+            Hl = M.DenseOfArray(new float[,] {
+                { drho_dm,      drho_dq },
+                { dtheta_dm,    dtheta_dq } });
         }
         else {              // We use (s,t) representation
             float s = T / N2;
+            float t = (Rx - s * Ry) / n;
 
             for (int i = 0; i < points.Count; i++) {
                 Matrix<float> J = JacobianSTi(s, N2, T, i);
                 Matrix<float> Cp = points[i].Cp;
                 Cv += J * Cp.TransposeAndMultiply(J);
             }
+
+            // Compute Hl, Jacobian of (rho, theta) with respect to (s, t):
+            float tmp = 1 + s * s;
+            float drho_ds = -s * Mathf.Abs(t) / Mathf.Pow(tmp, 1.5f);
+            float drho_dt = Mathf.Sign(t) / Mathf.Sqrt(tmp);
+            float dtheta_ds = -1 / tmp;
+            float dtheta_dt = 0;
+
+            Hl = M.DenseOfArray(new float[,] {
+                { drho_ds,      drho_dt },
+                { dtheta_ds,    dtheta_dt } });
         }
+
+        // Setp 2: Use the previously computed Cv and Hl to compute the covariance
+        // matrix of the parameters (rho, theta) of the line:
+        Cl = Hl * Cv.TransposeAndMultiply(Hl);
     }
 
     private Matrix<float> JacobianMQi(float m, float N1, float T, int i) {

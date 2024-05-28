@@ -94,7 +94,7 @@ public class GeometryClustering : MonoBehaviour
                 }
                 else {
                     if (currentLine.PointsCount() >= 3) {
-                        currentLine.ComputeEndpoints();
+                        currentLine.Build();
                         extractedLines.Add(currentLine);
                     }
 
@@ -105,7 +105,7 @@ public class GeometryClustering : MonoBehaviour
         }
 
         if (currentLine.PointsCount() >= 3) {
-            currentLine.ComputeEndpoints();
+            currentLine.Build();
             extractedLines.Add(currentLine);
         }
 
