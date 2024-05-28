@@ -40,7 +40,7 @@ public class GeometryClustering : MonoBehaviour
     private List<Point> currentPoints;
 
     // Current lines and circles used to represent the environment:
-    private List<LineBuilder> modelLines = new List<LineBuilder>();
+    private List<Line> modelLines = new List<Line>();
     private List<Circle> modelCircles = new List<Circle>();
 
     // Start is called before the first frame update
@@ -54,17 +54,17 @@ public class GeometryClustering : MonoBehaviour
         currentPoints = ComputePoints();
 
         // Then use the points to perform lines and circles extraction:
-        List<LineBuilder> lines; List<Circle> circles;
+        List<Line> lines; List<Circle> circles;
         (lines, circles) = ClusterExtraction(currentPoints);
         
         // Try to match the current lines with the lines in the model:
-        foreach(LineBuilder line in lines) {
+        foreach(Line line in lines) {
             // The best matching line we found in the model, as well as the
             // Mahalanobis distance between this line and the one in the model:
-            LineBuilder bestMatch = null;
+            Line bestMatch = null;
             float minDistance = -1;
 
-            foreach(LineBuilder matchCandidate in modelLines) {
+            foreach(Line matchCandidate in modelLines) {
                 if(line.IsMatchCandidate(matchCandidate, LineMaxMatchAngle, LineMaxEndpointMatchDistance)) {
                     float distance = line.ComputeNormDistance(matchCandidate);
 
@@ -86,7 +86,7 @@ public class GeometryClustering : MonoBehaviour
         }
 
         if (drawLines && modelLines != null) {
-            foreach (LineBuilder line in modelLines)
+            foreach (Line line in modelLines)
                 line.DrawGizmos();
         }
 
@@ -133,81 +133,77 @@ public class GeometryClustering : MonoBehaviour
     }
 
     // Cluster extraction (lines and circles):
-    private (List<LineBuilder>, List<Circle>) ClusterExtraction(List<Point> points) {
-        List<LineBuilder> extractedLines = new List<LineBuilder>();
+    private (List<Line>, List<Circle>) ClusterExtraction(List<Point> points) {
+        List<Line> extractedLines = new List<Line>();
         List<Circle> extractedCircles = new List<Circle>();
 
         if(points.Count == 0)
             return (extractedLines, extractedCircles);
 
         // We first try to match the first point with a line, then with a circle.
-        // If we are building a line, we should have currentCircle == null.
-        // If we are building a circle, we should have currentLine == null.
-        LineBuilder currentLine = new LineBuilder(points[0]);
-        Circle currentCircle = null;
+        // If we are building a line, we should have lineBuilder == null.
+        // If we are building a circle, we should have circleBuilder == null.
+        LineBuilder lineBuilder = new LineBuilder(points[0]);
+        CircleBuilder circleBuilder = null;
 
         for(int i = 1; i < points.Count; i++) {
             Point currentPoint = points[i];
 
             // 1. If we are currently building a line:
-            if(currentLine != null) {
-                Point previousPoint = currentLine.GetLastPoint();
+            if(lineBuilder != null) {
+                Point previousPoint = lineBuilder.GetLastPoint();
 
                 // Try to match the current point with the current line:
                 bool condition1 = Point.Dist(previousPoint, currentPoint) <= PointCriticalDistance;
-                bool condition2 = currentLine.PointsCount() < 3 || currentLine.DistanceFrom(currentPoint) <= LineCriticalDistance;
+                bool condition2 = lineBuilder.PointsCount() < 3 || lineBuilder.DistanceFrom(currentPoint) <= LineCriticalDistance;
                 bool condition3 = Point.AngularDifference(previousPoint, currentPoint) <= Mathf.Deg2Rad * CriticalAlpha;
                 
                 // If the three conditions are met, we can add the point to the line:
                 if (condition1 && condition2 && condition3) {
-                    currentLine.AddPoint(currentPoint);
+                    lineBuilder.AddPoint(currentPoint);
                     continue;
                 }
 
                 // Else, if the current line is long enough to be extracted, then extract it, and add the current
                 // point in a new line:
-                else if (currentLine.PointsCount() >= 3 && currentLine.Length() >= LineMinLength) {
-                    currentLine.Build();
-                    extractedLines.Add(currentLine);
-                    currentLine = new LineBuilder(currentPoint);
+                else if (lineBuilder.PointsCount() >= 3 && lineBuilder.Length() >= LineMinLength) {
+                    extractedLines.Add(lineBuilder.Build());
+                    lineBuilder = new LineBuilder(currentPoint);
                     continue;
                 }
 
                 // Otherwise, convert the current line into a circle cluster, and continue to process this circle:
                 else {
-                    currentCircle = currentLine.ToCircle();
-                    currentLine = null;
+                    circleBuilder = lineBuilder.ToCircle();
+                    lineBuilder = null;
                 }
             }
 
             // 2. If we are currently building a circle:
 
             // If the current point can be added to the current circle, add it:
-            if (currentCircle.DistanceFrom(currentPoint) <= CircleCriticalDistance) {
-                currentCircle.AddPoint(currentPoint);
+            if (circleBuilder.DistanceFrom(currentPoint) <= CircleCriticalDistance) {
+                circleBuilder.AddPoint(currentPoint);
             }
 
             // Otherwise, extract the current circle and add the current point in a new line:
             else {
                 // A circle cluster should at least contain 2 points:
-                if (currentCircle.PointsCount() >= 2) {
-                    currentCircle.Build();
-                    extractedCircles.Add(currentCircle);
+                if (circleBuilder.PointsCount() >= 2) {
+                    extractedCircles.Add(circleBuilder.Build());
                 }
 
-                currentCircle = null;
-                currentLine = new LineBuilder(currentPoint);
+                circleBuilder = null;
+                lineBuilder = new LineBuilder(currentPoint);
             }
         }
 
         // Finally, extract the current line or current circle if necessary:
-        if (currentLine != null && currentLine.PointsCount() >= 3) {
-            currentLine.Build();
-            extractedLines.Add(currentLine);
+        if (lineBuilder != null && lineBuilder.PointsCount() >= 3) {
+            extractedLines.Add(lineBuilder.Build());
         }
-        else if(currentCircle != null && currentCircle.PointsCount() >= 2) {
-            currentCircle.Build();
-            extractedCircles.Add(currentCircle);
+        else if(circleBuilder != null && circleBuilder.PointsCount() >= 2) {
+            extractedCircles.Add(circleBuilder.Build());
         }
 
         return (extractedLines, extractedCircles);

@@ -1,6 +1,5 @@
 using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
-using UnityEditor;
 using UnityEngine;
 
 public class LineBuilder {
@@ -17,12 +16,9 @@ public class LineBuilder {
     // Parameters defining the line:
     private float rho, theta;
 
-    // Endpoints of the line, as well as a flag saying if they are up to date:
+    // Current endpoints of the line, and a flag saying if they are up to date:
     private Vector2 beginPoint, endPoint;
-    private bool uptodateEndpoints = false;
-
-    // Covariance matrix of the parameters (rho, theta) of the line:
-    private Matrix<float> covariance = null;
+    private bool upToDateEndpoints = false;
 
     public LineBuilder(Point initialPoint) {
         points.Add(initialPoint);
@@ -34,25 +30,12 @@ public class LineBuilder {
         Rxy = initialPoint.x * initialPoint.y;
     }
 
-    public void DrawGizmos() {
-        if (!uptodateEndpoints || covariance == null)
-            Debug.LogError("Trying to draw a line that is not correctly built");
-
-        else {
-            Vector3 p1 = new Vector3(beginPoint.x, 0.5f, beginPoint.y);
-            Vector3 p2 = new Vector3(endPoint.x, 0.5f, endPoint.y);
-            Handles.DrawBezier(p1, p2, p1, p2, Color.red, null, 4);
-        }        
-    }
-
     // Add a point to the line, and update the line parameters:
     public void AddPoint(Point point) {
         points.Add(point);
 
-        // Cancel the computation of the line covariance matrix and endpoints, as they are
-        // not valid anymore:
-        uptodateEndpoints = false;
-        covariance = null;
+        // Now the endpoints are not up to date anymore:
+        upToDateEndpoints = false;
 
         Rx += point.x;
         Ry += point.y;
@@ -84,96 +67,37 @@ public class LineBuilder {
         }
     }
 
-    // Return if the otther line (supposed to be part of the current world model) is a good candidate
-    // to be matched with this line. If this is the case, we will have to check the norm distance
-    // between the lines as a next step:
-    public bool IsMatchCandidate(LineBuilder other, float maxAngleDistance, float maxEndpointDistance) {
-        // If the angular difference between both lines is too big, the lines cannot match:
-        if(Mathf.Abs(theta - other.theta) > maxAngleDistance)
-            return false;
-
-        // If the distance of the endpoints of this line to the 
-        if(other.DistanceFrom(beginPoint) > maxEndpointDistance)
-            return false;
-
-        if(other.DistanceFrom(endPoint) > maxEndpointDistance)
-            return false;
-
-        // If both lines are close enough, then the other line should ba a good candidate for
-        // the matching:
-        return true;
-    }
-
-    // Compute the Mahalanobis distance between this line and the given one:
-    public float ComputeNormDistance(LineBuilder other) {
-        Vector<float> Xl = V.DenseOfArray(new float[] {rho, theta});
-        Vector<float> Xm = V.DenseOfArray(new float[] {other.rho, other.theta});
-        Matrix<float> Cl = this.covariance;
-        Matrix<float> Cm = other.covariance;
-
-        Vector<float> X = Xl - Xm;
-
-        return (X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
-    }
-
-    // Supposing that this line belongs to the current model of the environment, use the given 
-    // line (that was supposed to be matched with this one) to update this line position estimate,
-    // covariance matrix and endpoints:
-    public void UpdateLineUsingMatching(LineBuilder other) {
-        // Perform some renamings to match the paper description:
-        Vector<float> Xm = V.DenseOfArray(new float[] { rho, theta });
-        Vector<float> Xl = V.DenseOfArray(new float[] { other.rho, other.theta });
-        Matrix<float> Cm = this.covariance;
-        Matrix<float> Cl = other.covariance;
-
-        // Use a static Kalman Filter to update this line covariance and state (rho, theta) estimate:
-        Matrix<float> K = Cl * (Cl + Cm).Inverse();
-        Vector<float> Xr = Xl + K * (Xm - Xl);
-        Matrix<float> Cr = Cl - K * Cl;
-
-        // Update this line (rho, theta) parameters, and covariance matrix:
-        rho = Xr[0]; theta = Xr[1];
-        covariance = Cr;
-    }
-
-    // Return the distance between the line and the given point:
-    public float DistanceFrom(Point point) {
-        return Mathf.Abs(point.x * Mathf.Cos(theta) + point.y * Mathf.Sin(theta) - rho);
-    }
-
-    // Return the distance between the line and the given point:
-    public float DistanceFrom(Vector2 point) {
-        return Mathf.Abs(point.x * Mathf.Cos(theta) + point.y * Mathf.Sin(theta) - rho);
-    }
-
-    public int PointsCount() {
-        return points.Count;
-    }
-
-    // Get the last point that was added to the line (canno be null, since a line always contains at least one point):
+    // Get the last point that was added to the line (cannot be null,
+    // since a line always contains at least one point):
     public Point GetLastPoint() {
         return points[points.Count - 1];
     }
 
     // Return the length of the line, using its endpoints
     public float Length() {
-        if(!uptodateEndpoints)
-            ComputeEndpoints();
+        if(!upToDateEndpoints)
+            UpdateEndpoints();
 
         return Vector2.Distance(beginPoint, endPoint);
     }
 
     // Convert this line into a circle cluster (this line shouldn't be used anymore after that):
-    public Circle ToCircle() {
-        return new Circle(points);
+    public CircleBuilder ToCircle() {
+        return new CircleBuilder(points);
     }
 
-    public void Build() {
-        if (!uptodateEndpoints) ComputeEndpoints();
-        if (covariance == null) ComputeCovariance();
+    public Line Build() {
+        if (!upToDateEndpoints) 
+            UpdateEndpoints();
+
+        Matrix<float> covariance = ComputeCovariance();
+
+        return new Line(rho, theta, covariance, beginPoint, endPoint);
     }
 
-    private void ComputeEndpoints() {
+    // Compute the endpoints of the line by projecting the first and last points that were added
+    // in the line builder, along the line defined by the parameters (rho, theta):
+    private void UpdateEndpoints() {
         float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
         float x = rho * costheta;
         float y = rho * sintheta;
@@ -190,10 +114,11 @@ public class LineBuilder {
 
         beginPoint = new Vector2(x + pFirst * u.x, y + pFirst * u.y);
         endPoint = new Vector2(x + pLast * u.x, y + pLast * u.y);
-        uptodateEndpoints = true;
+        upToDateEndpoints = true;
     }
 
-    private void ComputeCovariance() {
+    // Compute the covariance matrix of the parameters (rho, theta) of the line:
+    private Matrix<float> ComputeCovariance() {
         // Step 1: Compute Cv (covariance matrix on m,q or s,t):
         Matrix<float> Cv = M.Dense(2, 2, 0);    // 2*2 Zero Matrix
 
@@ -248,7 +173,7 @@ public class LineBuilder {
 
         // Setp 2: Use the previously computed Cv and Hl to compute the covariance
         // matrix of the parameters (rho, theta) of the line:
-        covariance = Hl * Cv.TransposeAndMultiply(Hl);
+        return Hl * Cv.TransposeAndMultiply(Hl);
     }
 
     private Matrix<float> JacobianMQi(float m, float N1, float T, int i) {
@@ -277,5 +202,14 @@ public class LineBuilder {
         return M.DenseOfArray(new float[,] {
             { ds_dx, ds_dy },
             { dt_dx, dt_dy } });
+    }
+
+    // Return the distance between the line and the given point:
+    public float DistanceFrom(Point point) {
+        return Mathf.Abs(point.x * Mathf.Cos(theta) + point.y * Mathf.Sin(theta) - rho);
+    }
+
+    public int PointsCount() {
+        return points.Count;
     }
 }
