@@ -14,6 +14,7 @@ public class Lidar : MonoBehaviour
     public float angleThreshold = 80;
 
     public bool drawRays = true;
+    public bool drawCorners = true;
 
     // Real position of the hit points from the LIDAR (only used for drawing):
     private Vector3[] hitPoints;
@@ -39,14 +40,14 @@ public class Lidar : MonoBehaviour
     }
 
     public void OnDrawGizmos() {
-        if (convexCorners != null) {
+        if (drawCorners && convexCorners != null) {
             Gizmos.color = Color.green;
 
             foreach (int index in convexCorners)
                 Gizmos.DrawSphere(hitPoints[index], 0.1f);
         }
 
-        if (concaveCorners != null) {
+        if (drawCorners && concaveCorners != null) {
             Gizmos.color = Color.red;
 
             foreach (int index in concaveCorners)

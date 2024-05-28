@@ -1,7 +1,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
-class Point {
+public class Point {
     public float x;
     public float y;
     public float angle;
@@ -19,10 +19,10 @@ class Point {
 
     public void DrawGizmos() {
         Gizmos.color = Color.yellow;
-        // Gizmos.DrawSphere(new Vector3(x, 0.5f, y), 0.04f);
+        Gizmos.DrawSphere(new Vector3(x, 0.5f, y), 0.01f);
 
-        Gizmos.DrawCube(new Vector3(x, 0.5f, y),
-                        new Vector3(Mathf.Sqrt(Cp[0, 0]), 0, Mathf.Sqrt(Cp[1, 1])));
+        // Gizmos.DrawCube(new Vector3(x, 0.5f, y),
+        //                 new Vector3(Mathf.Sqrt(Cp[0, 0]), 0, Mathf.Sqrt(Cp[1, 1])));
     }
 
     public static float Dist(Point a, Point b) {
