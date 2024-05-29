@@ -3,6 +3,8 @@ using UnityEditor;
 using UnityEngine;
 
 public class Line {
+    public Color lineColor = Color.red;
+
     private float rho, theta;
     private Matrix<float> covariance;
 
@@ -29,7 +31,7 @@ public class Line {
     public void DrawGizmos() {
         Vector3 p1 = new Vector3(beginPoint.x, 0.5f, beginPoint.y);
         Vector3 p2 = new Vector3(endPoint.x, 0.5f, endPoint.y);
-        Handles.DrawBezier(p1, p2, p1, p2, Color.red, null, 4);
+        Handles.DrawBezier(p1, p2, p1, p2, lineColor, null, 4);
     }
 
     // Return if the otther line (supposed to be part of the current world model) is x good candidate
@@ -68,6 +70,18 @@ public class Line {
         Vector<float> X = Xl - Xm;
 
         return (X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
+    }
+
+    // Compute the distance between the centers of the two lines, along this line:
+    public float ComputeCenterDistance(Line other) {
+        Vector2 thisCenter = (beginPoint + endPoint) / 2;
+        Vector2 otherCenter = (other.beginPoint + other.endPoint) / 2;
+
+        // Unit vector along the line:
+        Vector2 u = new Vector2(-Mathf.Sin(theta), Mathf.Cos(theta));
+
+        // Project the vector along u:
+        return Mathf.Abs(Vector2.Dot(otherCenter - thisCenter, u));
     }
 
     // Supposing that this line belongs to the current model of the environment, use the given 

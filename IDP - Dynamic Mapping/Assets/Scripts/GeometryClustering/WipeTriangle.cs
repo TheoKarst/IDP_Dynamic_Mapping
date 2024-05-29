@@ -8,6 +8,7 @@ public class WipeTriangle {
     // Normals of the triangle
     private Vector2 n1, n2, n3;
 
+    // The points of the triangle are supposed to be in counter clockwise order:
     public WipeTriangle(Vector2 p1, Vector2 p2, Vector2 p3) {
         this.p1 = p1;
         this.p2 = p2;
@@ -87,7 +88,7 @@ public class WipeTriangle {
         Vector2 n = (B - A).normalized;
         
         // Rotate the vector:
-        n.Set(-n.y, n.x);
+        n.Set(n.y, -n.x);
 
         return n;
     }

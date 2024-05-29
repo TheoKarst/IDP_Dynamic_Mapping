@@ -32,6 +32,9 @@ public class GeometryClustering : MonoBehaviour
     [Tooltip("Maximum distance between the endpoint of two lines to be matched together")]
     public float LineMaxEndpointMatchDistance = 0.1f;
 
+    [Tooltip("Maximum distance between two lines to be matched together")]
+    public float LineMaxMatchDistance = 0.2f;
+
     [Tooltip("Maximum distance between two circles to be matched together")]
     public float CircleMaxMatchDistance = 0.2f;
 
@@ -83,7 +86,9 @@ public class GeometryClustering : MonoBehaviour
         // Use the circles from the current frame to update the model circles:
         UpdateModelCircles(circles);
 
-        // (modelLines, modelCircles) = ClusterExtraction(currentPoints);
+        Debug.Log("Points: " + currentPoints.Count + 
+            "; Lines: " + modelLines.Count + 
+            "; Circles: " + modelCircles.Count);
     }
 
     public void OnDrawGizmos() {
@@ -218,27 +223,33 @@ public class GeometryClustering : MonoBehaviour
         // Try to match the current lines with the lines in the model:
         foreach (Line line in currentLines) {
             // The best matching line we found in the model, as well as the
-            // Mahalanobis distance between this line and the one in the model:
+            // distance between this line and the one in the model:
             int bestMatch = -1;
             float minDistance = -1;
 
-            // TODO: This implementation is not exactly what is described in the paper (check with
-            // Mr. Spiegel for clarifications):
             for(int i = 0; i < modelLines.Count; i++) {
                 Line matchCandidate = modelLines[i];
 
+                // First test: compare the angle difference and endpoints distance between the two lines:
                 if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngle, LineMaxEndpointMatchDistance)) {
-                    float distance = line.ComputeNormDistance(matchCandidate);
+                    
+                    // Second test: Compute the Mahalanobis distance between the lines:
+                    if(line.ComputeNormDistance(matchCandidate) < 5) {
 
-                    if (bestMatch == -1 || distance < minDistance) {
-                        bestMatch = i;
-                        minDistance = distance;
+                        // Last step: Find the nearest line among the remaining candidates:
+                        // TODO: Check that this implementation matches the paper description:
+                        float centerDistance = line.ComputeCenterDistance(matchCandidate);
+
+                        if(bestMatch == -1 || centerDistance < minDistance) {
+                            bestMatch = i;
+                            minDistance = centerDistance;
+                        }
                     }
                 }
             }
 
-            // If a match is found, use this line to update the match state estimate:
-            if (bestMatch != -1 && minDistance < 5) {
+            // If a match is found and near enough, use this line to update the match state estimate:
+            if (bestMatch != -1 && minDistance <= LineMaxMatchDistance) {
                 Line match = modelLines[bestMatch];
                 match.UpdateLineUsingMatching(line);
 
@@ -266,8 +277,8 @@ public class GeometryClustering : MonoBehaviour
 
         // Add the updated old lines and the new lines to the model:
         modelLines.Clear();
-        foreach(Line line in oldLines) modelLines.Add(line);
-        foreach(Line line in newLines) modelLines.Add(line);
+        foreach (Line line in oldLines) { line.lineColor = Color.red; modelLines.Add(line); }
+        foreach (Line line in newLines) { line.lineColor = Color.green; modelLines.Add(line); }
     }
 
     public void UpdateModelCircles(List<Circle> currentCircles) {
