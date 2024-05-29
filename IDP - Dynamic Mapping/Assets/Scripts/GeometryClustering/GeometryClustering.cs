@@ -50,13 +50,18 @@ public class GeometryClustering : MonoBehaviour
     public bool drawPoints = true;
     public bool drawLines = true;
     public bool drawCircles = true;
+    public bool drawCurrentLines = true;
 
-    // Points currently extracted from this frame (used for drawing):
-    private List<Point> currentPoints;
+    // Match to each observation (rho, theta) from the LIDAR a point in world space coordinate.
+    // A point may be null if the corresponding observation was wrong (observation.distance == -1):
+    private Point[] currentPoints;
 
     // Current lines and circles used to represent the environment:
     private List<Line> modelLines = new List<Line>();
     private List<Circle> modelCircles = new List<Circle>();
+
+    // For debugging: List of lines that were built during this frame:
+    private List<Line> debugCurrentLines = new List<Line>();
 
     // Start is called before the first frame update
     void Start() {
@@ -84,6 +89,16 @@ public class GeometryClustering : MonoBehaviour
         List<Line> lines; List<Circle> circles;
         (lines, circles) = ClusterExtraction(currentPoints);
 
+        // For debugging:
+        if(drawCurrentLines) {
+            debugCurrentLines.Clear();
+            foreach(Line line in lines) {
+                Line copy = new Line(line);
+                copy.lineColor = Color.yellow;
+                debugCurrentLines.Add(copy);
+            }
+        }
+
         // Use the lines from the current frame to update the model lines:
         Vector2 sensorPosition = controller.GetVehicleModel().GetSensorPosition(vehicleState);
         WipeTriangle[] triangles = UpdateModelLines(sensorPosition, lines);
@@ -91,12 +106,17 @@ public class GeometryClustering : MonoBehaviour
         // Use the circles from the current frame to update the model circles:
         UpdateModelCircles(circles, triangles);
 
-        Debug.Log("Points: " + currentPoints.Count + 
+        Debug.Log("Points: " + currentPoints.Length + 
             "; Lines: " + modelLines.Count + 
             "; Circles: " + modelCircles.Count);
     }
 
     public void OnDrawGizmos() {
+        if(drawCurrentLines && debugCurrentLines != null) {
+            foreach(Line line in debugCurrentLines)
+                line.DrawGizmos();
+        }
+
         if (drawPoints && currentPoints != null) {
             foreach (Point point in currentPoints)
                 point.DrawGizmos();
@@ -115,13 +135,14 @@ public class GeometryClustering : MonoBehaviour
 
     // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
     // to compute the estimated position of all the observations of the LIDAR in world space:
-    private List<Point> ComputePoints(VehicleState vehicleState, Matrix<float> stateCovariance, Observation[] observations) {
+    private Point[] ComputePoints(VehicleState vehicleState, Matrix<float> stateCovariance, Observation[] observations) {
 
         // Convert observations into points, using the vehicle state estimate:
         VehicleModel model = controller.GetVehicleModel();
         
-        List<Point> points = new List<Point>();
-        foreach (Observation observation in observations) {
+        Point[] points = new Point[observations.Length];
+        for(int i = 0; i < observations.Length; i++) {
+            Observation observation = observations[i];
 
             // If the observation is valid, estimate its position using the robot state:
             if (observation.r >= 0) {
@@ -130,7 +151,7 @@ public class GeometryClustering : MonoBehaviour
                     model.ComputeObservationPositionEstimate(vehicleState, stateCovariance, observation);
 
                 float x = position[0], y = position[1], theta = observation.theta;
-                points.Add(new Point(x, y, theta, covariance));
+                points[i] = new Point(x, y, theta, covariance);
             }
         }
 
@@ -138,21 +159,24 @@ public class GeometryClustering : MonoBehaviour
     }
 
     // Cluster extraction (lines and circles):
-    private (List<Line>, List<Circle>) ClusterExtraction(List<Point> points) {
+    private (List<Line>, List<Circle>) ClusterExtraction(Point[] points) {
         List<Line> extractedLines = new List<Line>();
         List<Circle> extractedCircles = new List<Circle>();
-
-        if(points.Count == 0)
-            return (extractedLines, extractedCircles);
 
         // We first try to match the first point with a line, then with a circle.
         // If we are building a line, we should have lineBuilder == null.
         // If we are building a circle, we should have circleBuilder == null.
-        LineBuilder lineBuilder = new LineBuilder(points[0]);
+        LineBuilder lineBuilder = null;
         CircleBuilder circleBuilder = null;
 
-        for(int i = 1; i < points.Count; i++) {
-            Point currentPoint = points[i];
+        foreach (Point currentPoint in points) {
+            if (currentPoint == null) continue;
+
+            // Initialisation: this should be executed just for the first non null point:
+            if(lineBuilder == null && circleBuilder == null) {
+                lineBuilder = new LineBuilder(currentPoint);
+                continue;
+            }
 
             // 1. If we are currently building a line:
             if(lineBuilder != null) {
@@ -215,22 +239,26 @@ public class GeometryClustering : MonoBehaviour
     }
 
     private WipeTriangle[] UpdateModelLines(Vector2 sensorPosition, List<Line> currentLines) {
-        // All the lines that were added to the model, plus the lines from the model that were updated:
-        List<Line> newLines = new List<Line>();
 
-        // List of booleans saying for each line of the model if it was matched with a line of the
-        // current frame or not:
-        bool[] matched = new bool[modelLines.Count];
+        // List of wipe triangles built from the current lines:
+        WipeTriangle[] wipeTriangles = new WipeTriangle[currentLines.Count];
+
+        // Drawing: Reset the color of the model lines to red:
+        foreach (Line line in modelLines) line.lineColor = Color.red;
 
         // Try to match the current lines with the lines in the model:
-        foreach (Line line in currentLines) {
+        for (int i = 0; i < currentLines.Count; i++) {
+            Line line = currentLines[i];
+
+            // Build the wipe triangle for this line:
+            wipeTriangles[i] = line.BuildWipeTriangle(sensorPosition, WipeTriangleExtent);
+
             // The best matching line we found in the model, as well as the
             // distance between this line and the one in the model:
-            int bestMatch = -1;
+            Line bestMatch = null;
             float minDistance = -1;
 
-            for (int i = 0; i < modelLines.Count; i++) {
-                Line matchCandidate = modelLines[i];
+            foreach (Line matchCandidate in modelLines) {
 
                 // First test: compare the angle difference and endpoints distance between the two lines:
                 if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngle, LineMaxEndpointMatchDistance)) {
@@ -242,8 +270,8 @@ public class GeometryClustering : MonoBehaviour
                         // TODO: Check that this implementation matches the paper description:
                         float centerDistance = line.ComputeCenterDistance(matchCandidate);
 
-                        if (bestMatch == -1 || centerDistance < minDistance) {
-                            bestMatch = i;
+                        if (bestMatch == null || centerDistance < minDistance) {
+                            bestMatch = matchCandidate;
                             minDistance = centerDistance;
                         }
                     }
@@ -251,44 +279,21 @@ public class GeometryClustering : MonoBehaviour
             }
 
             // If a match is found and near enough, use this line to update the match state estimate:
-            if (bestMatch != -1 && minDistance <= LineMaxMatchDistance) {
-                Line match = modelLines[bestMatch];
-                match.UpdateLineUsingMatching(line);
+            if (bestMatch != null && minDistance <= LineMaxMatchDistance) {
+                bestMatch.lineColor = Color.blue;       // Blue color for matched lines
+                bestMatch.UpdateLineUsingMatching(line);
 
-                if (!matched[bestMatch]) {
-                    match.lineColor = Color.blue;   // Lines from the model matched with new lines
-                    newLines.Add(match);
-                    matched[bestMatch] = true;
-                }
+                // Update all the model (except the matching line) using the wipe triangle of this line:
+                modelLines = wipeTriangles[i].UpdateLines(modelLines, bestMatch, LineMinLength);
+                modelLines.Add(bestMatch);
             }
 
-            // Else, just add the line to the model:
+            // Else, just add this new line to the model:
             else {
                 line.lineColor = Color.green;       // Green color for new lines
-                newLines.Add(line);
+                modelLines = wipeTriangles[i].UpdateLines(modelLines, null, LineMinLength);
+                modelLines.Add(line);
             }
-        }
-
-        // Finally use the new lines to update the model:
-        modelLines.Clear();
-
-        // Add first in the model the unmatched lines:
-        for (int i = 0; i < modelLines.Count; i++) {
-            if (!matched[i]) {
-                modelLines[i].lineColor = Color.red;
-                modelLines.Add(modelLines[i]);
-            }
-        }
-
-        // List of wipe triangles built from the new lines:
-        WipeTriangle[] wipeTriangles = new WipeTriangle[newLines.Count];
-
-        // Add the new lines in the model, and delete/update the other previous lines in the
-        // model using the wipe triangle:
-        for(int i = 0; i < newLines.Count; i++) {
-            wipeTriangles[i] = newLines[i].BuildWipeTriangle(sensorPosition, WipeTriangleExtent);
-            modelLines = wipeTriangles[i].UpdateLines(modelLines, LineMinLength);
-            modelLines.Add(newLines[i]);
         }
 
         // List of wipe triangles that we built, that will be used to remove inconsistent circles:

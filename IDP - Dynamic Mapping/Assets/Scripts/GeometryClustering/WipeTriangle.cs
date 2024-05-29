@@ -19,10 +19,15 @@ public class WipeTriangle {
         n3 = Normal(p3, p1);
     }
 
-    public List<Line> UpdateLines(List<Line> lines, float minLineLength) {
+    // Update the given lines using this wipe triangle. If the line 'ignore' is found in the given list,
+    // the line is not affected and not added in the result. If ignore == null, no line is ignored.
+    public List<Line> UpdateLines(List<Line> lines, Line ignore, float minLineLength) {
         List<Line> result = new List<Line>();
 
         foreach(Line line in lines) {
+            if(line == ignore)
+                continue;
+
             bool p1_inside = Contains(line.beginPoint);
             bool p2_inside = Contains(line.endPoint);
 
@@ -95,13 +100,8 @@ public class WipeTriangle {
             && Vector2.Dot(point - p3, n3) <= 0;
     }
 
-    // Compute the normal unit vector of the given segment:
+    // Compute the normal vector of the given segment:
     private Vector2 Normal(Vector2 A, Vector2 B) {
-        Vector2 n = (B - A).normalized;
-        
-        // Rotate the vector:
-        n.Set(n.y, -n.x);
-
-        return n;
+        return new Vector2(B.y - A.y, A.x - B.x).normalized;
     }
 }

@@ -10,6 +10,16 @@ public class Line {
 
     public Vector2 beginPoint, endPoint;
 
+    // Copy constructor:
+    public Line(Line line) {
+        lineColor = line.lineColor;
+        rho = line.rho;
+        theta = line.theta;
+        covariance = line.covariance;
+        beginPoint = line.beginPoint;
+        endPoint = line.endPoint;
+    }
+
     // Create a line with updated endpoints (the parameters and line covariance
     // will stay the same, no matter the endpoints):
     public Line(Line other, Vector2 beginPoint, Vector2 endPoint) {
@@ -30,8 +40,8 @@ public class Line {
     }
 
     public void DrawGizmos() {
-        Vector3 p1 = new Vector3(beginPoint.x, 0.5f, beginPoint.y);
-        Vector3 p2 = new Vector3(endPoint.x, 0.5f, endPoint.y);
+        Vector3 p1 = new Vector3(beginPoint.x, 0.2f, beginPoint.y);
+        Vector3 p2 = new Vector3(endPoint.x, 0.2f, endPoint.y);
         Handles.DrawBezier(p1, p2, p1, p2, lineColor, null, 4);
     }
 

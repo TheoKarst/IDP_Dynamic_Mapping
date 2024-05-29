@@ -19,7 +19,7 @@ public class Point {
 
     public void DrawGizmos() {
         Gizmos.color = Color.yellow;
-        Gizmos.DrawSphere(new Vector3(x, 0.5f, y), 0.01f);
+        Gizmos.DrawSphere(new Vector3(x, 0.2f, y), 0.01f);
 
         // Gizmos.DrawCube(new Vector3(x, 0.5f, y),
         //                 new Vector3(Mathf.Sqrt(Cp[0, 0]), 0, Mathf.Sqrt(Cp[1, 1])));

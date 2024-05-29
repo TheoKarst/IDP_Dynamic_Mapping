@@ -14,7 +14,7 @@ public class Circle {
 
     public void DrawGizmos() {
         Gizmos.color = Color.red;
-        Gizmos.DrawSphere(new Vector3(xc, 0.5f, yc), R);
+        Gizmos.DrawSphere(new Vector3(xc, 0.2f, yc), R);
     }
 
     // Supposing that this circle belongs to the current model of the environment, use the

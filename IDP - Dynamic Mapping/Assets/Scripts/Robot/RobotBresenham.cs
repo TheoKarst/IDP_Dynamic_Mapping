@@ -1,5 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
+using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -18,7 +17,10 @@ public class RobotBresenham : MonoBehaviour
 
     public float maxConfidence = 0.99f;
 
+    [Tooltip("Average number of frames to wait before considering an object as static in the static grid")]
     public int framesToConsiderStatic = 60;
+
+    [Tooltip("Average number of frames to wait before considering an object as dynamic in the dynamic grid")]
     public int framesToConsiderDynamic = 20;
 
     private float HighStatic, LowStatic;
@@ -80,19 +82,18 @@ public class RobotBresenham : MonoBehaviour
 
     // Update is called once per frame
     void Update() {
-        /*
-        // Get the state of the robot from the controller:
-        float robotX = controller.getRobotX();
-        float robotY = controller.getRobotY();
-        float robotAngle = controller.getRobotAngle();*/
+        // Get the state estimate (Kamman Filter) of the robot from the robot controller:
+        (VehicleState vehicleState, _) = controller.GetRobotStateEstimate();
+
+        Vector2 sensorPosition = controller.GetVehicleModel().GetSensorPosition(vehicleState);
 
         // Tempoary fix: Improve this
-        float robotX = lidar.transform.position.x;
-        float robotY = lidar.transform.position.z;
-        float robotAngle = Mathf.Deg2Rad * (90 - lidar.transform.rotation.eulerAngles.y);
+        // float robotX = lidar.transform.position.x;
+        // float robotY = lidar.transform.position.z;
+        // float robotAngle = Mathf.Deg2Rad * (90 - lidar.transform.rotation.eulerAngles.y);
 
         // And update the static and dynamic maps using distances values from the LIDAR:
-        UpdateMaps(robotX, robotY, robotAngle);
+        UpdateMaps(sensorPosition.x, sensorPosition.y, vehicleState.phi);
     }
 
 
@@ -205,4 +206,6 @@ public class RobotBresenham : MonoBehaviour
 
         return p / (1 + p);
     }
+
+
 }
