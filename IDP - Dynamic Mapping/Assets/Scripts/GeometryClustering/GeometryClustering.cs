@@ -38,8 +38,13 @@ public class GeometryClustering : MonoBehaviour
     [Tooltip("Maximum distance between two circles to be matched together")]
     public float CircleMaxMatchDistance = 0.2f;
 
+    [Header("Geometry removing")]
+
     [Tooltip("Extent of the wipe triangle built for new lines")]
     public float WipeTriangleExtent = 0.1f;
+
+    [Tooltip("Minimum distance between a circle and a line in the model")]
+    public float MinCircleLineDistance = 0.5f;
 
     [Header("Drawing")]
     public bool drawPoints = true;
@@ -81,10 +86,10 @@ public class GeometryClustering : MonoBehaviour
 
         // Use the lines from the current frame to update the model lines:
         Vector2 sensorPosition = controller.GetVehicleModel().GetSensorPosition(vehicleState);
-        UpdateModelLines(sensorPosition, lines);
+        WipeTriangle[] triangles = UpdateModelLines(sensorPosition, lines);
 
         // Use the circles from the current frame to update the model circles:
-        UpdateModelCircles(circles);
+        UpdateModelCircles(circles, triangles);
 
         Debug.Log("Points: " + currentPoints.Count + 
             "; Lines: " + modelLines.Count + 
@@ -209,12 +214,9 @@ public class GeometryClustering : MonoBehaviour
         return (extractedLines, extractedCircles);
     }
 
-    private void UpdateModelLines(Vector2 sensorPosition, List<Line> currentLines) {
+    private WipeTriangle[] UpdateModelLines(Vector2 sensorPosition, List<Line> currentLines) {
         // All the lines that were added to the model, plus the lines from the model that were updated:
         List<Line> newLines = new List<Line>();
-
-        // All the other lines of the model:
-        List<Line> oldLines = new List<Line>();
 
         // List of booleans saying for each line of the model if it was matched with a line of the
         // current frame or not:
@@ -227,20 +229,20 @@ public class GeometryClustering : MonoBehaviour
             int bestMatch = -1;
             float minDistance = -1;
 
-            for(int i = 0; i < modelLines.Count; i++) {
+            for (int i = 0; i < modelLines.Count; i++) {
                 Line matchCandidate = modelLines[i];
 
                 // First test: compare the angle difference and endpoints distance between the two lines:
                 if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngle, LineMaxEndpointMatchDistance)) {
-                    
+
                     // Second test: Compute the Mahalanobis distance between the lines:
-                    if(line.ComputeNormDistance(matchCandidate) < 5) {
+                    if (line.ComputeNormDistance(matchCandidate) < 5) {
 
                         // Last step: Find the nearest line among the remaining candidates:
                         // TODO: Check that this implementation matches the paper description:
                         float centerDistance = line.ComputeCenterDistance(matchCandidate);
 
-                        if(bestMatch == -1 || centerDistance < minDistance) {
+                        if (bestMatch == -1 || centerDistance < minDistance) {
                             bestMatch = i;
                             minDistance = centerDistance;
                         }
@@ -254,34 +256,46 @@ public class GeometryClustering : MonoBehaviour
                 match.UpdateLineUsingMatching(line);
 
                 if (!matched[bestMatch]) {
+                    match.lineColor = Color.blue;   // Lines from the model matched with new lines
                     newLines.Add(match);
                     matched[bestMatch] = true;
                 }
             }
 
             // Else, just add the line to the model:
-            else
+            else {
+                line.lineColor = Color.green;       // Green color for new lines
                 newLines.Add(line);
+            }
         }
 
-        // Get from the model unmatched lines:
-        for(int i = 0; i < modelLines.Count; i++)
-            if (!matched[i])
-                oldLines.Add(modelLines[i]);
-
-        // Use the new lines to update the old ones:
-        foreach(Line line in newLines) {
-            WipeTriangle triangle = line.BuildWipeTriangle(sensorPosition, WipeTriangleExtent);
-            oldLines = triangle.UpdateLines(oldLines, LineMinLength);
-        }
-
-        // Add the updated old lines and the new lines to the model:
+        // Finally use the new lines to update the model:
         modelLines.Clear();
-        foreach (Line line in oldLines) { line.lineColor = Color.red; modelLines.Add(line); }
-        foreach (Line line in newLines) { line.lineColor = Color.green; modelLines.Add(line); }
+
+        // Add first in the model the unmatched lines:
+        for (int i = 0; i < modelLines.Count; i++) {
+            if (!matched[i]) {
+                modelLines[i].lineColor = Color.red;
+                modelLines.Add(modelLines[i]);
+            }
+        }
+
+        // List of wipe triangles built from the new lines:
+        WipeTriangle[] wipeTriangles = new WipeTriangle[newLines.Count];
+
+        // Add the new lines in the model, and delete/update the other previous lines in the
+        // model using the wipe triangle:
+        for(int i = 0; i < newLines.Count; i++) {
+            wipeTriangles[i] = newLines[i].BuildWipeTriangle(sensorPosition, WipeTriangleExtent);
+            modelLines = wipeTriangles[i].UpdateLines(modelLines, LineMinLength);
+            modelLines.Add(newLines[i]);
+        }
+
+        // List of wipe triangles that we built, that will be used to remove inconsistent circles:
+        return wipeTriangles;
     }
 
-    public void UpdateModelCircles(List<Circle> currentCircles) {
+    public void UpdateModelCircles(List<Circle> currentCircles, WipeTriangle[] wipeTriangles) {
         List<Circle> newCircles = new List<Circle>();
 
         // Try to match the current circles with the circles in the model:
@@ -310,5 +324,9 @@ public class GeometryClustering : MonoBehaviour
         // Add the new lines in the model:
         foreach (Circle circle in newCircles)
             modelCircles.Add(circle);
+
+        // Use the wipe triangles of the new lines to delete inconsistent circles:
+        foreach(WipeTriangle triangle in wipeTriangles) 
+            modelCircles = triangle.UpdateCircles(modelCircles);
     }
 }

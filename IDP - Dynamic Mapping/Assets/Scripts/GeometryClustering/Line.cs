@@ -13,6 +13,7 @@ public class Line {
     // Create a line with updated endpoints (the parameters and line covariance
     // will stay the same, no matter the endpoints):
     public Line(Line other, Vector2 beginPoint, Vector2 endPoint) {
+        this.lineColor = other.lineColor;
         this.rho = other.rho;
         this.theta = other.theta;
         this.covariance = other.covariance;

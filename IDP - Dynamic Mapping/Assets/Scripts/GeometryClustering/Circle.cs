@@ -4,6 +4,8 @@ public class Circle {
     // Center and radius of the circle:
     private float xc, yc, R;
 
+    public Vector2 position { get => new Vector2(xc, yc); }
+
     public Circle(float xc, float yc, float R) {
         this.xc = xc;
         this.yc = yc;

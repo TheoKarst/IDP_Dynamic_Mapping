@@ -76,6 +76,18 @@ public class WipeTriangle {
         return result;
     }
 
+    // Remove from the list all circles inside this wipe triangle:
+    public List<Circle> UpdateCircles(List<Circle> circles) {
+        List<Circle> result = new List<Circle>();
+
+        foreach(Circle circle in circles) {
+            if(!Contains(circle.position))
+                result.Add(circle);
+        }
+
+        return result;
+    }
+
     // Return if the given point is inside this triangle:
     private bool Contains(Vector2 point) {
         return Vector2.Dot(point - p1, n1) <= 0
