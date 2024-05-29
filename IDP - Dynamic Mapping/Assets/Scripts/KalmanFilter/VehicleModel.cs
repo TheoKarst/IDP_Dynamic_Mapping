@@ -154,4 +154,14 @@ public class VehicleModel {
         dest.SetSubMatrix(index, 0, Hv);
         dest.SetSubMatrix(index, STATE_DIM + landmarkIndex * LANDMARK_DIM, Hpi);
     }
+
+    // From the vehicle state estimate, compute the world space position of the LIDAR:
+    public Vector2 GetSensorPosition(VehicleState stateEstimate) {
+        float cosphi = Mathf.Cos(stateEstimate.phi), sinphi = Mathf.Sin(stateEstimate.phi);
+
+        float sensorX = stateEstimate.x + a * cosphi - b * sinphi;
+        float sensorY = stateEstimate.y + a * sinphi + b * cosphi;
+
+        return new Vector2(sensorX, sensorY);
+    }
 }

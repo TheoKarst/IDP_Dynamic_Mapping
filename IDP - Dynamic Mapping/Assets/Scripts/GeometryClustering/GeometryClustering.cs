@@ -32,6 +32,13 @@ public class GeometryClustering : MonoBehaviour
     [Tooltip("Maximum distance between the endpoint of two lines to be matched together")]
     public float LineMaxEndpointMatchDistance = 0.1f;
 
+    [Tooltip("Maximum distance between two circles to be matched together")]
+    public float CircleMaxMatchDistance = 0.2f;
+
+    [Tooltip("Extent of the wipe triangle built for new lines")]
+    public float WipeTriangleExtent = 0.1f;
+
+    [Header("Drawing")]
     public bool drawPoints = true;
     public bool drawLines = true;
     public bool drawCircles = true;
@@ -50,33 +57,33 @@ public class GeometryClustering : MonoBehaviour
 
     // Update is called once per frame
     void Update() {
+        // Get the vehicle state estimate from Kalman Filter:
+        VehicleState vehicleState; Matrix<float> stateCovariance;
+        (vehicleState, stateCovariance) = controller.GetRobotStateEstimate();
+
+        // Get the observations from the LIADR:
+        Observation[] observations = lidar.GetObservations();
+
+        // During the initialisation, the LIDAR observations may be null. In this case
+        // there is nothing to do:
+        if (observations == null)
+            return;
+
         // Get points from the LIDAR:
-        currentPoints = ComputePoints();
+        currentPoints = ComputePoints(vehicleState, stateCovariance, observations);
 
         // Then use the points to perform lines and circles extraction:
         List<Line> lines; List<Circle> circles;
         (lines, circles) = ClusterExtraction(currentPoints);
-        
-        // Try to match the current lines with the lines in the model:
-        foreach(Line line in lines) {
-            // The best matching line we found in the model, as well as the
-            // Mahalanobis distance between this line and the one in the model:
-            Line bestMatch = null;
-            float minDistance = -1;
 
-            foreach(Line matchCandidate in modelLines) {
-                if(line.IsMatchCandidate(matchCandidate, LineMaxMatchAngle, LineMaxEndpointMatchDistance)) {
-                    float distance = line.ComputeNormDistance(matchCandidate);
+        // Use the lines from the current frame to update the model lines:
+        Vector2 sensorPosition = controller.GetVehicleModel().GetSensorPosition(vehicleState);
+        UpdateModelLines(sensorPosition, lines);
 
-                    if(bestMatch == null || distance < minDistance) {
-                        bestMatch = matchCandidate;
-                        minDistance = distance;
-                    }
-                }
-            }
+        // Use the circles from the current frame to update the model circles:
+        UpdateModelCircles(circles);
 
-
-        }
+        // (modelLines, modelCircles) = ClusterExtraction(currentPoints);
     }
 
     public void OnDrawGizmos() {
@@ -98,19 +105,7 @@ public class GeometryClustering : MonoBehaviour
 
     // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
     // to compute the estimated position of all the observations of the LIDAR in world space:
-    private List<Point> ComputePoints() {
-
-        // Get the observations from the LIADR:
-        Observation[] observations = lidar.GetObservations();
-
-        // During the initialisation, the LIDAR observations may be null. In this case
-        // there is nothing to do:
-        if (observations == null)
-            return null;
-
-        // Get the vehicle state estimate from Kalman Filter:
-        VehicleState vehicleState; Matrix<float> stateCovariance;
-        (vehicleState, stateCovariance) = controller.GetRobotStateEstimate();
+    private List<Point> ComputePoints(VehicleState vehicleState, Matrix<float> stateCovariance, Observation[] observations) {
 
         // Convert observations into points, using the vehicle state estimate:
         VehicleModel model = controller.GetVehicleModel();
@@ -207,5 +202,102 @@ public class GeometryClustering : MonoBehaviour
         }
 
         return (extractedLines, extractedCircles);
+    }
+
+    private void UpdateModelLines(Vector2 sensorPosition, List<Line> currentLines) {
+        // All the lines that were added to the model, plus the lines from the model that were updated:
+        List<Line> newLines = new List<Line>();
+
+        // All the other lines of the model:
+        List<Line> oldLines = new List<Line>();
+
+        // List of booleans saying for each line of the model if it was matched with a line of the
+        // current frame or not:
+        bool[] matched = new bool[modelLines.Count];
+
+        // Try to match the current lines with the lines in the model:
+        foreach (Line line in currentLines) {
+            // The best matching line we found in the model, as well as the
+            // Mahalanobis distance between this line and the one in the model:
+            int bestMatch = -1;
+            float minDistance = -1;
+
+            // TODO: This implementation is not exactly what is described in the paper (check with
+            // Mr. Spiegel for clarifications):
+            for(int i = 0; i < modelLines.Count; i++) {
+                Line matchCandidate = modelLines[i];
+
+                if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngle, LineMaxEndpointMatchDistance)) {
+                    float distance = line.ComputeNormDistance(matchCandidate);
+
+                    if (bestMatch == -1 || distance < minDistance) {
+                        bestMatch = i;
+                        minDistance = distance;
+                    }
+                }
+            }
+
+            // If a match is found, use this line to update the match state estimate:
+            if (bestMatch != -1 && minDistance < 5) {
+                Line match = modelLines[bestMatch];
+                match.UpdateLineUsingMatching(line);
+
+                if (!matched[bestMatch]) {
+                    newLines.Add(match);
+                    matched[bestMatch] = true;
+                }
+            }
+
+            // Else, just add the line to the model:
+            else
+                newLines.Add(line);
+        }
+
+        // Get from the model unmatched lines:
+        for(int i = 0; i < modelLines.Count; i++)
+            if (!matched[i])
+                oldLines.Add(modelLines[i]);
+
+        // Use the new lines to update the old ones:
+        foreach(Line line in newLines) {
+            WipeTriangle triangle = line.BuildWipeTriangle(sensorPosition, WipeTriangleExtent);
+            oldLines = triangle.UpdateLines(oldLines, LineMinLength);
+        }
+
+        // Add the updated old lines and the new lines to the model:
+        modelLines.Clear();
+        foreach(Line line in oldLines) modelLines.Add(line);
+        foreach(Line line in newLines) modelLines.Add(line);
+    }
+
+    public void UpdateModelCircles(List<Circle> currentCircles) {
+        List<Circle> newCircles = new List<Circle>();
+
+        // Try to match the current circles with the circles in the model:
+        foreach(Circle circle in currentCircles) {
+            Circle bestMatch = null;
+            float minDistance = -1;
+
+            foreach(Circle matchCandidate in modelCircles) {
+                float distance = circle.DistanceFrom(matchCandidate);
+
+                if(bestMatch == null || distance < minDistance) {
+                    bestMatch = matchCandidate;
+                    minDistance = distance;
+                }
+            }
+
+            // If a match is found, use this circle to update the match state estimate:
+            if (bestMatch != null && minDistance <= CircleMaxMatchDistance)
+                bestMatch.UpdateCircleUsingMatching(circle);
+            
+            // Else, just add the circle to the model:
+            else
+                newCircles.Add(circle);
+        }
+
+        // Add the new lines in the model:
+        foreach (Circle circle in newCircles)
+            modelCircles.Add(circle);
     }
 }

@@ -237,7 +237,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &254651331
 Transform:
   m_ObjectHideFlags: 0
@@ -1006,7 +1006,7 @@ MonoBehaviour:
   maxSpeed: 2
   maxSteering: 10
   friction: 10
-  waitBetweenMeasures: 0.1
+  waitBetweenMeasures: 0.02
   drawConfirmedLandmarks: 0
   drawPotentialLandmarks: 0
   drawObservations: 0
@@ -1026,10 +1026,14 @@ MonoBehaviour:
   lidar: {fileID: 1040413680}
   controller: {fileID: 976047841}
   PointCriticalDistance: 0.2
-  LineCriticalDistance: 0.06
+  LineCriticalDistance: 0.04
   CriticalAlpha: 5
   CircleCriticalDistance: 0.2
   LineMinLength: 0.3
+  LineMaxMatchAngle: 10
+  LineMaxEndpointMatchDistance: 0.1
+  CircleMaxMatchDistance: 0.2
+  WipeTriangleExtent: 0.1
   drawPoints: 0
   drawLines: 1
   drawCircles: 1

@@ -146,7 +146,7 @@ public class Lidar : MonoBehaviour
     }
 
     public void DrawObservation(Observation observation, Color color) {
-        float duration = 0.1f;
+        float duration = 0.02f;
 
         Vector3 direction = transform.TransformDirection(Vector3.forward);
         direction = Quaternion.AngleAxis(-observation.theta * Mathf.Rad2Deg, Vector3.up) * direction;
