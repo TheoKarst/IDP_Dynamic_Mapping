@@ -33,7 +33,7 @@ public class Point {
         // If the point is matched with a primitive, draw a line, representing the speed
         // estimate of the point:
         if(matchingPrimitive != null) {
-            Vector2 speed = 100 * matchingPrimitive.VelocityOfPoint(x, y);
+            Vector2 speed = 10 * matchingPrimitive.VelocityOfPoint(x, y);
 
             Gizmos.color = Color.red;
             Gizmos.DrawLine(center, new Vector3(center.x + speed.x, center.y, center.z + speed.y));

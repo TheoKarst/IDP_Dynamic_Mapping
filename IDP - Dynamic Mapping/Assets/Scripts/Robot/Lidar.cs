@@ -64,7 +64,7 @@ public class Lidar : MonoBehaviour
             RaycastHit hit;
             if (Physics.Raycast(transform.position, direction, out hit, raycastDistance)) {
                 // Used for drawing only:
-                if (drawRays && i < 10) Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
+                if (drawRays) Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
                 hitPoints[i] = hit.point;
 
                 // Used for localisation, mapping, etc...
@@ -72,7 +72,7 @@ public class Lidar : MonoBehaviour
             }
             else {
                 // Used for drawing only:
-                if (drawRays && i < 10) Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
+                if (drawRays) Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
                 hitPoints[i] = Vector3.zero;
 
                 // Used for localisation, mapping, etc...

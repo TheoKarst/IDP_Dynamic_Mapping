@@ -32,7 +32,7 @@ public class Circle : Primitive {
 
         // Use the newXc and newYc to update the circle speed estimate, using a simple
         // exponential low pass filter:
-        const float m = 0.9f;
+        const float m = 0.95f;
         other.xcP = xcP = m * xcP + (1 - m) * (newXc - xc);
         other.ycP = ycP = m * ycP + (1 - m) * (newYc - yc);
 

@@ -114,7 +114,7 @@ public class Line : Primitive {
         Matrix<float> Cr = Cl - K * Cl;
 
         // Update the line speed estimate, using a simple exponential low pass filter:
-        const float m = 0.9f;
+        const float m = 0.95f;
         other.rhoP = rhoP = m * rhoP + (1 - m) * (Xr[0] - rho);
         other.thetaP = thetaP = m * thetaP + (1 - m) * (Xr[1] - theta);
 
