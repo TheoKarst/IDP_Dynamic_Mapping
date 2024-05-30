@@ -3,15 +3,15 @@ using UnityEngine;
 
 public class Lidar : MonoBehaviour
 {
+    [Tooltip("Model used to represent the world state estimate")]
+    public RobotBresenham worldModel;
+
     public int raycastCount = 20;
     public float raycastDistance = 1;
 
     // For each measurement i of the LIDAR, we check if it's a corner by comparing it with the measure
     // i + deltaCorners and the measure i - deltaCorners:
     public int deltaCorners = 1;
-
-    // The minimum angle for a corner to be detected as such:
-    public float angleThreshold = 80;
 
     public bool drawRays = true;
     public bool drawCorners = true;
@@ -64,7 +64,7 @@ public class Lidar : MonoBehaviour
             RaycastHit hit;
             if (Physics.Raycast(transform.position, direction, out hit, raycastDistance)) {
                 // Used for drawing only:
-                if (drawRays) Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
+                if (drawRays && i < 10) Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
                 hitPoints[i] = hit.point;
 
                 // Used for localisation, mapping, etc...
@@ -72,7 +72,7 @@ public class Lidar : MonoBehaviour
             }
             else {
                 // Used for drawing only:
-                if (drawRays) Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
+                if (drawRays && i < 10) Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
                 hitPoints[i] = Vector3.zero;
 
                 // Used for localisation, mapping, etc...
@@ -135,12 +135,14 @@ public class Lidar : MonoBehaviour
         return observations;
     }
 
-    // Use the convex corners as landmarks to update our state estimate:
-    public Observation[] GetLandmarkCandidates() {
-        Observation[] landmarks = new Observation[convexCorners.Count];
+    // Use the static convex corners as landmarks to update our state estimate:
+    public List<Observation> GetLandmarkCandidates() {
+        List<Observation> landmarks = new List<Observation>();
         
-        for (int i = 0; i < landmarks.Length; i++)
-            landmarks[i] = observations[convexCorners[i]];
+        foreach(int index in convexCorners) {
+            if (worldModel.IsStatic(observations[index]))
+                landmarks.Add(observations[index]);
+        }
 
         return landmarks;
     }

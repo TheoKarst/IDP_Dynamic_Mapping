@@ -124,7 +124,7 @@ public class KalmanFilter {
     // try to associate the observations with known landmarks and update the robot state using the
     // Extended Kalman Filter. The observation may be empty (no interesting candidate). In this case,
     // we just perform a state prediction without update:
-    public void UpdateStateEstimate(Observation[] observations, ModelInputs inputs, float currentTime) {
+    public void UpdateStateEstimate(List<Observation> observations, ModelInputs inputs, float currentTime) {
         float deltaT = lastTimeUpdate < 0 ? 0 : currentTime - lastTimeUpdate;
         lastTimeUpdate = currentTime;
         timestep++;

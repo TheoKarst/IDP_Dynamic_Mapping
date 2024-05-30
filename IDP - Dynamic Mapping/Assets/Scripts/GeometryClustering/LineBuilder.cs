@@ -87,12 +87,19 @@ public class LineBuilder {
     }
 
     public Line Build() {
+        // Compute the endpoints and covariance matrix of the line:
         if (!upToDateEndpoints) 
             UpdateEndpoints();
 
         Matrix<float> covariance = ComputeCovariance();
 
-        return new Line(rho, theta, covariance, beginPoint, endPoint);
+        // Build the line:
+        Line line = new Line(rho, theta, covariance, beginPoint, endPoint);
+
+        // Match all the points to the built line:
+        foreach (Point point in points) point.MatchToPrimitive(line);
+
+        return line;
     }
 
     // Compute the endpoints of the line by projecting the first and last points that were added

@@ -1,10 +1,16 @@
 using MathNet.Numerics.LinearAlgebra;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class RobotController : MonoBehaviour {
 
     [Tooltip("Sensor attached to the robot controller, in order to estimate the robot state")]
     public Lidar lidar;
+
+    // Used for debugging: when arrow keys are pressed, they stay pressed:
+    public bool lockKeys = true;
+    private int linearMotion = 0;     // -1: backward, +1: forward
+    private int angularMotion = 0;    // -1: left, +1: right
 
     public bool writeLogFile = false;
 
@@ -62,17 +68,25 @@ public class RobotController : MonoBehaviour {
         float h = Time.deltaTime;
 
         // Update the velocity of the robot:
-        if (Input.GetKey(KeyCode.UpArrow))
+        linearMotion = Input.GetKey(KeyCode.UpArrow) ? 1 
+                    : Input.GetKey(KeyCode.DownArrow) ? -1
+                    : lockKeys ? linearMotion : 0;
+
+        if (linearMotion == 1)
             velocity += h * acceleration;
-        else if (Input.GetKey(KeyCode.DownArrow))
+        else if (linearMotion == -1)
             velocity -= h * acceleration;
         else
             velocity -= h * velocity * friction;
 
         // Update the steering of the robot:
-        if (Input.GetKey(KeyCode.LeftArrow))
+        angularMotion = Input.GetKey(KeyCode.RightArrow) ? 1
+                    : Input.GetKey(KeyCode.LeftArrow) ? -1
+                    : lockKeys ? angularMotion : 0;
+
+        if (angularMotion == -1)
             steering = maxSteering;
-        else if (Input.GetKey(KeyCode.RightArrow))
+        else if (angularMotion == 1)
             steering = -maxSteering;
         else
             steering = 0;
@@ -95,7 +109,7 @@ public class RobotController : MonoBehaviour {
         ModelInputs inputs = new ModelInputs(velocity, Mathf.Deg2Rad * steering);
 
         // Get the observations from the LIDAR, that are good landmark candidates:
-        Observation[] observations = lidar.GetLandmarkCandidates();
+        List<Observation> observations = lidar.GetLandmarkCandidates();
 
         // Use these observations to update the robot state estimate:
         filter.UpdateStateEstimate(observations, inputs, Time.time);

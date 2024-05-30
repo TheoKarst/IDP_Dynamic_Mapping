@@ -17,6 +17,7 @@ public class GeometryClustering : MonoBehaviour
 
     [Tooltip("Maximum angle (in degrees) between two consecutive points to be matched to the same line")]
     public float CriticalAlpha = 1f;
+    private float CriticalAlphaRadians;
 
     [Tooltip("Maximum distance between two consecutive points to be matched to the same circle cluster")]
     public float CircleCriticalDistance = 0.2f;
@@ -26,8 +27,9 @@ public class GeometryClustering : MonoBehaviour
 
     [Header("Geometry Matching:")]
 
-    [Tooltip("Maximum angle between two lines to be matched together")]
+    [Tooltip("Maximum angle (in degrees) between two lines to be matched together")]
     public float LineMaxMatchAngle = 10f;
+    private float LineMaxMatchAngleRadians;
 
     [Tooltip("Maximum distance between the endpoint of two lines to be matched together")]
     public float LineMaxEndpointMatchDistance = 0.1f;
@@ -65,7 +67,8 @@ public class GeometryClustering : MonoBehaviour
 
     // Start is called before the first frame update
     void Start() {
-        
+        CriticalAlphaRadians = Mathf.Deg2Rad * CriticalAlpha;
+        LineMaxMatchAngleRadians = Mathf.Deg2Rad * LineMaxMatchAngle;
     }
 
     // Update is called once per frame
@@ -119,7 +122,8 @@ public class GeometryClustering : MonoBehaviour
 
         if (drawPoints && currentPoints != null) {
             foreach (Point point in currentPoints)
-                point.DrawGizmos();
+                if(point != null)
+                    point.DrawGizmos();
         }
 
         if (drawLines && modelLines != null) {
@@ -185,7 +189,7 @@ public class GeometryClustering : MonoBehaviour
                 // Try to match the current point with the current line:
                 bool condition1 = Point.Dist(previousPoint, currentPoint) <= PointCriticalDistance;
                 bool condition2 = lineBuilder.PointsCount() < 3 || lineBuilder.DistanceFrom(currentPoint) <= LineCriticalDistance;
-                bool condition3 = Point.AngularDifference(previousPoint, currentPoint) <= Mathf.Deg2Rad * CriticalAlpha;
+                bool condition3 = Point.AngularDifference(previousPoint, currentPoint) <= CriticalAlphaRadians;
                 
                 // If the three conditions are met, we can add the point to the line:
                 if (condition1 && condition2 && condition3) {
@@ -261,7 +265,7 @@ public class GeometryClustering : MonoBehaviour
             foreach (Line matchCandidate in modelLines) {
 
                 // First test: compare the angle difference and endpoints distance between the two lines:
-                if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngle, LineMaxEndpointMatchDistance)) {
+                if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, LineMaxEndpointMatchDistance)) {
 
                     // Second test: Compute the Mahalanobis distance between the lines:
                     if (line.ComputeNormDistance(matchCandidate) < 5) {
@@ -303,8 +307,11 @@ public class GeometryClustering : MonoBehaviour
     public void UpdateModelCircles(List<Circle> currentCircles, WipeTriangle[] wipeTriangles) {
         List<Circle> newCircles = new List<Circle>();
 
+        // Drawing: Reset the color of the model circles to red:
+        foreach (Circle circle in modelCircles) circle.circleColor = Color.red;
+
         // Try to match the current circles with the circles in the model:
-        foreach(Circle circle in currentCircles) {
+        foreach (Circle circle in currentCircles) {
             Circle bestMatch = null;
             float minDistance = -1;
 
@@ -318,12 +325,16 @@ public class GeometryClustering : MonoBehaviour
             }
 
             // If a match is found, use this circle to update the match state estimate:
-            if (bestMatch != null && minDistance <= CircleMaxMatchDistance)
+            if (bestMatch != null && minDistance <= CircleMaxMatchDistance) {
                 bestMatch.UpdateCircleUsingMatching(circle);
-            
+                bestMatch.circleColor = Color.blue;
+            }
+
             // Else, just add the circle to the model:
-            else
+            else {
                 newCircles.Add(circle);
+                circle.circleColor = Color.green;
+            }
         }
 
         // Add the new lines in the model:

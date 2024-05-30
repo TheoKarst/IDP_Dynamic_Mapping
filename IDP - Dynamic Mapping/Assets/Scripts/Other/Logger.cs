@@ -51,9 +51,6 @@ public class Logger {
     }
 
     private static float PrincipalDegreeMeasure(float angle) {
-        while (angle > Mathf.PI) angle -= 2 * Mathf.PI;
-        while (angle < -Mathf.PI) angle += 2 * Mathf.PI;
-
-        return angle * Mathf.Rad2Deg;
+        return Mathf.Rad2Deg * Mathf.Repeat(angle, 2 * Mathf.PI) - 180;
     }
 }

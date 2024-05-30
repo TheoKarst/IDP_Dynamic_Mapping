@@ -2,12 +2,14 @@ using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
 public class Point {
-    public float x;
-    public float y;
-    public float angle;
+    public float x, y;          // Estimated position of the point, from the Kalman Filter
+    private float angle;        // Angle of the point in radians, from the LIDAR
 
     // Covariance matrix for the position (x, y) of the point:
     public readonly Matrix<float> Cp;
+
+    // Primitive this point is supposed to belong to:
+    private Primitive matchingPrimitive;
 
     public Point(float x, float y, float angle, Matrix<float> covariance) {
         this.x = x;
@@ -18,11 +20,24 @@ public class Point {
     }
 
     public void DrawGizmos() {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawSphere(new Vector3(x, 0.2f, y), 0.01f);
+        // Center of the point in Unity 3D world space:
+        Vector3 center = new Vector3(x, 0.2f, y);
 
-        // Gizmos.DrawCube(new Vector3(x, 0.5f, y),
-        //                 new Vector3(Mathf.Sqrt(Cp[0, 0]), 0, Mathf.Sqrt(Cp[1, 1])));
+        // Draw a sphere at the position of the point:
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawSphere(center, 0.01f);
+
+        // Draw a cube at the position of the point, representing its eror estimate:
+        // Gizmos.DrawCube(center, new Vector3(Mathf.Sqrt(Cp[0, 0]), 0, Mathf.Sqrt(Cp[1, 1])));
+
+        // If the point is matched with a primitive, draw a line, representing the speed
+        // estimate of the point:
+        if(matchingPrimitive != null) {
+            Vector2 speed = 100 * matchingPrimitive.VelocityOfPoint(x, y);
+
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(center, new Vector3(center.x + speed.x, center.y, center.z + speed.y));
+        }
     }
 
     public static float Dist(Point a, Point b) {
@@ -33,6 +48,10 @@ public class Point {
     }
 
     public static float AngularDifference(Point a, Point b) {
-        return Mathf.Abs(a.angle - b.angle);
+        return Utils.DeltaAngleRadians(a.angle, b.angle);
+    }
+
+    public void MatchToPrimitive(Primitive primitive) {
+        matchingPrimitive = primitive;
     }
 }

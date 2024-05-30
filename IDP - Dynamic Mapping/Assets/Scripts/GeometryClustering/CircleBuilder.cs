@@ -41,9 +41,16 @@ public class CircleBuilder {
     }
 
     public Circle Build() {
+        // Compute the radius of the circle:
         float R = ComputeCircleRadius();
 
-        return new Circle(xc, yc, R);             
+        // Build the circle:
+        Circle circle = new Circle(xc, yc, R);
+
+        // Match all the points to the built circle:
+        foreach (Point point in points) point.MatchToPrimitive(circle);
+
+        return circle;
     }
 
     private float ComputeCircleRadius() {

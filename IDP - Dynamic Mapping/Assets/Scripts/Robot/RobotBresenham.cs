@@ -2,7 +2,7 @@ using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class RobotBresenham : MonoBehaviour
+public class RobotBresenham : MonoBehaviour, WorldModel
 {
     public RawImage image;
     public int pixelSize = 4;
@@ -82,7 +82,7 @@ public class RobotBresenham : MonoBehaviour
 
     // Update is called once per frame
     void Update() {
-        // Get the state estimate (Kamman Filter) of the robot from the robot controller:
+        // Get the state estimate (Kalman Filter) of the robot from the robot controller:
         (VehicleState vehicleState, _) = controller.GetRobotStateEstimate();
 
         Vector2 sensorPosition = controller.GetVehicleModel().GetSensorPosition(vehicleState);
@@ -207,5 +207,27 @@ public class RobotBresenham : MonoBehaviour
         return p / (1 + p);
     }
 
+    public bool IsStatic(Observation observation) {
+        // Get the state estimate (Kalman Filter) of the robot from the robot controller:
+        (VehicleState vehicleState, Matrix<float> stateCovariance) = controller.GetRobotStateEstimate();
 
+        // Compute the position of the observation, using the vehicle state estimate:
+        (Vector<float> position, _) = controller.GetVehicleModel()
+            .ComputeObservationPositionEstimate(vehicleState, stateCovariance, observation);
+
+        // Convert the world position into a cell position:
+        int xCell = Mathf.FloorToInt(position[0] / cellSize) + mapWidth / 2;
+        int yCell = Mathf.FloorToInt(position[1] / cellSize) + mapHeight / 2;
+
+        // Check if there is a static cell around this cell:
+        const int border = 5;
+        for(int x = Mathf.Max(xCell - border, 0); x <= Mathf.Min(xCell + border, mapWidth-1); x++) {
+            for (int y = Mathf.Max(yCell - border, 0); y <= Mathf.Min(yCell + border, mapHeight - 1); y++) {
+                if (getMapValue(x, y, staticMap) >= 0.8f)
+                    return true;
+            }
+        }
+
+        return false;
+    }
 }

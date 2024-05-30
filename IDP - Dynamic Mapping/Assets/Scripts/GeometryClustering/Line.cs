@@ -2,31 +2,31 @@ using MathNet.Numerics.LinearAlgebra;
 using UnityEditor;
 using UnityEngine;
 
-public class Line {
+public class Line : Primitive {
     public Color lineColor = Color.red;
 
-    private float rho, theta;
+    private float rho, theta;       // Parameters of the line
+    private float rhoP, thetaP;     // Derivative of rho and theta (used to estimate the speed of the line)
+
     private Matrix<float> covariance;
 
     public Vector2 beginPoint, endPoint;
 
     // Copy constructor:
-    public Line(Line line) {
-        lineColor = line.lineColor;
-        rho = line.rho;
-        theta = line.theta;
-        covariance = line.covariance;
-        beginPoint = line.beginPoint;
-        endPoint = line.endPoint;
-    }
+    public Line(Line line) : this(line, line.beginPoint, line.endPoint) {}
 
     // Create a line with updated endpoints (the parameters and line covariance
     // will stay the same, no matter the endpoints):
     public Line(Line other, Vector2 beginPoint, Vector2 endPoint) {
-        this.lineColor = other.lineColor;
-        this.rho = other.rho;
-        this.theta = other.theta;
-        this.covariance = other.covariance;
+        lineColor = other.lineColor;
+
+        rho = other.rho;
+        theta = other.theta;
+        rhoP = other.rhoP;
+        thetaP = other.thetaP;
+
+        covariance = other.covariance;
+
         this.beginPoint = beginPoint;
         this.endPoint = endPoint;
     }
@@ -34,7 +34,10 @@ public class Line {
     public Line(float rho, float theta, Matrix<float> covariance, Vector2 beginPoint, Vector2 endPoint) {
         this.rho = rho;
         this.theta = theta;
+        this.rhoP = this.thetaP = 0;
+
         this.covariance = covariance;
+
         this.beginPoint = beginPoint;
         this.endPoint = endPoint;
     }
@@ -45,12 +48,12 @@ public class Line {
         Handles.DrawBezier(p1, p2, p1, p2, lineColor, null, 4);
     }
 
-    // Return if the otther line (supposed to be part of the current world model) is x good candidate
+    // Return if the other line (supposed to be part of the current world model) is a good candidate
     // to be matched with this line. If this is the case, we will have to check the norm distance
     // between the lines as x next step:
     public bool IsMatchCandidate(Line other, float maxAngleDistance, float maxEndpointDistance) {
         // If the angular difference between both lines is too big, the lines cannot match:
-        if (Mathf.Abs(theta - other.theta) > maxAngleDistance)
+        if (Utils.DeltaAngleRadians(theta, other.theta) > maxAngleDistance)
             return false;
 
         // If the distance of the endpoints of this line to the 
@@ -109,6 +112,11 @@ public class Line {
         Matrix<float> K = Cl * (Cl + Cm).Inverse();
         Vector<float> Xr = Xl + K * (Xm - Xl);
         Matrix<float> Cr = Cl - K * Cl;
+
+        // Update the line speed estimate, using a simple exponential low pass filter:
+        const float m = 0.9f;
+        other.rhoP = rhoP = m * rhoP + (1 - m) * (Xr[0] - rho);
+        other.thetaP = thetaP = m * thetaP + (1 - m) * (Xr[1] - theta);
 
         // Update this line (rho, theta) parameters, and covariance matrix:
         rho = Xr[0]; theta = Xr[1];
@@ -176,5 +184,28 @@ public class Line {
 
 
         return new Intersection(A + x * AB, y);
+    }
+
+    public Vector2 VelocityOfPoint(float x, float y) {
+        // First express the given point in the referential of the line:
+        float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
+        Vector2 MP = new Vector2(x - rho * costheta, y - rho * sintheta);
+
+        // Unit vectors orthogonal to the line, and along the line:
+        Vector2 x1 = new Vector2(costheta, sintheta);       // Orthogonal
+        Vector2 y1 = new Vector2(-sintheta, costheta);      // Along
+        
+        // MP = a.x1 + b.y1:
+        float a = Vector2.Dot(MP, x1);
+        float b = Vector2.Dot(MP, y1);
+
+        // Compute the derivative of the point in the referential of the line:
+        float der_along_x1 = rhoP - b * thetaP;
+        float der_along_y1 = (rho + a) * thetaP;
+
+        // Express the result in the base reference:
+        return new Vector2(
+            der_along_x1 * costheta - der_along_y1 * sintheta,
+            der_along_x1 * sintheta + der_along_y1 * costheta);
     }
 }
