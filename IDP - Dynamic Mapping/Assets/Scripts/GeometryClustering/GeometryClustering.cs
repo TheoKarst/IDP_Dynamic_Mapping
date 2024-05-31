@@ -108,10 +108,6 @@ public class GeometryClustering : MonoBehaviour
 
         // Use the circles from the current frame to update the model circles:
         UpdateModelCircles(circles, triangles);
-
-        Debug.Log("Points: " + currentPoints.Length + 
-            "; Lines: " + modelLines.Count + 
-            "; Circles: " + modelCircles.Count);
     }
 
     public void OnDrawGizmos() {

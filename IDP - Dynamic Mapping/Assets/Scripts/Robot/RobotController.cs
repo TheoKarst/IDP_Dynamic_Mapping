@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class RobotController : MonoBehaviour {
 
+    [Header("Robot")]
+
     [Tooltip("Sensor attached to the robot controller, in order to estimate the robot state")]
     public Lidar lidar;
 
@@ -11,8 +13,6 @@ public class RobotController : MonoBehaviour {
     public bool lockKeys = true;
     private int linearMotion = 0;     // -1: backward, +1: forward
     private int angularMotion = 0;    // -1: left, +1: right
-
-    public bool writeLogFile = false;
 
     public float acceleration = 10;
     public float L = 0.3f;
@@ -22,11 +22,17 @@ public class RobotController : MonoBehaviour {
 
     public float friction = 0.02f;
 
-    public float waitBetweenMeasures = 1;
+    [Header("Landmarks")]
+    [Tooltip("The maximum number of landmarks we can use to update the robot " +
+        "state estimate (more landmarks means more precision, but is also slower)")]
+    public int maxLandmarksPerUpdate = 5;
+    public float minDistanceBetweenLandmarks = 1;
 
     public bool drawConfirmedLandmarks, drawPotentialLandmarks, drawObservations;
 
-    public float minDistanceBetweenLandmarks = 1;
+    [Header("Other")]
+    public bool writeLogFile = false;
+    public float waitBetweenMeasures = 1;
 
     private float velocity = 0;
     private float steering = 0;
@@ -41,10 +47,10 @@ public class RobotController : MonoBehaviour {
 
         // Instantiate a vehicle model:
         float a, b; (a, b) = lidar.GetLocalPosition();
-        vehicleModel = new VehicleModel(a, b, L);
+        vehicleModel = new VehicleModel(a, b, L, maxSpeed, Mathf.Deg2Rad * maxSteering, waitBetweenMeasures);
 
         Logger kalmanLogger = writeLogFile ? new Logger(false, "log_file.csv") : new Logger(false);
-        filter = new KalmanFilter(this, initialState, vehicleModel, minDistanceBetweenLandmarks, kalmanLogger);
+        filter = new KalmanFilter(this, initialState, vehicleModel, maxLandmarksPerUpdate, minDistanceBetweenLandmarks, kalmanLogger);
     }
 
     // Update is called once per frame
@@ -79,6 +85,9 @@ public class RobotController : MonoBehaviour {
         else
             velocity -= h * velocity * friction;
 
+        // Clamp the velocity between boundaries:
+        velocity = Mathf.Clamp(velocity, -maxSpeed, maxSpeed);
+
         // Update the steering of the robot:
         angularMotion = Input.GetKey(KeyCode.RightArrow) ? 1
                     : Input.GetKey(KeyCode.LeftArrow) ? -1
@@ -90,9 +99,6 @@ public class RobotController : MonoBehaviour {
             steering = -maxSteering;
         else
             steering = 0;
-
-        // Clamp the velocity between boundaries:
-        velocity = Mathf.Clamp(velocity, -maxSpeed, maxSpeed);
 
         // Compute the derivative of the position and orientation of the robot:
         float robotAngle = GetRobotAngle();

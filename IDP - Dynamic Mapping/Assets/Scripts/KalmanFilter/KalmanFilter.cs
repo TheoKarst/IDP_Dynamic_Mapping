@@ -3,14 +3,31 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class KalmanFilter {
+    // Matrix builder used as a shortcut for vector and matrix creation:
+    private static MatrixBuilder<float> M = Matrix<float>.Build;
+    private static VectorBuilder<float> V = Vector<float>.Build;
+
     // Create shortcuts for state, landmarks and observations dimensions:
     private const int STATE_DIM = VehicleState.DIMENSION;        // (x, y, phi)
     private const int LANDMARK_DIM = Landmark.DIMENSION;         // (x, y)
     private const int OBSERVATION_DIM = Observation.DIMENSION;   // (r, theta)
 
-    // Matrix builder used as a shortcut for vector and matrix creation:
-    private static MatrixBuilder<float> M = Matrix<float>.Build;
-    private static VectorBuilder<float> V = Vector<float>.Build;
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Parameters of the Kalman Filter:
+
+    // Number of associations to consider a potential landmark as stable:
+    const int AssociationsForStableLandmark = 30;        // Was 6
+
+    // Number of timesteps after which an unstable potential landmark is removed
+    const int PotentialLandmarkLifetime = 60;           // Was 51
+
+    // Maximal Mahalanobis distance between an observation and a confirmed landmark to match them together:
+    const float MaxNormDistanceConfirmedLandmarks = 5;
+
+    // Maximal Mahalanobis distance between an observation and a potential landmark to match them together:
+    const float MaxNormDistancePotentialLandmarks = 5;
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     // Model of the vehicle (used to perform all the operations specific to the vehicle model):
     private VehicleModel vehicleModel;
@@ -18,6 +35,10 @@ public class KalmanFilter {
     // According to the appendix II, create two lists of landmarks:
     private List<Landmark> confirmedLandmarks = new List<Landmark>();
     private List<PotentialLandmark> potentialLandmarks = new List<PotentialLandmark>();
+
+    // The maximum number of landmarks we can use to update the robot state estimate
+    // (more landmarks means more precision, but is also slower):
+    private int maxLandmarksPerUpdate;
 
     // Minimum distance between landmarks (prevent having too many landmarks at the same position):
     private float minDistanceBetweenLandmarks;
@@ -48,8 +69,8 @@ public class KalmanFilter {
     // Used to print debug messages in the console / in a text file:
     private Logger logger;
 
-    public KalmanFilter(RobotController controller, VehicleState initialState, VehicleModel model, 
-        float minDistanceBetweenLandmarks, Logger logger) {
+    public KalmanFilter(RobotController controller, VehicleState initialState, VehicleModel vehicleModel, 
+        int maxLandmarksPerUpdate, float minDistanceBetweenLandmarks, Logger logger) {
 
         this.controller = controller;
 
@@ -58,8 +79,9 @@ public class KalmanFilter {
         this.stateEstimateNoUpdate = initialState;
         this.stateCovarianceEstimate = new StateCovariance(STATE_DIM, 0, LANDMARK_DIM);
 
-        this.vehicleModel = model;
+        this.vehicleModel = vehicleModel;
 
+        this.maxLandmarksPerUpdate = maxLandmarksPerUpdate;
         this.minDistanceBetweenLandmarks = minDistanceBetweenLandmarks;
 
         this.logger = logger;
@@ -159,8 +181,13 @@ public class KalmanFilter {
 
             // If we have a valid landmark index, add this observation and the associated landmark
             // index to the list:
-            if (landmarkIndex != -1)
+            if (landmarkIndex != -1) {
                 landmarkAssociation.Add((observation, landmarkIndex));
+
+                // If we have enough landmarks, we can stop here:
+                if (landmarkAssociation.Count >= maxLandmarksPerUpdate)
+                    break;
+            }
         }
 
         // Update the set of landmarks:
@@ -259,8 +286,9 @@ public class KalmanFilter {
             if (minEuclideanDistance < 0 || euclideanDistance < minEuclideanDistance)
                 minEuclideanDistance = euclideanDistance;
 
-            // If dfi < dmin, then the current landmark is chosen as a candidate for the observation:
-            if (dfi < 1f) {
+            // If dfi < MaxNormDistanceConfirmedLandmarks, then the current landmark is chosen as
+            // a candidate for the observation:
+            if (dfi < MaxNormDistanceConfirmedLandmarks) {
                 // If no other landmark was accepted before, then accept this landmark:
                 if (acceptedLandmark == -1) acceptedLandmark = i;
 
@@ -290,8 +318,9 @@ public class KalmanFilter {
             if (minEuclideanDistance < 0 || euclideanDistance < minEuclideanDistance)
                 minEuclideanDistance = euclideanDistance;
 
-            // If dfi < dmin, then the current landmark is chosen as a candidate for the observation:
-            if (dfi < 0.1f) {
+            // If dfi < MaxNormDistancePotentialLandmarks, then the current landmark is chosen as a
+            // candidate for the observation:
+            if (dfi < MaxNormDistancePotentialLandmarks) {
                 // If no other landmark was accepted before, then accept this landmark:
                 if (acceptedLandmark == -1) acceptedLandmark = i;
 
@@ -322,22 +351,20 @@ public class KalmanFilter {
     // Step 5. of the Appendix II: Examine the set of potential landmarks, remove the unused ones and
     // confirm the most stable ones:
     private void UpdatePotentialLandmarks(StateCovariance stateCovariancePrediction) {
-        const int cmin = 5;         // Number of associations to consider a potential landmark as stable
-        const int tmax = 50;        // Number of timesteps after which an unstable potential landmark is removed
-
+        
         List<PotentialLandmark> newPotentialLandmarks = new List<PotentialLandmark>();
 
         for (int i = 0; i < potentialLandmarks.Count; i++) {
             PotentialLandmark current = potentialLandmarks[i];
 
             // a. If the potential landmark is stable enough, add it to the list of confirmed landmarks:
-            if (current.getAssociationsCount() > cmin) {
+            if (current.getAssociationsCount() >= AssociationsForStableLandmark) {
                 confirmedLandmarks.Add(current.toLandmark());
                 stateCovariancePrediction.AddLandmark(current.getCovariance());
             }
 
             // b. Keep this potential landmark in the list only if the landmark is recent enough:
-            else if (timestep - current.getCreationTime() < tmax) {
+            else if (timestep - current.getCreationTime() <= PotentialLandmarkLifetime) {
                 newPotentialLandmarks.Add(current);
             }
         }

@@ -1,5 +1,6 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
+using UnityEngine.Windows;
 
 public class VehicleModel {
     // Create shortcuts for state, landmarks and observations dimensions:
@@ -18,16 +19,19 @@ public class VehicleModel {
     // Parameters defining the dimensions of the model:
     private float a, b, L;
 
-    public VehicleModel(float a, float b, float L) {
+    public VehicleModel(float a, float b, float L, float maxSpeed, float maxSteering, float deltaTime) {
         this.a = a;
         this.b = b;
         this.L = L;
 
-        // Model errors:
-        float ePos = 0.4f;                  // Covariance of the position error
-        float ePhi = 2 * Mathf.Deg2Rad;     // Covariance of the angular position error
-        float eR = 0.4f;                    // Covariance of the measure distance error
-        float eTheta = 2 * Mathf.Deg2Rad;   // Covariance of the measure angle error
+        // Covariance of the error on the linear and angular position of the robot:
+        float ePos = deltaTime * maxSpeed;
+        float ePhi = deltaTime * maxSpeed * Mathf.Tan(maxSteering) / L;
+        Debug.Log("Instantiating a robot model. ePos = " + ePos + ", ePhi = " + Mathf.Rad2Deg * ePhi + "°");
+
+        // Covariance of the measure distance and angle of the LIDAR;
+        float eR = ePos;
+        float eTheta = ePhi;
 
         // Covariance matrix for the process noise errors (x, y, phi):
         this.ProcessNoiseError = M.Diagonal(new float[] {

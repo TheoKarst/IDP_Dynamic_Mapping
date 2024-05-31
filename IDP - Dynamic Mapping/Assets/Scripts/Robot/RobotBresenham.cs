@@ -15,6 +15,8 @@ public class RobotBresenham : MonoBehaviour, WorldModel
     public Lidar lidar;
     public RobotController controller;
 
+    public bool showTextureMap = true;
+
     public float maxConfidence = 0.99f;
 
     [Tooltip("Average number of frames to wait before considering an object as static in the static grid")]
@@ -92,6 +94,9 @@ public class RobotBresenham : MonoBehaviour, WorldModel
         // float robotY = lidar.transform.position.z;
         // float robotAngle = Mathf.Deg2Rad * (90 - lidar.transform.rotation.eulerAngles.y);
 
+        // Activate or not the texture:
+        image.gameObject.SetActive(showTextureMap);
+
         // And update the static and dynamic maps using distances values from the LIDAR:
         UpdateMaps(sensorPosition.x, sensorPosition.y, vehicleState.phi);
     }
@@ -106,9 +111,11 @@ public class RobotBresenham : MonoBehaviour, WorldModel
             return;
 
         // Erase current map:
-        for (int x = 0; x < mapWidth; x++)
-            for (int y = 2 * mapHeight; y < 3 * mapHeight; y++)
-                texture.SetPixel(x, y, Color.gray);
+        if (showTextureMap) {
+            for (int x = 0; x < mapWidth; x++)
+                for (int y = 2 * mapHeight; y < 3 * mapHeight; y++)
+                    texture.SetPixel(x, y, Color.gray);
+        }
 
         // Position of the robot in the grids:
         int x0 = Mathf.FloorToInt(robotX / cellSize) + mapWidth / 2;
@@ -132,7 +139,8 @@ public class RobotBresenham : MonoBehaviour, WorldModel
         }
 
         // Update the texture to reflect the changes on the maps:
-        texture.Apply();
+        if(showTextureMap)
+            texture.Apply();
     }
 
     private void Bresenham(int x0, int y0, int x1, int y1, bool collision) {
@@ -163,7 +171,8 @@ public class RobotBresenham : MonoBehaviour, WorldModel
             return;
 
         // Update the current cell color:
-        texture.SetPixel(x, y + 2 * mapHeight, state == FREE ? Color.white : Color.black);
+        if(showTextureMap)
+            texture.SetPixel(x, y + 2 * mapHeight, state == FREE ? Color.white : Color.black);
 
         float previousStaticValue = getMapValue(x, y, staticMap);
 
@@ -182,10 +191,12 @@ public class RobotBresenham : MonoBehaviour, WorldModel
         dynamicMap[x][y] = Mathf.Clamp(dynamicMap[x][y], -maxLogOddValue, maxLogOddValue);
 
         // Get the new values for the static and dynamic maps:
-        float s = 1 - getMapValue(x, y, staticMap);
-        float d = 1 - getMapValue(x, y, dynamicMap);
-        texture.SetPixel(x, y + mapHeight, new Color(s, s, s));
-        texture.SetPixel(x, y, new Color(d, d, d));
+        if (showTextureMap) {
+            float s = 1 - getMapValue(x, y, staticMap);
+            float d = 1 - getMapValue(x, y, dynamicMap);
+            texture.SetPixel(x, y + mapHeight, new Color(s, s, s));
+            texture.SetPixel(x, y, new Color(d, d, d));
+        }
     }
 
     private float getMapValue(int x, int y, float[][] map)

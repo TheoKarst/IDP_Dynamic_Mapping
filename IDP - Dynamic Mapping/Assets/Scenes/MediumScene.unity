@@ -10992,6 +10992,10 @@ PrefabInstance:
       propertyPath: mapWidth
       value: 600
       objectReference: {fileID: 0}
+    - target: {fileID: 4858635489502067460, guid: a2599afcab23ec2449164794973d807a, type: 3}
+      propertyPath: showTextureMap
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5064090248960098729, guid: a2599afcab23ec2449164794973d807a, type: 3}
       propertyPath: maxSpeed
       value: 2
@@ -16083,7 +16087,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1741178507
 RectTransform:
   m_ObjectHideFlags: 0
