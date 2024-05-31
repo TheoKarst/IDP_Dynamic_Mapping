@@ -1,7 +1,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
-public class Observation {
+public struct Observation {
     public const int DIMENSION = 2;
 
     public float r;
@@ -18,8 +18,8 @@ public class Observation {
     }
 
     public override string ToString() {
-        float print_r = Mathf.Round(100 * r) / 100;
-        float print_t = Mathf.Round(100 * theta * Mathf.Rad2Deg) / 100;
+        float print_r = Utils.Round(r, 2);
+        float print_t = Utils.Round(Mathf.Rad2Deg * theta, 2);
 
         return "[r: " + print_r + ", theta: " + print_t + "°]";
     }

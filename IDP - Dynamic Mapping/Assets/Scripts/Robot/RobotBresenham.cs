@@ -100,7 +100,7 @@ public class RobotBresenham : MonoBehaviour, WorldModel
     private void UpdateMaps(float robotX, float robotY, float robotAngle) {
 
         // Get the observations returned from the LIDAR (-1 if no collision):
-        Observation[] observations = lidar.GetObservations();
+        ExtendedObservation[] observations = lidar.GetExtendedObservations();
 
         if (observations == null)
             return;
@@ -116,19 +116,12 @@ public class RobotBresenham : MonoBehaviour, WorldModel
 
         // For each raycast, use Bresenham's algorithm to compute the intersection between the
         // raycast and the grids, and update the cells accordingly:
-        foreach (Observation observation in observations) {
+        foreach (ExtendedObservation observation in observations) {
             float angle = robotAngle + observation.theta;
 
             // Compute the position of the end of the ray, in world space:
-            float xWorld, yWorld;
-            if (observation.r < 0) {
-                xWorld = robotX + Mathf.Cos(angle) * lidar.raycastDistance;
-                yWorld = robotY + Mathf.Sin(angle) * lidar.raycastDistance;
-            }
-            else {
-                xWorld = robotX + Mathf.Cos(angle) * observation.r;
-                yWorld = robotY + Mathf.Sin(angle) * observation.r;
-            }
+            float xWorld = robotX + Mathf.Cos(angle) * observation.r;
+            float yWorld = robotY + Mathf.Sin(angle) * observation.r;
 
             // Convert the world position into a cell position:
             int x1 = Mathf.FloorToInt(xWorld / cellSize) + mapWidth / 2;

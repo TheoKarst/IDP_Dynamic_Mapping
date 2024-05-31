@@ -78,7 +78,7 @@ public class GeometryClustering : MonoBehaviour
         (vehicleState, stateCovariance) = controller.GetRobotStateEstimate();
 
         // Get the observations from the LIADR:
-        Observation[] observations = lidar.GetObservations();
+        ExtendedObservation[] observations = lidar.GetExtendedObservations();
 
         // During the initialisation, the LIDAR observations may be null. In this case
         // there is nothing to do:
@@ -139,20 +139,20 @@ public class GeometryClustering : MonoBehaviour
 
     // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
     // to compute the estimated position of all the observations of the LIDAR in world space:
-    private Point[] ComputePoints(VehicleState vehicleState, Matrix<float> stateCovariance, Observation[] observations) {
+    private Point[] ComputePoints(VehicleState vehicleState, Matrix<float> stateCovariance, ExtendedObservation[] observations) {
 
         // Convert observations into points, using the vehicle state estimate:
         VehicleModel model = controller.GetVehicleModel();
         
         Point[] points = new Point[observations.Length];
         for(int i = 0; i < observations.Length; i++) {
-            Observation observation = observations[i];
+            ExtendedObservation observation = observations[i];
 
             // If the observation is valid, estimate its position using the robot state:
-            if (observation.r >= 0) {
+            if (observation.isValid) {
                 Vector<float> position; Matrix<float> covariance;
                 (position, covariance) =
-                    model.ComputeObservationPositionEstimate(vehicleState, stateCovariance, observation);
+                    model.ComputeObservationPositionEstimate(vehicleState, stateCovariance, observation.ToObservation());
 
                 float x = position[0], y = position[1], theta = observation.theta;
                 points[i] = new Point(x, y, theta, covariance);

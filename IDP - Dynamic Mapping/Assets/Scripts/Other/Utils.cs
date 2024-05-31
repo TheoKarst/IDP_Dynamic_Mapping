@@ -18,4 +18,9 @@ public class Utils
 
         return num;
     }
+
+    public static float Round(float value, int digits) {
+        float factor = Mathf.Pow(10, digits);
+        return Mathf.Round(value * factor) / factor;
+    }
 }

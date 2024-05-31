@@ -1,3 +1,4 @@
+using MathNet.Numerics;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,12 +7,15 @@ public class Lidar : MonoBehaviour
     [Tooltip("Model used to represent the world state estimate")]
     public RobotBresenham worldModel;
 
-    public int raycastCount = 20;
-    public float raycastDistance = 1;
+    [Tooltip("Number of raycasts produced by the LIDAR")]
+    public int raycastCount = 500;
 
-    // For each measurement i of the LIDAR, we check if it's a corner by comparing it with the measure
-    // i + deltaCorners and the measure i - deltaCorners:
-    public int deltaCorners = 1;
+    [Tooltip("Maximum distance of the raycasts")]
+    public float raycastDistance = 20;
+
+    [Tooltip("Epsilon we are using in Douglas Peucker algorithm to simplify the " +
+        "contour shape of the LIDAR, before corners extraction")]
+    public float DouglasPeuckerEpsilon = 0.2f;
 
     public bool drawRays = true;
     public bool drawCorners = true;
@@ -19,15 +23,18 @@ public class Lidar : MonoBehaviour
     // Real position of the hit points from the LIDAR (only used for drawing):
     private Vector3[] hitPoints;
 
-    // List of observations made by the LIDAR, and indices of observations corresponding to 
-    // convex and concave corners:
-    private Observation[] observations;
-    private List<int> convexCorners, concaveCorners;
+    // List of observations made by the LIDAR, as well as the observation index and if the observation is valid or not:
+    private ExtendedObservation[] observations;
+
+    // The landmark candidates are the valid observations returned from Douglas Peucker algorithm,
+    // that corresponds to convex corners (more stable as concave ones). The rejected candidates are
+    // the other points returned from Douglas Peucker algorithm.
+    private List<int> landmarkCandidates, rejectedCandidates;
 
     // Start is called before the first frame update
     void Start() {
         hitPoints = new Vector3[raycastCount];
-        observations = new Observation[raycastCount];
+        observations = new ExtendedObservation[raycastCount];
     }
 
     // Update is called once per frame
@@ -40,17 +47,17 @@ public class Lidar : MonoBehaviour
     }
 
     public void OnDrawGizmos() {
-        if (drawCorners && convexCorners != null) {
+        if (drawCorners && landmarkCandidates != null) {
             Gizmos.color = Color.green;
 
-            foreach (int index in convexCorners)
+            foreach (int index in landmarkCandidates)
                 Gizmos.DrawSphere(hitPoints[index], 0.1f);
         }
 
-        if (drawCorners && concaveCorners != null) {
+        if (drawCorners && rejectedCandidates != null) {
             Gizmos.color = Color.red;
 
-            foreach (int index in concaveCorners)
+            foreach (int index in rejectedCandidates)
                 Gizmos.DrawSphere(hitPoints[index], 0.1f);
         }
     }
@@ -68,15 +75,15 @@ public class Lidar : MonoBehaviour
                 hitPoints[i] = hit.point;
 
                 // Used for localisation, mapping, etc...
-                observations[i] = new Observation(hit.distance, observationAngle);
+                observations[i] = new ExtendedObservation(hit.distance, observationAngle, i, true);
             }
             else {
                 // Used for drawing only:
                 if (drawRays) Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
-                hitPoints[i] = Vector3.zero;
+                hitPoints[i] = transform.position + direction * raycastDistance;
 
                 // Used for localisation, mapping, etc...
-                observations[i] = new Observation(-1, observationAngle);
+                observations[i] = new ExtendedObservation(raycastDistance, observationAngle, i, false);
             }
 
             // Rotate the direction of the raycast counterclockwise:
@@ -89,24 +96,27 @@ public class Lidar : MonoBehaviour
         if (observations == null)
             return;
 
-        convexCorners = new List<int>();
-        concaveCorners = new List<int>();
-        
-        int count = observations.Length;
+        landmarkCandidates = new List<int>();
+        rejectedCandidates = new List<int>();
+
+        int[] subset = DouglasPeucker(observations, DouglasPeuckerEpsilon);
+
+        int count = subset.Length;
 
         // Use the same naming convention as the paper "Corner Detection for Room Mapping of Fire Fighting Robot":
         for(int i = 0; i < count; i++) {
-            Observation prev = observations[(i + count - deltaCorners) % count];
-            Observation curr = observations[i];
-            Observation next = observations[(i + deltaCorners) % count];
+            ExtendedObservation curr = observations[subset[i]];
+            if (!curr.isValid) {
+                rejectedCandidates.Add(subset[i]);
+                continue;
+            }
+
+            ExtendedObservation prev = observations[subset[(i + count - 1) % count]];
+            ExtendedObservation next = observations[subset[(i + 1) % count]];
 
             float b = prev.r, c = curr.r, e = next.r;
 
-            // If any of the measurement found no obstacle, then ignore this point:
-            if (b < 0 || c < 0 || e < 0)
-                continue;
-
-            // Else, detect if this is a corner using cosine law:
+            // Detect if the current observation is a corner using cosine law:
             float a = Mathf.Sqrt(b * b + c * c - 2 * b * c * Mathf.Cos(curr.theta - prev.theta));
             float d = Mathf.Sqrt(c * c + e * e - 2 * c * e * Mathf.Cos(next.theta - curr.theta));
 
@@ -116,32 +126,85 @@ public class Lidar : MonoBehaviour
             // Angle in degrees of the corner:
             float theta = Mathf.Rad2Deg * (angleB + angleE);
 
-            if (theta < 140)
-                concaveCorners.Add(i);
-
-            else if (theta > 220)
-                convexCorners.Add(i);
+            if (theta > 220)
+                landmarkCandidates.Add(subset[i]);
+            else
+                rejectedCandidates.Add(subset[i]);
         }
+    }
+
+    private int[] DouglasPeucker(ExtendedObservation[] observations, float epsilon) {
+        // Get the position of the observations in the referential of the LIDAR (we don't need the vehicle
+        // state estimate to do do):
+        (int, Vector2)[] points = new (int, Vector2)[observations.Length];
+        foreach (ExtendedObservation observation in observations) {
+            float r = observation.r;
+            float theta = observation.theta;
+
+            Vector2 position = new Vector2(r * Mathf.Cos(theta), r * Mathf.Sin(theta));
+            points[observation.index] = (observation.index, position);
+        }
+
+        // Run Douglas Peucker algorithm on the set of points we just built:
+        points = DouglasPeucker(points, 0, points.Length - 1, epsilon);
+
+        // Convert the list of points into a list of observation indices:
+        int[] result = new int[points.Length];
+        for (int i = 0; i < points.Length; i++)
+            result[i] = points[i].Item1;
+
+        return result;
+    }
+
+    // Run douglas peucker algorithm on the given list of points, between start and end (inclusives):
+    private (int, Vector2)[] DouglasPeucker((int, Vector2)[] points, int start, int end, float epsilon) {
+        Vector2 u = (points[end].Item2 - points[start].Item2).normalized;
+
+        // Find the point with maximum orthogonal distance:
+        int index = -1;
+        float maxDistance = 0;
+
+        for (int i = start + 1; i < end; i++) {
+            Vector2 v = points[i].Item2 - points[start].Item2;
+            Vector2 v_along_u = Vector2.Dot(v, u) * u;
+            float distance = (v - v_along_u).magnitude;
+
+            if (distance >= maxDistance) {
+                maxDistance = distance;
+                index = i;
+            }
+        }
+
+        if (maxDistance > epsilon) {
+            (int, Vector2)[] list1 = DouglasPeucker(points, start, index, epsilon);
+            (int, Vector2)[] list2 = DouglasPeucker(points, index, end, epsilon);
+
+            (int, Vector2)[] result = new (int, Vector2)[list1.Length + list2.Length - 1];
+            System.Array.Copy(list1, result, list1.Length - 1);
+            System.Array.Copy(list2, 0, result, list1.Length - 1, list2.Length);
+
+            return result;
+        }
+        else
+            return new (int, Vector2)[] { points[start], points[end] };
     }
 
     public (float, float) GetLocalPosition() {
         return (transform.localPosition.z, -transform.localPosition.x);
     }
 
-    public Observation[] GetObservations() {
-        if (observations == null || observations[0] == null)
-            return null;
-
+    public ExtendedObservation[] GetExtendedObservations() {
         return observations;
     }
 
-    // Use the static convex corners as landmarks to update our state estimate:
+    // Use the static landmark candidates to update our state estimate:
     public List<Observation> GetLandmarkCandidates() {
         List<Observation> landmarks = new List<Observation>();
         
-        foreach(int index in convexCorners) {
-            if (worldModel.IsStatic(observations[index]))
-                landmarks.Add(observations[index]);
+        foreach(int index in landmarkCandidates) {
+            Observation observation = observations[index].ToObservation();
+            if (worldModel.IsStatic(observation))
+                landmarks.Add(observation);
         }
 
         return landmarks;
