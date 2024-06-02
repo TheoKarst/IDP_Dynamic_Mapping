@@ -65,6 +65,9 @@ public class GeometryClustering : MonoBehaviour
     // For debugging: List of lines that were built during this frame:
     private List<Line> debugCurrentLines = new List<Line>();
 
+    // TEST:
+    private int newLineCount = 0;
+
     // Start is called before the first frame update
     void Start() {
         CriticalAlphaRadians = Mathf.Deg2Rad * CriticalAlpha;
@@ -302,6 +305,7 @@ public class GeometryClustering : MonoBehaviour
                 modelLines = wipeTriangles[i].UpdateLines(modelLines, null, LineMinLength);
                 modelLines.Add(line);
                 logMsg += "=> New line !";
+                Debug.Log("New line (" + (++newLineCount) + ") !");
             }
 
             // Debug.Log(logMsg);

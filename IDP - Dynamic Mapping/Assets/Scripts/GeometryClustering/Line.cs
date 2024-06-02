@@ -142,15 +142,8 @@ public class Line : Primitive {
         Vector<double> Xr = Xl + K * SubstractStates(this, other);
         Matrix<double> Cr = Cl - K * Cl;
 
-        string log = "Updating line using match: " + Cm[0,0] + "; " + Cl[0,0] + "; " + Cr[0,0] + "\n";
-        log += "K:  [[" + K[0, 0] + "; " + K[0, 1] + "]; [" + K[1, 0] + "; " + K[1, 1] + "]]\n";
-        log += "Cm: [[" + Cm[0, 0] + "; " + Cm[0, 1] + "]; [" + Cm[1, 0] + "; " + Cm[1, 1] + "]]\n";
-        log += "Cl: [[" + Cl[0, 0] + "; " + Cl[0, 1] + "]; [" + Cl[1, 0] + "; " + Cl[1, 1] + "]]\n";
-        log += "Cr: [[" + Cr[0, 0] + "; " + Cr[0, 1] + "]; [" + Cr[1, 0] + "; " + Cr[1, 1] + "]]";
-        if (Cr[0, 0] < 0 || Cr[1,1] < 0)
-            Debug.LogError(log);
-        else
-            Debug.Log(log);
+        if (Cr[0, 0] < 0 || Cr[1, 1] < 0)
+            Debug.LogError("Error when updating line covariance during matching.");
 
         (float nextRho, float nextTheta) = ReformulateState((float) Xr[0], (float) Xr[1]);
 
