@@ -45,6 +45,10 @@ public class GeometryClustering : MonoBehaviour
     [Tooltip("Extent of the wipe triangle built for new lines")]
     public float WipeTriangleExtent = 0.1f;
 
+    [Tooltip("Margin angle (in degrees) of the wipe triangles")]
+    public float WipeTriangleInsideAngleMargin = 1f;
+    private float WipeTriangleInsideAngleMarginRadians;
+
     [Tooltip("Minimum distance between a circle and a line in the model")]
     public float MinCircleLineDistance = 0.5f;
 
@@ -72,6 +76,7 @@ public class GeometryClustering : MonoBehaviour
     void Start() {
         CriticalAlphaRadians = Mathf.Deg2Rad * CriticalAlpha;
         LineMaxMatchAngleRadians = Mathf.Deg2Rad * LineMaxMatchAngle;
+        WipeTriangleInsideAngleMarginRadians = Mathf.Deg2Rad * WipeTriangleInsideAngleMargin;
     }
 
     // Update is called once per frame
@@ -107,7 +112,7 @@ public class GeometryClustering : MonoBehaviour
 
         // Use the lines from the current frame to update the model lines:
         Vector2 sensorPosition = controller.GetVehicleModel().GetSensorPosition(vehicleState);
-        WipeTriangle[] triangles = UpdateModelLines(sensorPosition, lines);
+        List<WipeTriangle> triangles = UpdateModelLines(sensorPosition, lines);
 
         // Use the circles from the current frame to update the model circles:
         UpdateModelCircles(circles, triangles);
@@ -231,7 +236,7 @@ public class GeometryClustering : MonoBehaviour
         }
 
         // Finally, extract the current line or current circle if necessary:
-        if (lineBuilder != null && lineBuilder.PointsCount() >= 3) {
+        if (lineBuilder != null && lineBuilder.PointsCount() >= 3 && lineBuilder.Length() >= LineMinLength) {
             extractedLines.Add(lineBuilder.Build());
         }
         else if(circleBuilder != null && circleBuilder.PointsCount() >= 2) {
@@ -241,10 +246,10 @@ public class GeometryClustering : MonoBehaviour
         return (extractedLines, extractedCircles);
     }
 
-    private WipeTriangle[] UpdateModelLines(Vector2 sensorPosition, List<Line> currentLines) {
+    private List<WipeTriangle> UpdateModelLines(Vector2 sensorPosition, List<Line> currentLines) {
 
         // List of wipe triangles built from the current lines:
-        WipeTriangle[] wipeTriangles = new WipeTriangle[currentLines.Count];
+        List<WipeTriangle> wipeTriangles = new List<WipeTriangle>();
 
         // Drawing: Reset the color of the model lines to red:
         foreach (Line line in modelLines) line.lineColor = Color.red;
@@ -254,7 +259,9 @@ public class GeometryClustering : MonoBehaviour
             Line line = currentLines[i];
 
             // Build the wipe triangle for this line:
-            wipeTriangles[i] = line.BuildWipeTriangle(sensorPosition, WipeTriangleExtent);
+            WipeTriangle wipeTriangle = line.BuildWipeTriangle(sensorPosition, WipeTriangleExtent, WipeTriangleInsideAngleMarginRadians);
+            if(wipeTriangle != null)
+                wipeTriangles.Add(wipeTriangle);
 
             // The best matching line we found in the model, as well as the
             // distance between this line and the one in the model:
@@ -294,7 +301,9 @@ public class GeometryClustering : MonoBehaviour
                 bestMatch.UpdateLineUsingMatching(line);
 
                 // Update all the model (except the matching line) using the wipe triangle of this line:
-                modelLines = wipeTriangles[i].UpdateLines(modelLines, bestMatch, LineMinLength);
+                if (wipeTriangle != null)
+                    modelLines = wipeTriangle.UpdateLines(modelLines, bestMatch, LineMinLength);
+
                 modelLines.Add(bestMatch);
                 logMsg += "=> Match found !";
             }
@@ -302,7 +311,10 @@ public class GeometryClustering : MonoBehaviour
             // Else, just add this new line to the model:
             else {
                 line.lineColor = Color.green;       // Green color for new lines
-                modelLines = wipeTriangles[i].UpdateLines(modelLines, null, LineMinLength);
+
+                if (wipeTriangle != null)
+                    modelLines = wipeTriangle.UpdateLines(modelLines, null, LineMinLength);
+
                 modelLines.Add(line);
                 logMsg += "=> New line !";
                 Debug.Log("New line (" + (++newLineCount) + ") !");
@@ -315,7 +327,7 @@ public class GeometryClustering : MonoBehaviour
         return wipeTriangles;
     }
 
-    public void UpdateModelCircles(List<Circle> currentCircles, WipeTriangle[] wipeTriangles) {
+    public void UpdateModelCircles(List<Circle> currentCircles, List<WipeTriangle> wipeTriangles) {
         List<Circle> newCircles = new List<Circle>();
 
         // Drawing: Reset the color of the model circles to red:

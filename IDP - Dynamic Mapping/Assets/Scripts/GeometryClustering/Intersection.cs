@@ -2,6 +2,8 @@ using UnityEngine;
 
 public class Intersection {
     public Vector2 position;
+
+    // Position of the intersection along the associated line, between 0 (beginPoint) and 1 (endPoint):
     public float distance;
 
     public Intersection(Vector2 position, float distance) {

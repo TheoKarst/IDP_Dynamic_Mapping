@@ -178,14 +178,46 @@ public class Line : Primitive {
         endPoint = new Vector2(x + pMax * u.x, y + pMax * u.y);
     }
 
-    public WipeTriangle BuildWipeTriangle(Vector2 sensorPosition, float triangleExtent) {
-        Vector2 u = (beginPoint - sensorPosition).normalized;
-        Vector2 v = (endPoint - sensorPosition).normalized;
+    public WipeTriangle BuildWipeTriangle(Vector2 sensorPosition, float triangleExtent, float insideAngleMargin) {
+        // Build the triangle ABC, defined in counter-clockwise order:
+        Vector2 A = sensorPosition, B = beginPoint, C = endPoint;
+        Vector2 AB = B - sensorPosition;
+        Vector2 AC = C - sensorPosition;
+
+        // Get the angle between AB and AC with the horizontal line:
+        float angleAB = Mathf.Atan2(AB.y, AB.x);
+        float angleAC = Mathf.Atan2(AC.y, AC.x);
+
+        float deltaAngle = Utils.SubstractAngleRadians(angleAC, angleAB);
+
+        // If the angle is negative, reorder the points to make it positive:
+        if(deltaAngle < 0) {
+            (B, C) = (C, B);
+            deltaAngle = -deltaAngle;
+        }
+
+        // When building the triangle ABC, we will substract two times insideAngleMargin to the angle BAC.
+        // Thus, is the initial angle is too small, there is no need to build a triangle:
+        if (deltaAngle < 3 * insideAngleMargin)
+            return null;
+
+        // Rotate the segment AB in counter-clockwise order, and AC in clockwise order:
+        float costheta = Mathf.Cos(insideAngleMargin), sintheta = Mathf.Sin(insideAngleMargin);
+        AB = new Vector2(AB.x * costheta - AB.y * sintheta, AB.x * sintheta + AB.y * costheta);
+        AC = new Vector2(AC.x * costheta + AC.y * sintheta, -AC.x * sintheta + AC.y * costheta);
+
+        (bool intersectB, Vector2 newB) = LineIntersect(A, A + AB, B, C);
+        (bool intersectC, Vector2 newC) = LineIntersect(A, A + AC, B, C);
+
+        if (!intersectB || !intersectC)
+            Debug.Log("Unexpected bug: The intersection between two lines is wrong...");
+
+        Vector2 u = (newB - A).normalized, v = (newC - A).normalized;
 
         return new WipeTriangle(
-            sensorPosition,
-            beginPoint + u * triangleExtent,
-            endPoint + v * triangleExtent);
+            A,
+            newB + u * triangleExtent,
+            newC + v * triangleExtent);
     }
 
     // Return the length of the line, using its endpoints
@@ -211,7 +243,6 @@ public class Line : Primitive {
 
         float y = (AC.x * AB.y - AC.y * AB.x) / den;
         if (y < 0 || y > 1) return null;
-
 
         return new Intersection(A + x * AB, y);
     }
@@ -265,5 +296,22 @@ public class Line : Primitive {
             a.rho - b.rho,
             Utils.SubstractAngleRadians(a.theta, b.theta)
         });
+    }
+
+    // Compute the intersection between two infinite lines, and return if the intersection exists:
+    public static (bool, Vector2) LineIntersect(Vector2 A, Vector2 B, Vector2 C, Vector2 D) {
+        Vector2 AB = B - A;
+        Vector2 CD = D - C;
+
+        float den = AB.x * CD.y - AB.y * CD.x;
+
+        // If lines are parallel, there is no intersection:
+        if (den == 0)
+            return (false, Vector2.zero);
+
+        Vector2 AC = C - A;
+        float x = (AC.x * CD.y - AC.y * CD.x) / den;
+
+        return (true, A + x * AB);
     }
 }

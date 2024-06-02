@@ -1123,7 +1123,8 @@ MonoBehaviour:
   LineMaxEndpointMatchDistance: 1
   LineMaxMatchDistance: 2
   CircleMaxMatchDistance: 0.5
-  WipeTriangleExtent: 0.2
+  WipeTriangleExtent: 0.1
+  WipeTriangleInsideAngleMargin: 1
   MinCircleLineDistance: 0.5
   drawPoints: 0
   drawLines: 1

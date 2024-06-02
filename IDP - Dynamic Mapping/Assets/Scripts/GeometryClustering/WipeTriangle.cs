@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Runtime.ExceptionServices;
 using UnityEngine;
 
 public class WipeTriangle {
@@ -10,10 +9,9 @@ public class WipeTriangle {
     private Vector2 n1, n2, n3;
 
     public WipeTriangle(Vector2 p1, Vector2 p2, Vector2 p3) {
-        // The points of the triangle are supposed to be in counter clockwise order. If this is not
-        // the case, reorder the points:
+        // The points of the triangle are supposed to be in counter clockwise order:
         if (Vector2.Dot(RotateClockwise(p1, p2), p3 - p2) >= 0)
-            (p2, p3) = (p3, p2);
+            Debug.LogError("Wrong set of points to construct wipe triangle");
 
         this.p1 = p1;
         this.p2 = p2;
