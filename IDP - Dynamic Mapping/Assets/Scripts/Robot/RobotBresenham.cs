@@ -213,15 +213,15 @@ public class RobotBresenham : MonoBehaviour, WorldModel
 
     public bool IsStatic(Observation observation) {
         // Get the state estimate (Kalman Filter) of the robot from the robot controller:
-        (VehicleState vehicleState, Matrix<float> stateCovariance) = controller.GetRobotStateEstimate();
+        (VehicleState vehicleState, Matrix<double> stateCovariance) = controller.GetRobotStateEstimate();
 
         // Compute the position of the observation, using the vehicle state estimate:
-        (Vector<float> position, _) = controller.GetVehicleModel()
+        (Vector<double> position, _) = controller.GetVehicleModel()
             .ComputeObservationPositionEstimate(vehicleState, stateCovariance, observation);
 
         // Convert the world position into a cell position:
-        int xCell = Mathf.FloorToInt(position[0] / cellSize) + mapWidth / 2;
-        int yCell = Mathf.FloorToInt(position[1] / cellSize) + mapHeight / 2;
+        int xCell = Mathf.FloorToInt((float) position[0] / cellSize) + mapWidth / 2;
+        int yCell = Mathf.FloorToInt((float) position[1] / cellSize) + mapHeight / 2;
 
         // Check if there is a static cell around this cell:
         const int border = 5;

@@ -273,7 +273,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &288674149
 Transform:
   m_ObjectHideFlags: 0
@@ -378,7 +378,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &385493018
 Transform:
   m_ObjectHideFlags: 0
@@ -1067,7 +1067,7 @@ MonoBehaviour:
   mapHeight: 150
   lidar: {fileID: 1040413680}
   controller: {fileID: 976047841}
-  showTextureMap: 1
+  showTextureMap: 0
   maxConfidence: 0.95
   framesToConsiderStatic: 60
   framesToConsiderDynamic: 2
@@ -1086,6 +1086,8 @@ MonoBehaviour:
   lidar: {fileID: 1040413680}
   forceForward: 0
   forceBackward: 0
+  forceLeft: 0
+  forceRight: 0
   acceleration: 10
   L: 0.3
   maxSpeed: 2
@@ -1123,7 +1125,7 @@ MonoBehaviour:
   CircleMaxMatchDistance: 0.5
   WipeTriangleExtent: 0.2
   MinCircleLineDistance: 0.5
-  drawPoints: 0
+  drawPoints: 1
   drawLines: 1
   drawCircles: 1
   drawCurrentLines: 1
@@ -1459,7 +1461,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1087124916
 Transform:
   m_ObjectHideFlags: 0
@@ -1601,7 +1603,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1134264856
 Transform:
   m_ObjectHideFlags: 0
@@ -1737,7 +1739,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1239233104
 Transform:
   m_ObjectHideFlags: 0
@@ -2253,7 +2255,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1843017774
 Transform:
   m_ObjectHideFlags: 0
@@ -2547,7 +2549,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2000974656
 Transform:
   m_ObjectHideFlags: 0
@@ -2810,7 +2812,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2112790226
 Transform:
   m_ObjectHideFlags: 0

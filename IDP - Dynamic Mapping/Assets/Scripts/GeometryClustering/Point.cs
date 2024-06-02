@@ -6,12 +6,12 @@ public class Point {
     private float angle;        // Angle of the point in radians, from the LIDAR
 
     // Covariance matrix for the position (x, y) of the point:
-    public readonly Matrix<float> Cp;
+    public readonly Matrix<double> Cp;
 
     // Primitive this point is supposed to belong to:
     private Primitive matchingPrimitive;
 
-    public Point(float x, float y, float angle, Matrix<float> covariance) {
+    public Point(float x, float y, float angle, Matrix<double> covariance) {
         this.x = x;
         this.y = y;
         this.angle = angle;
@@ -28,7 +28,7 @@ public class Point {
         // Gizmos.DrawSphere(center, 0.01f);
 
         // Draw a cube at the position of the point, representing its eror estimate:
-        Gizmos.DrawCube(center, new Vector3(Mathf.Sqrt(Cp[0, 0]), 0, Mathf.Sqrt(Cp[1, 1])));
+        Gizmos.DrawCube(center, new Vector3(Mathf.Sqrt((float) Cp[0, 0]), 0, Mathf.Sqrt((float) Cp[1, 1])));
 
         // If the point is matched with a primitive, draw a line, representing the speed
         // estimate of the point:

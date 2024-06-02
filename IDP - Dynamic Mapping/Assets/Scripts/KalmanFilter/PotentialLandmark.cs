@@ -1,21 +1,21 @@
 using MathNet.Numerics.LinearAlgebra;
 
 public class PotentialLandmark {
-    private Vector<float> position;
-    private Matrix<float> covariance;
+    private Vector<double> position;
+    private Matrix<double> covariance;
     private long creationTimestep;
     private int countAssociations;
 
-    public PotentialLandmark(Vector<float> position, Matrix<float> covariance, long timestep) {
+    public PotentialLandmark(Vector<double> position, Matrix<double> covariance, long timestep) {
         this.position = position;
         this.covariance = covariance;
         this.creationTimestep = timestep;
         this.countAssociations = 0;
     }
 
-    public void updateState(Vector<float> newPosEstimate, Matrix<float> newPosCovariance) {
+    public void updateState(Vector<double> newPosEstimate, Matrix<double> newPosCovariance) {
         // We update the landmark covariance and position estimates using the Kalman gain:
-        Matrix<float> K = covariance * (covariance + newPosCovariance).Inverse();
+        Matrix<double> K = covariance * (covariance + newPosCovariance).Inverse();
 
         position = position + K * (newPosEstimate - position);
         covariance = covariance - K * covariance;
@@ -27,11 +27,11 @@ public class PotentialLandmark {
         return new Landmark(position);
     }
 
-    public Vector<float> getPosition() {
+    public Vector<double> getPosition() {
         return position;
     }
 
-    public Matrix<float> getCovariance() {
+    public Matrix<double> getCovariance() {
         return covariance;
     }
 

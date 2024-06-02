@@ -9,9 +9,11 @@ public class RobotController : MonoBehaviour {
     [Tooltip("Sensor attached to the robot controller, in order to estimate the robot state")]
     public Lidar lidar;
 
-    // Used for debugging: this is used to force forward or backward motion:
+    // Used for debugging: this is used to lock the motion of the vehicle:
     public bool forceForward = false;
     public bool forceBackward = false;
+    public bool forceLeft = false;
+    public bool forceRight = false;
 
     public float acceleration = 10;
     public float L = 0.3f;
@@ -83,9 +85,9 @@ public class RobotController : MonoBehaviour {
         velocity = Mathf.Clamp(velocity, -maxSpeed, maxSpeed);
 
         // Update the steering of the robot:
-        if (Input.GetKey(KeyCode.LeftArrow))
+        if (forceLeft || Input.GetKey(KeyCode.LeftArrow))
             steering = maxSteering;
-        else if (Input.GetKey(KeyCode.RightArrow))
+        else if (forceRight || Input.GetKey(KeyCode.RightArrow))
             steering = -maxSteering;
         else
             steering = 0;
@@ -131,7 +133,7 @@ public class RobotController : MonoBehaviour {
         return vehicleModel;
     }
 
-    public (VehicleState, Matrix<float>) GetRobotStateEstimate() {
+    public (VehicleState, Matrix<double>) GetRobotStateEstimate() {
         return filter.GetStateEstimate();
     }
 
@@ -141,15 +143,15 @@ public class RobotController : MonoBehaviour {
     }
 
     public void LogVehicleState() {
-        (VehicleState state, Matrix<float> covariance) = filter.GetStateEstimate();
+        (VehicleState state, Matrix<double> covariance) = filter.GetStateEstimate();
 
         string x = Utils.ScientificNotation(state.x);
         string y = Utils.ScientificNotation(state.y);
         string phi = Utils.ScientificNotation(Mathf.Rad2Deg * state.phi);
 
-        string covX = Utils.ScientificNotation(Mathf.Sqrt(covariance[0, 0]));
-        string covY = Utils.ScientificNotation(Mathf.Sqrt(covariance[1, 1]));
-        string covPhi = Utils.ScientificNotation(Mathf.Rad2Deg * Mathf.Sqrt(covariance[2, 2]));
+        string covX = Utils.ScientificNotation(Mathf.Sqrt((float) covariance[0, 0]));
+        string covY = Utils.ScientificNotation(Mathf.Sqrt((float) covariance[1, 1]));
+        string covPhi = Utils.ScientificNotation(Mathf.Rad2Deg * Mathf.Sqrt((float) covariance[2, 2]));
 
         Debug.Log("Vehicle state: (x, y, phi) = (" + x + "+-" + covX + ", " +
             y + "+-" + covY + ", " + phi + "+-" + covPhi);

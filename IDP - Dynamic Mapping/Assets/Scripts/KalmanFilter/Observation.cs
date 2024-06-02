@@ -12,7 +12,7 @@ public struct Observation {
         this.theta = theta;
     }
 
-    public static void Substract(Observation a, Observation b, Vector<float> dest, int index) {
+    public static void Substract(Observation a, Observation b, Vector<double> dest, int index) {
         dest[index] = a.r - b.r;
         dest[index + 1] = Utils.SubstractAngleRadians(a.theta, b.theta);
     }

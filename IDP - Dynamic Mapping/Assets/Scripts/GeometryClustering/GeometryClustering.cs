@@ -74,7 +74,7 @@ public class GeometryClustering : MonoBehaviour
     // Update is called once per frame
     void Update() {
         // Get the vehicle state estimate from Kalman Filter:
-        VehicleState vehicleState; Matrix<float> stateCovariance;
+        VehicleState vehicleState; Matrix<double> stateCovariance;
         (vehicleState, stateCovariance) = controller.GetRobotStateEstimate();
 
         // Get the observations from the LIADR:
@@ -135,7 +135,7 @@ public class GeometryClustering : MonoBehaviour
 
     // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
     // to compute the estimated position of all the observations of the LIDAR in world space:
-    private Point[] ComputePoints(VehicleState vehicleState, Matrix<float> stateCovariance, ExtendedObservation[] observations) {
+    private Point[] ComputePoints(VehicleState vehicleState, Matrix<double> stateCovariance, ExtendedObservation[] observations) {
 
         // Convert observations into points, using the vehicle state estimate:
         VehicleModel model = controller.GetVehicleModel();
@@ -146,11 +146,11 @@ public class GeometryClustering : MonoBehaviour
 
             // If the observation is valid, estimate its position using the robot state:
             if (observation.isValid) {
-                Vector<float> position; Matrix<float> covariance;
+                Vector<double> position; Matrix<double> covariance;
                 (position, covariance) =
                     model.ComputeObservationPositionEstimate(vehicleState, stateCovariance, observation.ToObservation());
 
-                float x = position[0], y = position[1], theta = observation.theta;
+                float x = (float) position[0], y = (float) position[1], theta = observation.theta;
                 points[i] = new Point(x, y, theta, covariance);
             }
         }
@@ -304,7 +304,7 @@ public class GeometryClustering : MonoBehaviour
                 logMsg += "=> New line !";
             }
 
-            Debug.Log(logMsg);
+            // Debug.Log(logMsg);
         }
 
         // List of wipe triangles that we built, that will be used to remove inconsistent circles:

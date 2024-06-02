@@ -4,14 +4,17 @@ using UnityEngine;
 
 public class Line : Primitive {
     // Vector builder used as a shortcut for vector creation:
-    private static VectorBuilder<float> V = Vector<float>.Build;
+    private static VectorBuilder<double> V = Vector<double>.Build;
 
     public Color lineColor = Color.red;
 
     private float rho, theta;       // Parameters of the line
     private float rhoP, thetaP;     // Derivative of rho and theta (used to estimate the speed of the line)
 
-    private Matrix<float> covariance;
+    // We need double precision for covariance matrices, since the lines in the model usually have
+    // a much higher precision than the current lines, so matching them using float matrices may produce
+    // wrong results:
+    private Matrix<double> covariance;
 
     public Vector2 beginPoint, endPoint;
 
@@ -34,7 +37,7 @@ public class Line : Primitive {
         this.endPoint = endPoint;
     }
 
-    public Line(float rho, float theta, Matrix<float> covariance, Vector2 beginPoint, Vector2 endPoint) {
+    public Line(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint) {
         this.rho = rho;
         this.theta = Mathf.Repeat(theta, 2*Mathf.PI);
         
@@ -85,9 +88,9 @@ public class Line : Primitive {
     public string LogParams() {
         string print_rho = Utils.ScientificNotation(rho);
         float print_theta = Utils.Round(Mathf.Rad2Deg * theta, 1);
-        string print_cov_rho = Utils.ScientificNotation(Mathf.Sqrt(covariance[0, 0]));
-        string print_cov_theta = Utils.ScientificNotation(Mathf.Rad2Deg * Mathf.Sqrt(covariance[1, 1]));
-
+        string print_cov_rho = Utils.ScientificNotation(Mathf.Sqrt((float) covariance[0, 0]));
+        string print_cov_theta = Utils.ScientificNotation(Mathf.Rad2Deg * Mathf.Sqrt((float) covariance[1, 1]));
+        
         return "rho=" + print_rho + " ±" + print_cov_rho + 
             "; theta=" + print_theta + "° ±" + print_cov_theta;
     }
@@ -100,17 +103,17 @@ public class Line : Primitive {
     // Compute the Mahalanobis distance between this line and the given one:
     public float ComputeNormDistance(Line other) {
         // Perform some renamings to match the paper description:
-        Matrix<float> Cl = this.covariance;
-        Matrix<float> Cm = other.covariance;
+        Matrix<double> Cl = this.covariance;
+        Matrix<double> Cm = other.covariance;
 
         // We have to be cautious when substracting angles, to keep the result between -PI/2 and PI/2,
         // but X = Xl - Xm:
-        Vector<float> X = V.DenseOfArray(new float[]{
+        Vector<double> X = V.DenseOfArray(new double[]{
             rho - other.rho,
             Utils.SubstractAngleRadians(theta, other.theta) 
         });
 
-        return (X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
+        return (float) (X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
     }
 
     // Compute the distance between the centers of the two lines, along this line:
@@ -130,16 +133,26 @@ public class Line : Primitive {
     // covariance matrix and endpoints of this line:
     public void UpdateLineUsingMatching(Line other) {
         // Perform some renamings to match the paper description:
-        Vector<float> Xl = V.DenseOfArray(new float[] {other.rho, other.theta});
-        Matrix<float> Cm = this.covariance;
-        Matrix<float> Cl = other.covariance;
+        Vector<double> Xl = V.DenseOfArray(new double[] {other.rho, other.theta});
+        Matrix<double> Cm = this.covariance;
+        Matrix<double> Cl = other.covariance;
 
         // Use x static Kalman Filter to update this line covariance and state (rho, theta) estimate:
-        Matrix<float> K = Cl * (Cl + Cm).Inverse();
-        Vector<float> Xr = Xl + K * SubstractStates(this, other);
-        Matrix<float> Cr = Cl - K * Cl;
+        Matrix<double> K = Cl * (Cl + Cm).Inverse();
+        Vector<double> Xr = Xl + K * SubstractStates(this, other);
+        Matrix<double> Cr = Cl - K * Cl;
 
-        (float nextRho, float nextTheta) = ReformulateState(Xr[0], Xr[1]);
+        string log = "Updating line using match: " + Cm[0,0] + "; " + Cl[0,0] + "; " + Cr[0,0] + "\n";
+        log += "K:  [[" + K[0, 0] + "; " + K[0, 1] + "]; [" + K[1, 0] + "; " + K[1, 1] + "]]\n";
+        log += "Cm: [[" + Cm[0, 0] + "; " + Cm[0, 1] + "]; [" + Cm[1, 0] + "; " + Cm[1, 1] + "]]\n";
+        log += "Cl: [[" + Cl[0, 0] + "; " + Cl[0, 1] + "]; [" + Cl[1, 0] + "; " + Cl[1, 1] + "]]\n";
+        log += "Cr: [[" + Cr[0, 0] + "; " + Cr[0, 1] + "]; [" + Cr[1, 0] + "; " + Cr[1, 1] + "]]";
+        if (Cr[0, 0] < 0 || Cr[1,1] < 0)
+            Debug.LogError(log);
+        else
+            Debug.Log(log);
+
+        (float nextRho, float nextTheta) = ReformulateState((float) Xr[0], (float) Xr[1]);
 
         // Update the line speed estimate, using a simple exponential low pass filter:
         const float m = 0.95f;
@@ -253,9 +266,9 @@ public class Line : Primitive {
         return (rho, theta);
     }
 
-    private static Vector<float> SubstractStates(Line a, Line b) {
+    private static Vector<double> SubstractStates(Line a, Line b) {
         // We have to be cautious when substracting angles, to keep the result between -PI/2 and PI/2:
-        return Vector<float>.Build.DenseOfArray(new float[]{
+        return V.DenseOfArray(new double[]{
             a.rho - b.rho,
             Utils.SubstractAngleRadians(a.theta, b.theta)
         });

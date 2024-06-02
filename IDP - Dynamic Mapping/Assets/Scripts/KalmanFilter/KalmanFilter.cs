@@ -4,8 +4,8 @@ using UnityEngine;
 
 public class KalmanFilter {
     // Matrix builder used as a shortcut for vector and matrix creation:
-    private static MatrixBuilder<float> M = Matrix<float>.Build;
-    private static VectorBuilder<float> V = Vector<float>.Build;
+    private static MatrixBuilder<double> M = Matrix<double>.Build;
+    private static VectorBuilder<double> V = Vector<double>.Build;
 
     // Create shortcuts for state, landmarks and observations dimensions:
     private const int STATE_DIM = VehicleState.DIMENSION;        // (x, y, phi)
@@ -63,8 +63,8 @@ public class KalmanFilter {
     private RobotController controller;
 
     // Debugging: Save the observations to draw them:
-    private List<Vector<float>> observationsPos;
-    private List<Matrix<float>> observationsCov;
+    private List<Vector<double>> observationsPos;
+    private List<Matrix<double>> observationsCov;
 
     // Used to print debug messages in the console / in a text file:
     private Logger logger;
@@ -91,8 +91,8 @@ public class KalmanFilter {
     // For debugging, draw cubes to represent the position of the robot (red), and
     // the confirmed (green) and potential (yellow) landmarks:
     public void DrawGizmos(bool drawConfirmedLandmarks, bool drawPotentialLandmarks, bool drawObservations) {
-        Matrix<float> cov;
-        Vector<float> position;
+        Matrix<double> cov;
+        Vector<double> position;
 
         // Position and error estimate of the robot:
         // Gizmos.color = Color.yellow;
@@ -102,8 +102,10 @@ public class KalmanFilter {
         Gizmos.color = Color.red;
         cov = stateCovarianceEstimate.ExtractPvv();
         Vector3 robotCenter = new Vector3(stateEstimate.x, 0.11f, stateEstimate.y);
-        Gizmos.DrawCube(robotCenter,
-                        new Vector3(Mathf.Sqrt(cov[0,0]), Mathf.Sqrt(cov[2,2]), Mathf.Sqrt(cov[1,1])));
+        Gizmos.DrawCube(robotCenter, new Vector3(
+            Mathf.Sqrt((float) cov[0,0]), 
+            Mathf.Sqrt((float) cov[2,2]), 
+            Mathf.Sqrt((float) cov[1,1])));
 
         Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * stateEstimate.phi, Vector3.up)
             * Vector3.right;
@@ -116,8 +118,8 @@ public class KalmanFilter {
                 cov = stateCovarianceEstimate.ExtractLandmarkCovariance(i);
 
                 Gizmos.color = Color.green;
-                Gizmos.DrawCube(new Vector3(position[0], 0.5f, position[1]),
-                                new Vector3(Mathf.Sqrt(cov[0, 0]), 0, Mathf.Sqrt(cov[1, 1])));
+                Gizmos.DrawCube(new Vector3((float) position[0], 0.5f, (float) position[1]),
+                                new Vector3(Mathf.Sqrt((float) cov[0, 0]), 0, Mathf.Sqrt((float) cov[1, 1])));
             }
         }
 
@@ -128,8 +130,8 @@ public class KalmanFilter {
                 position = landmark.getPosition();
                 cov = landmark.getCovariance();
 
-                Gizmos.DrawCube(new Vector3(position[0], 0.5f, position[1]),
-                                new Vector3(Mathf.Sqrt(cov[0, 0]), 0, Mathf.Sqrt(cov[1, 1])));
+                Gizmos.DrawCube(new Vector3((float) position[0], 0.5f, (float) position[1]),
+                                new Vector3(Mathf.Sqrt((float) cov[0, 0]), 0, Mathf.Sqrt((float) cov[1, 1])));
             }
         }
 
@@ -140,7 +142,7 @@ public class KalmanFilter {
                 cov = observationsCov[i];
 
                 Gizmos.color = Color.blue;
-                Gizmos.DrawCube(new Vector3(position[0], 0.5f, position[1]),
+                Gizmos.DrawCube(new Vector3((float) position[0], 0.5f, (float) position[1]),
                                 new Vector3(0.1f, 0, 0.1f)); // new Vector3(Mathf.Sqrt(cov[0, 0]), 0, Mathf.Sqrt(cov[1, 1])));
             }
         }
@@ -166,12 +168,12 @@ public class KalmanFilter {
         
         // Equation (12): From the previous state estimate and the current inputs, compute the new estimate of the
         // state covariance matrix: P(k+1|k)
-        Matrix<float> Fv = vehicleModel.StatePredictionJacobian(stateEstimate, inputs, deltaT);
+        Matrix<double> Fv = vehicleModel.StatePredictionJacobian(stateEstimate, inputs, deltaT);
         StateCovariance stateCovariancePrediction 
             = stateCovarianceEstimate.PredictStateEstimateCovariance(Fv, vehicleModel);
 
-        observationsPos = new List<Vector<float>>();
-        observationsCov = new List<Matrix<float>>();
+        observationsPos = new List<Vector<double>>();
+        observationsCov = new List<Matrix<double>>();
 
         //// 2. Observation: Match each observation with a landmark, and use the errors to update the state estimate: 
         List<(Observation, int)> landmarkAssociation = new List<(Observation, int)>();
@@ -211,11 +213,11 @@ public class KalmanFilter {
         int stackSize = landmarkAssociation.Count * OBSERVATION_DIM;
 
         // Create an innovation stack (stack of observation - observationPrecdiction):
-        Vector<float> innovationStack = V.Dense(stackSize);
+        Vector<double> innovationStack = V.Dense(stackSize);
 
         // Also create a stack of observation jacobians Hstack, and a stack of observation noise Rstack:
-        Matrix<float> Hstack = M.Sparse(stackSize, STATE_DIM + confirmedLandmarks.Count * LANDMARK_DIM);
-        Matrix<float> Rstack = M.Sparse(stackSize, stackSize);
+        Matrix<double> Hstack = M.Sparse(stackSize, STATE_DIM + confirmedLandmarks.Count * LANDMARK_DIM);
+        Matrix<double> Rstack = M.Sparse(stackSize, stackSize);
 
         for(int i = 0; i < landmarkAssociation.Count; i++) {
             Observation observation; int landmarkIndex;
@@ -243,7 +245,7 @@ public class KalmanFilter {
         }
 
         // Finally compute the innovation covariance matrix using Hstack and Rstack (Equation 14):
-        Matrix<float> S, W;
+        Matrix<double> S, W;
         (S, W) = stateCovariancePrediction.ComputeInnovationAndGainMatrices(Hstack, Rstack);
 
         //// 3. Update: Update the state estimate from our observation
@@ -261,11 +263,11 @@ public class KalmanFilter {
     private int ComputeLandmarkAssociation(Observation observation, VehicleState statePrediction, StateCovariance stateCovariancePrediction) {
 
         // Covariance matrix of the vehicle location estimate, extracted from P(k|k):
-        Matrix<float> Pv = stateCovariancePrediction.ExtractPvv();
+        Matrix<double> Pv = stateCovariancePrediction.ExtractPvv();
 
         // 1. Compute pf (the position of the landmark possibly responsible for the given observation),
         // and Pf (the corresponding covariance matrix):
-        Vector<float> pf; Matrix<float> Pf;
+        Vector<double> pf; Matrix<double> Pf;
         (pf, Pf) = vehicleModel.ComputeObservationPositionEstimate(statePrediction, Pv, observation);
 
         // Used for drawing purposes:
@@ -277,12 +279,12 @@ public class KalmanFilter {
         // 2. Try to associate the observation with a confirmed landmark:
         int acceptedLandmark = -1;
         for (int i = 0; i < confirmedLandmarks.Count; i++) {
-            Vector<float> pi = confirmedLandmarks[i].getPosition();
-            Matrix<float> Pi = stateCovariancePrediction.ExtractLandmarkCovariance(i);
+            Vector<double> pi = confirmedLandmarks[i].getPosition();
+            Matrix<double> Pi = stateCovariancePrediction.ExtractLandmarkCovariance(i);
 
             // Compute the Mahalanobis distance between the observation and the landmark n°i:
-            Vector<float> X = pf - pi;
-            float dfi = (X.ToRowMatrix() * (Pf + Pi).Inverse() * X)[0];
+            Vector<double> X = pf - pi;
+            float dfi = (float) (X.ToRowMatrix() * (Pf + Pi).Inverse() * X)[0];
             float euclideanDistance = (float) X.L2Norm();
 
             // If minEuclideanDistance wasn't initialised or if the current distance is a new minimum,
@@ -310,11 +312,11 @@ public class KalmanFilter {
 
         // 3. Else we have to check the observation against the set of potential landmarks:
         for (int i = 0; i < potentialLandmarks.Count; i++) {
-            Vector<float> pi = potentialLandmarks[i].getPosition();
-            Matrix<float> Pi = potentialLandmarks[i].getCovariance();
+            Vector<double> pi = potentialLandmarks[i].getPosition();
+            Matrix<double> Pi = potentialLandmarks[i].getCovariance();
 
-            Vector<float> X = pf - pi;
-            float dfi = (X.ToRowMatrix() * (Pf + Pi).Inverse() * X)[0];
+            Vector<double> X = pf - pi;
+            float dfi = (float) (X.ToRowMatrix() * (Pf + Pi).Inverse() * X)[0];
             float euclideanDistance = (float) X.L2Norm();
 
             // If minEuclideanDistance wasn't initialised or if the current distance is a new minimum,
@@ -376,8 +378,8 @@ public class KalmanFilter {
         potentialLandmarks = newPotentialLandmarks;
     }
 
-    public (VehicleState, Matrix<float>) GetStateEstimate() {
-        Matrix<float> covariance = stateCovarianceEstimate.ExtractPvv();
+    public (VehicleState, Matrix<double>) GetStateEstimate() {
+        Matrix<double> covariance = stateCovarianceEstimate.ExtractPvv();
 
         return (stateEstimate, covariance);
     }

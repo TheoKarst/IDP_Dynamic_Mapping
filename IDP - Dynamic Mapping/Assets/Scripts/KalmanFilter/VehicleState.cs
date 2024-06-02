@@ -14,16 +14,18 @@ public struct VehicleState {
         this.phi = phi;
     }
 
-    public static VehicleState operator +(VehicleState state, Vector<float> other) {
-        return new VehicleState(state.x + other[0], state.y + other[1], state.phi + other[2]);
+    public static VehicleState operator +(VehicleState state, Vector<double> other) {
+        return new VehicleState(
+            state.x + (float) other[0], 
+            state.y + (float) other[1], 
+            state.phi + (float) other[2]);
     }
 
-    public static VehicleState operator -(VehicleState state, Vector<float> other) {
-        return new VehicleState(state.x - other[0], state.y - other[1], state.phi - other[2]);
-    }
-
-    public Vector<float> ToVector() {
-        return Vector<float>.Build.Dense(new float[] { x, y, phi });
+    public static VehicleState operator -(VehicleState state, Vector<double> other) {
+        return new VehicleState(
+            state.x - (float) other[0], 
+            state.y - (float) other[1], 
+            state.phi - (float) other[2]);
     }
 
     public override string ToString() {

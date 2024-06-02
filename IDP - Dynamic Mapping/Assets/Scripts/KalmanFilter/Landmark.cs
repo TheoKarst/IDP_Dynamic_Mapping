@@ -1,5 +1,4 @@
 using MathNet.Numerics.LinearAlgebra;
-using UnityEngine;
 
 public class Landmark {
     public const int DIMENSION = 2;
@@ -12,17 +11,17 @@ public class Landmark {
         this.y = y;
     }
 
-    public Landmark(Vector<float> position) {
+    public Landmark(Vector<double> position) {
         setPosition(position);
     }
 
-    public Vector<float> getPosition() {
-        return Vector<float>.Build.DenseOfArray(new float[] { x, y });
+    public Vector<double> getPosition() {
+        return Vector<double>.Build.DenseOfArray(new double[] { x, y });
     }
 
-    public void setPosition(Vector<float> position) {
-        this.x = position[0];
-        this.y = position[1];
+    public void setPosition(Vector<double> position) {
+        this.x = (float) position[0];
+        this.y = (float) position[1];
     }
 
     public override string ToString() {

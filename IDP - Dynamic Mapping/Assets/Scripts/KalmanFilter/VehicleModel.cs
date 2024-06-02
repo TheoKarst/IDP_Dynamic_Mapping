@@ -1,6 +1,5 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
-using UnityEngine.Windows;
 
 public class VehicleModel {
     // Create shortcuts for state, landmarks and observations dimensions:
@@ -9,12 +8,12 @@ public class VehicleModel {
     private const int OBSERVATION_DIM = Observation.DIMENSION;   // (r, theta)
 
     // Matrix builder used as a shortcut for vector and matrix creation:
-    private static MatrixBuilder<float> M = Matrix<float>.Build;
-    private static VectorBuilder<float> V = Vector<float>.Build;
+    private static MatrixBuilder<double> M = Matrix<double>.Build;
+    private static VectorBuilder<double> V = Vector<double>.Build;
 
     // Covariance matrices for the process noise errors (x, y, phi) and the observation errors (r, theta):
-    public readonly Matrix<float> ProcessNoiseError;
-    public readonly Matrix<float> ObservationError;
+    public readonly Matrix<double> ProcessNoiseError;
+    public readonly Matrix<double> ObservationError;
 
     // Parameters defining the dimensions of the model:
     private float a, b, L;
@@ -35,13 +34,13 @@ public class VehicleModel {
             + "°, eR=" + eR + ", eTheta=" + Mathf.Rad2Deg * eTheta + "°");
 
         // Covariance matrix for the process noise errors (x, y, phi):
-        this.ProcessNoiseError = M.Diagonal(new float[] {
+        this.ProcessNoiseError = M.Diagonal(new double[] {
             ePos * ePos,
             ePos * ePos,
             ePhi * ePhi });
 
         // Covariance matrix for the observation errors (r, theta):
-        this.ObservationError = M.Diagonal(new float[] {
+        this.ObservationError = M.Diagonal(new double[] {
             eR * eR,
             eTheta * eTheta });
     }
@@ -58,11 +57,11 @@ public class VehicleModel {
 
     // Given the previous state estimate and the current inputs, compute the Jacobian of the state
     // prediction, relatively to the state:
-    public Matrix<float> StatePredictionJacobian(VehicleState previous, ModelInputs inputs, float deltaT) {
+    public Matrix<double> StatePredictionJacobian(VehicleState previous, ModelInputs inputs, float deltaT) {
         float cosphi = Mathf.Cos(previous.phi), sinphi = Mathf.Sin(previous.phi);
 
         // See: PredictCurrentState()
-        return M.DenseOfArray(new float[,] {
+        return M.DenseOfArray(new double[,] {
             {1, 0, -deltaT*inputs.V*sinphi},    // Derivative of   x / (previous.x, previous.y, previous.phi)
             {0, 1, deltaT*inputs.V*cosphi},     // Derivative of   y / (previous.x, previous.y, previous.phi)
             {0, 0, 1 } });                      // Derivative of phi / (previous.x, previous.y, previous.phi)
@@ -88,8 +87,8 @@ public class VehicleModel {
 
     // From the vehicle state estimate and covariance, compute the position of the given observation in
     // global space, as well as the associated covariance matrix:
-    public (Vector<float>, Matrix<float>) ComputeObservationPositionEstimate(
-        VehicleState stateEstimate, Matrix<float> stateCovariance, Observation observation) {
+    public (Vector<double>, Matrix<double>) ComputeObservationPositionEstimate(
+        VehicleState stateEstimate, Matrix<double> stateCovariance, Observation observation) {
 
         // Perform renamings for simplification:
         float x = stateEstimate.x, y = stateEstimate.y, phi = stateEstimate.phi;
@@ -101,22 +100,22 @@ public class VehicleModel {
 
         // 1. From the state estimate and the observation, compute the global position of the observation:
         // Xp = f(stateEstimate, observation):
-        Vector<float> Xp = V.Dense(new float[] {
+        Vector<double> Xp = V.Dense(new double[] {
             x + a * cosphi - b * sinphi + r * cosphi_theta,
             y + a * sinphi + b * cosphi + r * sinphi_theta});
 
         // 2. Compute the Jacobian of f relatively to the vehicle state:
-        Matrix<float> F = M.DenseOfArray(new float[,] {
+        Matrix<double> F = M.DenseOfArray(new double[,] {
             { 1, 0, -a * sinphi - b * cosphi - r * sinphi_theta},
             { 0, 1, a * cosphi - b * sinphi + r * cosphi_theta } });
 
         // 3. Compute the Jacobian of f relatively to the observation:
-        Matrix<float> G = M.DenseOfArray(new float[,] {
+        Matrix<double> G = M.DenseOfArray(new double[,] {
             { cosphi_theta, -r * sinphi_theta },
             { sinphi_theta, r * cosphi_theta } });
 
         // 4. Now we can compute the covariance matrix associated to the observation position estimate:
-        Matrix<float> Cp = F * stateCovariance.TransposeAndMultiply(F)
+        Matrix<double> Cp = F * stateCovariance.TransposeAndMultiply(F)
                         + G * ObservationError.TransposeAndMultiply(G);
 
         return (Xp, Cp);
@@ -124,7 +123,7 @@ public class VehicleModel {
 
     // Compute the Jacobian of the PredictObservation() function for a given landmark, with respect to the
     // state, and stack the result in dest matrix, at the given index:
-    public void ComputeHi(VehicleState predictedState, Landmark landmark, int landmarkIndex, Matrix<float> dest, int index) {
+    public void ComputeHi(VehicleState predictedState, Landmark landmark, int landmarkIndex, Matrix<double> dest, int index) {
         float cosphi = Mathf.Cos(predictedState.phi), sinphi = Mathf.Sin(predictedState.phi);
         
         float xi = landmark.x;
@@ -149,12 +148,12 @@ public class VehicleModel {
         // Hv = Matrix(OBSERVATION_DIM, STATE_DIM):
         // (    dr/dx,      dr/dy,      dr/dphi)
         // (dtheta/dx,  dtheta/dy,  dtheta/dphi)
-        Matrix<float> Hv = M.DenseOfArray(new float[,] { { A, B, C }, { D, E, F } });
+        Matrix<double> Hv = M.DenseOfArray(new double[,] { { A, B, C }, { D, E, F } });
 
         // Hpi = Matrix(OBSERVATION_DIM, LANDMARK_DIM):
         // (    dr/dxi,     dr/dyi)
         // (dtheta/dxi, dtheta/dyi)
-        Matrix<float> Hpi = M.DenseOfArray(new float[,] { { -A, -B }, { -D, -E } });
+        Matrix<double> Hpi = M.DenseOfArray(new double[,] { { -A, -B }, { -D, -E } });
 
         dest.SetSubMatrix(index, 0, Hv);
         dest.SetSubMatrix(index, STATE_DIM + landmarkIndex * LANDMARK_DIM, Hpi);
