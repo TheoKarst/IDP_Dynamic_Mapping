@@ -1,7 +1,9 @@
 using UnityEngine;
 
-public class Utils
-{
+public class Utils {
+    // The number of digits we print after the comma, in scientific notation:
+    const int PRINT_DIGITS = 3;
+
     // Computes the shortest difference between two given angles in radians.
     // The result is thus always in the range [0; PI]:
     public static float DeltaAngleRadians(float a, float b) {
@@ -17,6 +19,24 @@ public class Utils
         }
 
         return num;
+    }
+
+    public static string ScientificNotation(float value) {
+        return ScientificNotation(value, PRINT_DIGITS);
+    }
+
+    public static string ScientificNotation(float value, int printDigits) {
+        float absValue = Mathf.Abs(value);
+        if (absValue < Mathf.Epsilon)
+            return "0";
+
+        int digits = Mathf.FloorToInt(Mathf.Log10(absValue));
+        float factor = Mathf.Pow(10, printDigits - digits);
+        string result = (Mathf.Round(value * factor) / Mathf.Pow(10, printDigits)).ToString();
+        if (digits != 0)
+            result += "e" + digits;
+
+        return result;
     }
 
     public static float Round(float value, int digits) {

@@ -258,7 +258,12 @@ public class GeometryClustering : MonoBehaviour
             Line bestMatch = null;
             float minDistance = -1;
 
+            string logMsg = "Line " + i + ": [" + line.LogParams() + "]\n";
             foreach (Line matchCandidate in modelLines) {
+                logMsg += line.LogMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, LineMaxEndpointMatchDistance);
+                logMsg += "\t[" + matchCandidate.LogParams() + "=>" 
+                    + Utils.ScientificNotation(line.ComputeNormDistance(matchCandidate)) + "]\t";
+                logMsg += "[" + Utils.ScientificNotation(line.ComputeCenterDistance(matchCandidate)) + "]";
 
                 // First test: compare the angle difference and endpoints distance between the two lines:
                 if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, LineMaxEndpointMatchDistance)) {
@@ -273,9 +278,11 @@ public class GeometryClustering : MonoBehaviour
                         if (bestMatch == null || centerDistance < minDistance) {
                             bestMatch = matchCandidate;
                             minDistance = centerDistance;
+                            logMsg += ": Possible match !";
                         }
                     }
                 }
+                logMsg += "\n";
             }
 
             // If a match is found and near enough, use this line to update the match state estimate:
@@ -286,6 +293,7 @@ public class GeometryClustering : MonoBehaviour
                 // Update all the model (except the matching line) using the wipe triangle of this line:
                 modelLines = wipeTriangles[i].UpdateLines(modelLines, bestMatch, LineMinLength);
                 modelLines.Add(bestMatch);
+                logMsg += "=> Match found !";
             }
 
             // Else, just add this new line to the model:
@@ -293,7 +301,10 @@ public class GeometryClustering : MonoBehaviour
                 line.lineColor = Color.green;       // Green color for new lines
                 modelLines = wipeTriangles[i].UpdateLines(modelLines, null, LineMinLength);
                 modelLines.Add(line);
+                logMsg += "=> New line !";
             }
+
+            Debug.Log(logMsg);
         }
 
         // List of wipe triangles that we built, that will be used to remove inconsistent circles:

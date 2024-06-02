@@ -22,10 +22,10 @@ public class KalmanFilter {
     const int PotentialLandmarkLifetime = 60;           // Was 51
 
     // Maximal Mahalanobis distance between an observation and a confirmed landmark to match them together:
-    const float MaxNormDistanceConfirmedLandmarks = 5;
+    const float MaxNormDistanceConfirmedLandmarks = 0.1f;
 
     // Maximal Mahalanobis distance between an observation and a potential landmark to match them together:
-    const float MaxNormDistancePotentialLandmarks = 5;
+    const float MaxNormDistancePotentialLandmarks = 0.1f;
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +57,7 @@ public class KalmanFilter {
     // This represent the state estimate with state prediction only
     // (without using Kalman filter update from observations). This is used to show the impact of the EKF
     // on the state estimate:
-    private VehicleState stateEstimateNoUpdate;
+    private VehicleState statePredictionOnly;
 
     // Use a pointer to the robot controller to have the real state of the robot (only used for logs):
     private RobotController controller;
@@ -76,7 +76,7 @@ public class KalmanFilter {
 
         // Initialize the state estimate with the given start position of the robot:
         this.stateEstimate = initialState;
-        this.stateEstimateNoUpdate = initialState;
+        this.statePredictionOnly = initialState;
         this.stateCovarianceEstimate = new StateCovariance(STATE_DIM, 0, LANDMARK_DIM);
 
         this.vehicleModel = vehicleModel;
@@ -95,9 +95,13 @@ public class KalmanFilter {
         Vector<float> position;
 
         // Position and error estimate of the robot:
+        // Gizmos.color = Color.yellow;
+        // Vector3 robotCenter = new Vector3(statePredictionOnly.x, 0.2f, statePredictionOnly.y);
+        // Gizmos.DrawSphere(robotCenter, 0.1f);
+
         Gizmos.color = Color.red;
         cov = stateCovarianceEstimate.ExtractPvv();
-        Vector3 robotCenter = new Vector3(stateEstimate.x, 0.5f, stateEstimate.y);
+        Vector3 robotCenter = new Vector3(stateEstimate.x, 0.11f, stateEstimate.y);
         Gizmos.DrawCube(robotCenter,
                         new Vector3(Mathf.Sqrt(cov[0,0]), Mathf.Sqrt(cov[2,2]), Mathf.Sqrt(cov[1,1])));
 
@@ -158,7 +162,7 @@ public class KalmanFilter {
         VehicleState statePrediction = vehicleModel.PredictCurrentState(stateEstimate, inputs, deltaT);
 
         // This is used to compare EKF update with prediction only:
-        stateEstimateNoUpdate = vehicleModel.PredictCurrentState(stateEstimateNoUpdate, inputs, deltaT);
+        statePredictionOnly = vehicleModel.PredictCurrentState(statePredictionOnly, inputs, deltaT);
         
         // Equation (12): From the previous state estimate and the current inputs, compute the new estimate of the
         // state covariance matrix: P(k+1|k)
@@ -199,7 +203,7 @@ public class KalmanFilter {
             stateEstimate = statePrediction;
             stateCovarianceEstimate = stateCovariancePrediction;
 
-            logger.Log(controller.GetRobotRealState(), stateEstimateNoUpdate, stateEstimate);
+            logger.Log(controller.GetRobotRealState(), statePredictionOnly, stateEstimate);
             return;
         }
 
@@ -247,7 +251,7 @@ public class KalmanFilter {
         stateCovarianceEstimate = stateCovariancePrediction - W * S.TransposeAndMultiply(W);    // Equation (16)
 
         // Write data to the log file:
-        logger.Log(controller.GetRobotRealState(), stateEstimateNoUpdate, stateEstimate);
+        logger.Log(controller.GetRobotRealState(), statePredictionOnly, stateEstimate);
     }
 
     // From an observation of the LIDAR, the predicted state, the predicted state covariance estimate

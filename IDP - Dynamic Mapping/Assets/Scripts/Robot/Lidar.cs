@@ -1,9 +1,8 @@
-using MathNet.Numerics;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Lidar : MonoBehaviour
-{
+public class Lidar : MonoBehaviour {
+
     [Tooltip("Model used to represent the world state estimate")]
     public RobotBresenham worldModel;
 
@@ -23,6 +22,9 @@ public class Lidar : MonoBehaviour
     // Real position of the hit points from the LIDAR (only used for drawing):
     private Vector3[] hitPoints;
 
+    // For drawing only:
+    private Vector3 lastScanPosition, lastScanForward;
+
     // List of observations made by the LIDAR, as well as the observation index and if the observation is valid or not:
     private ExtendedObservation[] observations;
 
@@ -37,14 +39,9 @@ public class Lidar : MonoBehaviour
         observations = new ExtendedObservation[raycastCount];
     }
 
-    // Update is called once per frame
-    void Update() {
-        // Compute the raycast intersections with the environment, and update the observations:
-        ComputeObservations();
-
-        // From the observations, detect the ones that correspond to corners (that are used as landmarks):
-        DetectCorners();
-    }
+    // Update is called once per frame. We do nothing here: the raycasting computation is done
+    // when calling PerformLidarScan(). This solves some synchronization issues:
+    void Update() {}
 
     public void OnDrawGizmos() {
         if (drawCorners && landmarkCandidates != null) {
@@ -60,6 +57,30 @@ public class Lidar : MonoBehaviour
             foreach (int index in rejectedCandidates)
                 Gizmos.DrawSphere(hitPoints[index], 0.1f);
         }
+
+        if (drawRays && observations != null) {
+            Vector3 direction = lastScanForward;
+
+            foreach (ExtendedObservation observation in observations) {
+                Gizmos.color = observation.isValid ? Color.red : Color.white;
+                Gizmos.DrawRay(lastScanPosition, direction * observation.r);
+
+                direction = Quaternion.AngleAxis(-360f / raycastCount, Vector3.up) * direction;
+            }
+        }
+    }
+
+    // Use raycasting to compute the observations made by the LIDAR:
+    public void PerformLidarScan() {
+        // Save the current position and orientation of the LIDAR, to draw gizmos later:
+        lastScanPosition = transform.position;
+        lastScanForward = transform.TransformDirection(Vector3.forward);
+
+        // Compute the raycast intersections with the environment, and update the observations:
+        ComputeObservations();
+
+        // From the observations, detect the ones that correspond to corners (that are used as landmarks):
+        DetectCorners();
     }
 
     // Use raycasting to compute the observations made by the LIDAR:
@@ -70,16 +91,12 @@ public class Lidar : MonoBehaviour
         for (int i = 0; i < observations.Length; i++) {
             RaycastHit hit;
             if (Physics.Raycast(transform.position, direction, out hit, raycastDistance)) {
-                // Used for drawing only:
-                if (drawRays) Debug.DrawRay(transform.position, direction * hit.distance, Color.red);
                 hitPoints[i] = hit.point;
 
                 // Used for localisation, mapping, etc...
                 observations[i] = new ExtendedObservation(hit.distance, observationAngle, i, true);
             }
             else {
-                // Used for drawing only:
-                if (drawRays) Debug.DrawRay(transform.position, direction * raycastDistance, Color.white);
                 hitPoints[i] = transform.position + direction * raycastDistance;
 
                 // Used for localisation, mapping, etc...
@@ -99,6 +116,7 @@ public class Lidar : MonoBehaviour
         landmarkCandidates = new List<int>();
         rejectedCandidates = new List<int>();
 
+        // Use Douglas Peucker algorithm to reduce the set of observations made by the LIDAR:
         int[] subset = DouglasPeucker(observations, DouglasPeuckerEpsilon);
 
         int count = subset.Length;
@@ -147,11 +165,35 @@ public class Lidar : MonoBehaviour
 
         // Run Douglas Peucker algorithm on the set of points we just built:
         points = DouglasPeucker(points, 0, points.Length - 1, epsilon);
+        int startIndex = 0, endIndex = points.Length;
+
+        // Since Douglas Peucker algorithm always keeps the first and last points in the list,
+        // we still have to check if these points are necessary:
+        if (points.Length > 2) {
+            (int, Vector2)
+                first = points[0],
+                second = points[1],
+                beforeLast = points[points.Length - 2],
+                last = points[points.Length - 1];
+
+            Vector2 u = (second.Item2 - beforeLast.Item2).normalized;
+            Vector2 v1 = first.Item2 - second.Item2;
+            Vector2 v1_along_u = Vector2.Dot(v1, u) * u;
+            float d1 = (v1 - v1_along_u).magnitude;
+
+            Vector2 v2 = last.Item2 - second.Item2;
+            Vector2 v2_along_u = Vector2.Dot(v2, u) * u;
+            float d2 = (v2 - v2_along_u).magnitude;
+
+            // Keep the first and last point only if their orthogonal distance from u is big enough:
+            if (d1 <= epsilon) startIndex = 1;
+            if (d2 <= epsilon) endIndex = points.Length - 1;
+        }
 
         // Convert the list of points into a list of observation indices:
-        int[] result = new int[points.Length];
-        for (int i = 0; i < points.Length; i++)
-            result[i] = points[i].Item1;
+        int[] result = new int[Mathf.Max(0, endIndex - startIndex)];
+        for (int i = startIndex; i < endIndex; i++)
+            result[i - startIndex] = points[i].Item1;
 
         return result;
     }

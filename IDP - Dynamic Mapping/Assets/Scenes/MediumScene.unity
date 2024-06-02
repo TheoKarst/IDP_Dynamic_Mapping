@@ -11004,6 +11004,10 @@ PrefabInstance:
       propertyPath: maxSteering
       value: 10
       objectReference: {fileID: 0}
+    - target: {fileID: 5064090248960098729, guid: a2599afcab23ec2449164794973d807a, type: 3}
+      propertyPath: waitBetweenMeasures
+      value: 0.1
+      objectReference: {fileID: 0}
     - target: {fileID: 8296391503009627891, guid: a2599afcab23ec2449164794973d807a, type: 3}
       propertyPath: m_Name
       value: Robot

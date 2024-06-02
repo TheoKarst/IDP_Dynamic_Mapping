@@ -18,8 +18,8 @@ public struct Observation {
     }
 
     public override string ToString() {
-        float print_r = Utils.Round(r, 2);
-        float print_t = Utils.Round(Mathf.Rad2Deg * theta, 2);
+        string print_r = Utils.ScientificNotation(r);
+        string print_t = Utils.ScientificNotation(Mathf.Rad2Deg * theta);
 
         return "[r: " + print_r + ", theta: " + print_t + "°]";
     }

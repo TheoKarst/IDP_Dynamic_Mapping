@@ -9,10 +9,9 @@ public class RobotController : MonoBehaviour {
     [Tooltip("Sensor attached to the robot controller, in order to estimate the robot state")]
     public Lidar lidar;
 
-    // Used for debugging: when arrow keys are pressed, they stay pressed:
-    public bool lockKeys = true;
-    private int linearMotion = 0;     // -1: backward, +1: forward
-    private int angularMotion = 0;    // -1: left, +1: right
+    // Used for debugging: this is used to force forward or backward motion:
+    public bool forceForward = false;
+    public bool forceBackward = false;
 
     public float acceleration = 10;
     public float L = 0.3f;
@@ -46,8 +45,7 @@ public class RobotController : MonoBehaviour {
         VehicleState initialState = GetRobotRealState();
 
         // Instantiate a vehicle model:
-        float a, b; (a, b) = lidar.GetLocalPosition();
-        vehicleModel = new VehicleModel(a, b, L, maxSpeed, Mathf.Deg2Rad * maxSteering, waitBetweenMeasures);
+        vehicleModel = new VehicleModel(lidar, L, maxSpeed, Mathf.Deg2Rad * maxSteering, waitBetweenMeasures);
 
         Logger kalmanLogger = writeLogFile ? new Logger(false, "log_file.csv") : new Logger(false);
         filter = new KalmanFilter(this, initialState, vehicleModel, maxLandmarksPerUpdate, minDistanceBetweenLandmarks, kalmanLogger);
@@ -74,13 +72,9 @@ public class RobotController : MonoBehaviour {
         float h = Time.deltaTime;
 
         // Update the velocity of the robot:
-        linearMotion = Input.GetKey(KeyCode.UpArrow) ? 1 
-                    : Input.GetKey(KeyCode.DownArrow) ? -1
-                    : lockKeys ? linearMotion : 0;
-
-        if (linearMotion == 1)
+        if (forceForward || Input.GetKey(KeyCode.UpArrow))
             velocity += h * acceleration;
-        else if (linearMotion == -1)
+        else if (forceBackward || Input.GetKey(KeyCode.DownArrow))
             velocity -= h * acceleration;
         else
             velocity -= h * velocity * friction;
@@ -89,13 +83,9 @@ public class RobotController : MonoBehaviour {
         velocity = Mathf.Clamp(velocity, -maxSpeed, maxSpeed);
 
         // Update the steering of the robot:
-        angularMotion = Input.GetKey(KeyCode.RightArrow) ? 1
-                    : Input.GetKey(KeyCode.LeftArrow) ? -1
-                    : lockKeys ? angularMotion : 0;
-
-        if (angularMotion == -1)
+        if (Input.GetKey(KeyCode.LeftArrow))
             steering = maxSteering;
-        else if (angularMotion == 1)
+        else if (Input.GetKey(KeyCode.RightArrow))
             steering = -maxSteering;
         else
             steering = 0;
@@ -114,11 +104,15 @@ public class RobotController : MonoBehaviour {
     private void UpdateStateEstimate() {
         ModelInputs inputs = new ModelInputs(velocity, Mathf.Deg2Rad * steering);
 
+        // Perform a LIDAR scan:
+        lidar.PerformLidarScan();
+
         // Get the observations from the LIDAR, that are good landmark candidates:
         List<Observation> observations = lidar.GetLandmarkCandidates();
-
+        
         // Use these observations to update the robot state estimate:
         filter.UpdateStateEstimate(observations, inputs, Time.time);
+        // LogVehicleState();
     }
 
     public float GetRobotX() {
@@ -144,5 +138,20 @@ public class RobotController : MonoBehaviour {
     // For log purposes:
     public VehicleState GetRobotRealState() {
         return new VehicleState(GetRobotX(), GetRobotY(), GetRobotAngle());
+    }
+
+    public void LogVehicleState() {
+        (VehicleState state, Matrix<float> covariance) = filter.GetStateEstimate();
+
+        string x = Utils.ScientificNotation(state.x);
+        string y = Utils.ScientificNotation(state.y);
+        string phi = Utils.ScientificNotation(Mathf.Rad2Deg * state.phi);
+
+        string covX = Utils.ScientificNotation(Mathf.Sqrt(covariance[0, 0]));
+        string covY = Utils.ScientificNotation(Mathf.Sqrt(covariance[1, 1]));
+        string covPhi = Utils.ScientificNotation(Mathf.Rad2Deg * Mathf.Sqrt(covariance[2, 2]));
+
+        Debug.Log("Vehicle state: (x, y, phi) = (" + x + "+-" + covX + ", " +
+            y + "+-" + covY + ", " + phi + "+-" + covPhi);
     }
 }

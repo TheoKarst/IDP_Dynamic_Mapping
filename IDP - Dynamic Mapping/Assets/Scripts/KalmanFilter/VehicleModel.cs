@@ -19,19 +19,20 @@ public class VehicleModel {
     // Parameters defining the dimensions of the model:
     private float a, b, L;
 
-    public VehicleModel(float a, float b, float L, float maxSpeed, float maxSteering, float deltaTime) {
-        this.a = a;
-        this.b = b;
+    public VehicleModel(Lidar lidar, float L, float maxSpeed, float maxSteering, float deltaTime) {
+        (this.a, this.b) = lidar.GetLocalPosition();
         this.L = L;
 
         // Covariance of the error on the linear and angular position of the robot:
-        float ePos = deltaTime * maxSpeed;
-        float ePhi = deltaTime * maxSpeed * Mathf.Tan(maxSteering) / L;
-        Debug.Log("Instantiating a robot model. ePos = " + ePos + ", ePhi = " + Mathf.Rad2Deg * ePhi + "°");
-
+        float ePos = 2 * deltaTime * maxSpeed;
+        float ePhi = 2 * deltaTime * maxSpeed * Mathf.Tan(maxSteering) / L;
+        
         // Covariance of the measure distance and angle of the LIDAR;
-        float eR = ePos;
-        float eTheta = ePhi;
+        float eR = 0.2f;
+        float eTheta = 5 * Mathf.Deg2Rad;
+
+        Debug.Log("Instantiating a robot model. ePos=" + ePos + ", ePhi=" + Mathf.Rad2Deg * ePhi
+            + "°, eR=" + eR + ", eTheta=" + Mathf.Rad2Deg * eTheta + "°");
 
         // Covariance matrix for the process noise errors (x, y, phi):
         this.ProcessNoiseError = M.Diagonal(new float[] {

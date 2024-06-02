@@ -1,22 +1,27 @@
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using UnityEngine;
 
 public class WipeTriangle {
     // The points defining the wipe triangle:
     private Vector2 p1, p2, p3;
 
-    // Normals of the triangle
+    // Normals of the triangle (not normalized, since its not necessary):
     private Vector2 n1, n2, n3;
 
-    // The points of the triangle are supposed to be in counter clockwise order:
     public WipeTriangle(Vector2 p1, Vector2 p2, Vector2 p3) {
+        // The points of the triangle are supposed to be in counter clockwise order. If this is not
+        // the case, reorder the points:
+        if (Vector2.Dot(RotateClockwise(p1, p2), p3 - p2) >= 0)
+            (p2, p3) = (p3, p2);
+
         this.p1 = p1;
         this.p2 = p2;
         this.p3 = p3;
 
-        n1 = Normal(p1, p2);
-        n2 = Normal(p2, p3);
-        n3 = Normal(p3, p1);
+        n1 = RotateClockwise(p1, p2);
+        n2 = RotateClockwise(p2, p3);
+        n3 = RotateClockwise(p3, p1);
     }
 
     // Update the given lines using this wipe triangle. If the line 'ignore' is found in the given list,
@@ -70,11 +75,13 @@ public class WipeTriangle {
                 Intersection first = Intersection.First(i1, i2, i3);
                 Intersection last = Intersection.Last(i1, i2, i3);
 
+                // Create a new line, from last.position to line.endPoint:
+                Line other = new Line(line, last.position, line.endPoint);
+                if (other.Length() >= minLineLength) result.Add(other);
+
+                // Shorten the initial line, from line.beginPoint to first.position:
                 line.endPoint = first.position;
                 if(line.Length() >= minLineLength) result.Add(line);
-
-                Line other = new Line(line, last.position, line.endPoint);
-                if(other.Length() >= minLineLength) result.Add(other);
             }
         }
 
@@ -100,8 +107,8 @@ public class WipeTriangle {
             && Vector2.Dot(point - p3, n3) <= 0;
     }
 
-    // Compute the normal vector of the given segment:
-    private Vector2 Normal(Vector2 A, Vector2 B) {
-        return new Vector2(B.y - A.y, A.x - B.x).normalized;
+    // Rotate the segment AB of 90° in clockwise order:
+    private Vector2 RotateClockwise(Vector2 A, Vector2 B) {
+        return new Vector2(B.y - A.y, A.x - B.x);
     }
 }

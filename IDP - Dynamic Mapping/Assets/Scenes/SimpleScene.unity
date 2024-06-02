@@ -237,7 +237,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &254651331
 Transform:
   m_ObjectHideFlags: 0
@@ -837,6 +837,89 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1071717507}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &855607414
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 855607417}
+  - component: {fileID: 855607416}
+  - component: {fileID: 855607415}
+  m_Layer: 0
+  m_Name: Reference Measure
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!23 &855607415
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 855607414}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!33 &855607416
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 855607414}
+  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!4 &855607417
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 855607414}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -3.187, y: 0.746, z: 0}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
+  m_ConstrainProportionsScale: 1
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &963194225
 GameObject:
   m_ObjectHideFlags: 0
@@ -984,6 +1067,7 @@ MonoBehaviour:
   mapHeight: 150
   lidar: {fileID: 1040413680}
   controller: {fileID: 976047841}
+  showTextureMap: 1
   maxConfidence: 0.95
   framesToConsiderStatic: 60
   framesToConsiderDynamic: 2
@@ -1000,18 +1084,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   lidar: {fileID: 1040413680}
-  lockKeys: 0
-  writeLogFile: 0
+  forceForward: 0
+  forceBackward: 0
   acceleration: 10
   L: 0.3
   maxSpeed: 2
   maxSteering: 10
   friction: 10
-  waitBetweenMeasures: 0.02
+  maxLandmarksPerUpdate: 5
+  minDistanceBetweenLandmarks: 1
   drawConfirmedLandmarks: 1
   drawPotentialLandmarks: 1
-  drawObservations: 0
-  minDistanceBetweenLandmarks: 1
+  drawObservations: 1
+  writeLogFile: 0
+  waitBetweenMeasures: 0.02
 --- !u!114 &976047842
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1037,7 +1123,7 @@ MonoBehaviour:
   CircleMaxMatchDistance: 0.5
   WipeTriangleExtent: 0.2
   MinCircleLineDistance: 0.5
-  drawPoints: 1
+  drawPoints: 0
   drawLines: 1
   drawCircles: 1
   drawCurrentLines: 1
@@ -1106,9 +1192,9 @@ MonoBehaviour:
   worldModel: {fileID: 976047840}
   raycastCount: 500
   raycastDistance: 10
-  deltaCorners: 1
+  DouglasPeuckerEpsilon: 0.2
   drawRays: 0
-  drawCorners: 0
+  drawCorners: 1
 --- !u!23 &1040413681
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -2822,3 +2908,4 @@ SceneRoots:
   - {fileID: 176300583}
   - {fileID: 976047838}
   - {fileID: 1071717507}
+  - {fileID: 855607417}

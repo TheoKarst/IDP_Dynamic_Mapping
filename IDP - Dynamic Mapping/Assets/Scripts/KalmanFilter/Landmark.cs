@@ -26,8 +26,8 @@ public class Landmark {
     }
 
     public override string ToString() {
-        float print_x = Mathf.Round(100 * x) / 100;
-        float print_y = Mathf.Round(100 * y) / 100;
+        string print_x = Utils.ScientificNotation(x);
+        string print_y = Utils.ScientificNotation(y);
 
         return "[x: " + print_x + ", y: " + print_y + "]";
     }

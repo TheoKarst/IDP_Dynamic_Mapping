@@ -10,8 +10,8 @@ public struct ModelInputs {
     }
 
     public override string ToString() {
-        float print_v = Mathf.Round(100 * V) / 100;
-        float print_g = Mathf.Round(100 * gamma * Mathf.Rad2Deg) / 100;
+        string print_v = Utils.ScientificNotation(V);
+        string print_g = Utils.ScientificNotation(Mathf.Rad2Deg * gamma);
 
         return "[V: " + print_v + ", gamma: " + print_g + "°]";
     }
