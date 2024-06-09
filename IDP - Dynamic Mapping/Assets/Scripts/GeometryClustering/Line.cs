@@ -1,6 +1,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 public class Line : Primitive {
     // Vector builder used as a shortcut for vector creation:
@@ -49,8 +50,6 @@ public class Line : Primitive {
         this.endPoint = endPoint;
     }
 
-    
-
     public void DrawGizmos() {
         Vector3 p1 = new Vector3(beginPoint.x, 0.2f, beginPoint.y);
         Vector3 p2 = new Vector3(endPoint.x, 0.2f, endPoint.y);
@@ -61,19 +60,28 @@ public class Line : Primitive {
     // to be matched with this line. If this is the case, we will have to check the norm distance
     // between the lines as x next step:
     public bool IsMatchCandidate(Line other, float maxAngleDistance, float maxEndpointDistance) {
+        Profiler.BeginSample("Is Match Candidate");
+
         // If the angular difference between both lines is too big, the lines cannot match:
-        if (Utils.DeltaAngleRadians(theta, other.theta) > maxAngleDistance)
+        if (Utils.DeltaAngleRadians(theta, other.theta) > maxAngleDistance) {
+            Profiler.EndSample();
             return false;
+        }
 
         // If the distance of the endpoints of this line to the 
-        if (other.DistanceFrom(beginPoint) > maxEndpointDistance)
+        if (other.DistanceFrom(beginPoint) > maxEndpointDistance) {
+            Profiler.EndSample();
             return false;
+        }
 
-        if (other.DistanceFrom(endPoint) > maxEndpointDistance)
+        if (other.DistanceFrom(endPoint) > maxEndpointDistance) {
+            Profiler.EndSample();
             return false;
+        }
 
         // If both lines are close enough, then the other line should ba x good candidate for
         // the matching:
+        Profiler.EndSample();
         return true;
     }
 
@@ -100,8 +108,14 @@ public class Line : Primitive {
         return Mathf.Abs(point.x * Mathf.Cos(theta) + point.y * Mathf.Sin(theta) - rho);
     }
 
+    public float SignedDistanceFrom(Vector2 point) {
+        return point.x * Mathf.Cos(theta) + point.y * Mathf.Sin(theta) - rho;
+    }
+
     // Compute the Mahalanobis distance between this line and the given one:
     public float ComputeNormDistance(Line other) {
+        Profiler.BeginSample("Compute Norm Distance");
+
         // Perform some renamings to match the paper description:
         Matrix<double> Cl = this.covariance;
         Matrix<double> Cm = other.covariance;
@@ -113,7 +127,10 @@ public class Line : Primitive {
             Utils.SubstractAngleRadians(theta, other.theta) 
         });
 
-        return (float) (X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
+        float result = (float) (X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
+        Profiler.EndSample();
+
+        return result;
     }
 
     // Compute the distance between the centers of the two lines, along this line:

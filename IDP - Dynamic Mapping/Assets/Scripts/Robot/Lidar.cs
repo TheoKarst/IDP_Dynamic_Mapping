@@ -48,14 +48,14 @@ public class Lidar : MonoBehaviour {
             Gizmos.color = Color.green;
 
             foreach (int index in landmarkCandidates)
-                Gizmos.DrawSphere(hitPoints[index], 0.1f);
+                Gizmos.DrawSphere(hitPoints[index], 0.2f);
         }
 
         if (drawCorners && rejectedCandidates != null) {
             Gizmos.color = Color.red;
 
             foreach (int index in rejectedCandidates)
-                Gizmos.DrawSphere(hitPoints[index], 0.1f);
+                Gizmos.DrawSphere(hitPoints[index], 0.2f);
         }
 
         if (drawRays && observations != null) {
@@ -248,6 +248,13 @@ public class Lidar : MonoBehaviour {
             if (worldModel.IsStatic(observation))
                 landmarks.Add(observation);
         }
+
+        // Sort the landmarks by distance, as near landmarks are usually more precise:
+        landmarks.Sort((Observation a, Observation b) => { 
+            if(a.r <  b.r) return -1;
+            if(a.r > b.r) return 1;
+            return 0;
+        });
 
         return landmarks;
     }

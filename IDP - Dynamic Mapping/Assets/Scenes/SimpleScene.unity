@@ -1127,8 +1127,8 @@ MonoBehaviour:
   WipeTriangleInsideAngleMargin: 1
   MinCircleLineDistance: 0.5
   drawPoints: 0
-  drawLines: 1
-  drawCircles: 1
+  drawLines: 0
+  drawCircles: 0
   drawCurrentLines: 1
 --- !u!1 &987848140
 GameObject:

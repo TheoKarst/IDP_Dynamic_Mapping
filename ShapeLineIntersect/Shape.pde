@@ -57,7 +57,7 @@ public class Shape {
     int startPoint, endPoint, direction, count;
     
     // Compute if we have to check the intersections between the edges of the shape and the line in clockwise or anticlockwise order:
-    if(line.IsAbove(center)) {
+    if(line.IsLeftOfLine(center)) {
       direction = 1;
       startPoint = FindSection(line.start) - 1;
       endPoint = FindSection(line.end);
@@ -77,7 +77,10 @@ public class Shape {
     
     int index = startPoint;
     PVector current = points.get(index);
-    boolean isAbove = line.IsAbove(current);
+    boolean isLeft = line.IsLeftOfLine(current);
+    
+    // If the start point of the line is outside the shape:
+    boolean startPointOutside = true;
     
     ArrayList<Float> intersections = new ArrayList<Float>();
     for(int i = 0; i < count; i++) {
@@ -85,10 +88,21 @@ public class Shape {
       if(index < 0) index += n;
       else if(index >= n) index -= n;
       PVector next = points.get(index);
-      boolean nextIsAbove = line.IsAbove(next);
+      boolean nextIsLeft = line.IsLeftOfLine(next);
+      
+      // Compute startPointOutside:
+      if(i == 0) {
+        // Rotate (next - current) to point outside the shape:
+        float nX, nY;
+        if(direction == 1) { nX = next.y - current.y; nY = current.x - next.x; }
+        else {               nX = current.y - next.y; nY = next.x - current.x; }   
+        
+        // Compute the dot product between n and (line.start - current). If the dot product is greater than 0, the point is outside the shape:
+        startPointOutside = nX * (line.start.x - current.x) + nY * (line.start.y - current.y) >= 0;
+      }
       
       // If both points are on the same side of the line, there is no intersection:
-      if(nextIsAbove == isAbove) {
+      if(nextIsLeft == isLeft) {
         println("Line: " + index + " => No intersection !");
       }
       else {
@@ -100,10 +114,10 @@ public class Shape {
       }
       
       current = next;
-      isAbove = nextIsAbove;
+      isLeft = nextIsLeft;
     }
     
-    line.UpdateState(intersections, true);
+    line.UpdateState(intersections, startPointOutside);
   }
   
   // Return the index of a point with an angle strictly greater than the given point:

@@ -1,7 +1,8 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
-public class Point {
+public struct Point {
+    public bool isValid;
     public float x, y;          // Estimated position of the point, from the Kalman Filter
     private float angle;        // Angle of the point in radians, from the LIDAR
 
@@ -11,12 +12,14 @@ public class Point {
     // Primitive this point is supposed to belong to:
     private Primitive matchingPrimitive;
 
-    public Point(float x, float y, float angle, Matrix<double> covariance) {
+    public Point(float x, float y, float angle, Matrix<double> covariance, bool isValid) {
         this.x = x;
         this.y = y;
         this.angle = angle;
 
         this.Cp = covariance;
+        matchingPrimitive = null;
+        this.isValid = isValid;
     }
 
     public void DrawGizmos() {

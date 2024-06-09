@@ -1,6 +1,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 public class GeometryClustering : MonoBehaviour
 {
@@ -63,7 +64,7 @@ public class GeometryClustering : MonoBehaviour
     private Point[] currentPoints;
 
     // Current lines and circles used to represent the environment:
-    private List<Line> modelLines = new List<Line>();
+    private LinkedList<Line> modelLines = new LinkedList<Line>();
     private List<Circle> modelCircles = new List<Circle>();
 
     // For debugging: List of lines that were built during this frame:
@@ -77,6 +78,9 @@ public class GeometryClustering : MonoBehaviour
         CriticalAlphaRadians = Mathf.Deg2Rad * CriticalAlpha;
         LineMaxMatchAngleRadians = Mathf.Deg2Rad * LineMaxMatchAngle;
         WipeTriangleInsideAngleMarginRadians = Mathf.Deg2Rad * WipeTriangleInsideAngleMargin;
+
+        // Allocate the list of points once, since it's since is not going to change:
+        currentPoints = new Point[lidar.raycastCount];
     }
 
     // Update is called once per frame
@@ -94,11 +98,16 @@ public class GeometryClustering : MonoBehaviour
             return;
 
         // Get points from the LIDAR:
-        currentPoints = ComputePoints(vehicleState, stateCovariance, observations);
-
+        Profiler.BeginSample("Compute Points");
+        ComputePoints(vehicleState, stateCovariance, observations);
+        Profiler.EndSample();
+        
         // Then use the points to perform lines and circles extraction:
         List<Line> lines; List<Circle> circles;
+
+        Profiler.BeginSample("Cluster Extraction");
         (lines, circles) = ClusterExtraction(currentPoints);
+        Profiler.EndSample();
 
         // For debugging:
         if(drawCurrentLines) {
@@ -112,10 +121,18 @@ public class GeometryClustering : MonoBehaviour
 
         // Use the lines from the current frame to update the model lines:
         Vector2 sensorPosition = controller.GetVehicleModel().GetSensorPosition(vehicleState);
+
+        Profiler.BeginSample("Update Model Lines");
         List<WipeTriangle> triangles = UpdateModelLines(sensorPosition, lines);
+        Profiler.EndSample();
 
         // Use the circles from the current frame to update the model circles:
+        Profiler.BeginSample("Update Model Circles");
         UpdateModelCircles(circles, triangles);
+        Profiler.EndSample();
+
+        Debug.Log("Points: " + currentPoints.Length + "; Lines: " + modelLines.Count 
+            + "; Circles: " + modelCircles.Count + "; Triangles: " + triangles.Count);
     }
 
     public void OnDrawGizmos() {
@@ -126,7 +143,7 @@ public class GeometryClustering : MonoBehaviour
 
         if (drawPoints && currentPoints != null) {
             foreach (Point point in currentPoints)
-                if(point != null)
+                if(point.isValid)
                     point.DrawGizmos();
         }
 
@@ -143,12 +160,11 @@ public class GeometryClustering : MonoBehaviour
 
     // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
     // to compute the estimated position of all the observations of the LIDAR in world space:
-    private Point[] ComputePoints(VehicleState vehicleState, Matrix<double> stateCovariance, ExtendedObservation[] observations) {
+    private void ComputePoints(VehicleState vehicleState, Matrix<double> stateCovariance, ExtendedObservation[] observations) {
 
         // Convert observations into points, using the vehicle state estimate:
         VehicleModel model = controller.GetVehicleModel();
         
-        Point[] points = new Point[observations.Length];
         for(int i = 0; i < observations.Length; i++) {
             ExtendedObservation observation = observations[i];
 
@@ -158,12 +174,12 @@ public class GeometryClustering : MonoBehaviour
                 (position, covariance) =
                     model.ComputeObservationPositionEstimate(vehicleState, stateCovariance, observation.ToObservation());
 
-                float x = (float) position[0], y = (float) position[1], theta = observation.theta;
-                points[i] = new Point(x, y, theta, covariance);
+                float x = (float)position[0], y = (float)position[1], theta = observation.theta;
+                currentPoints[i] = new Point(x, y, theta, covariance, true);
             }
+            else
+                currentPoints[i] = new Point(0, 0, 0, null, false);
         }
-
-        return points;
     }
 
     // Cluster extraction (lines and circles):
@@ -178,7 +194,7 @@ public class GeometryClustering : MonoBehaviour
         CircleBuilder circleBuilder = null;
 
         foreach (Point currentPoint in points) {
-            if (currentPoint == null) continue;
+            if (!currentPoint.isValid) continue;
 
             // Initialisation: this should be executed just for the first non null point:
             if(lineBuilder == null && circleBuilder == null) {
@@ -268,13 +284,8 @@ public class GeometryClustering : MonoBehaviour
             Line bestMatch = null;
             float minDistance = -1;
 
-            string logMsg = "Line " + i + ": [" + line.LogParams() + "]\n";
+            Profiler.BeginSample("Lines matching");
             foreach (Line matchCandidate in modelLines) {
-                logMsg += line.LogMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, LineMaxEndpointMatchDistance);
-                logMsg += "\t[" + matchCandidate.LogParams() + "=>" 
-                    + Utils.ScientificNotation(line.ComputeNormDistance(matchCandidate)) + "]\t";
-                logMsg += "[" + Utils.ScientificNotation(line.ComputeCenterDistance(matchCandidate)) + "]";
-
                 // First test: compare the angle difference and endpoints distance between the two lines:
                 if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, LineMaxEndpointMatchDistance)) {
 
@@ -283,29 +294,30 @@ public class GeometryClustering : MonoBehaviour
 
                         // Last step: Find the nearest line among the remaining candidates:
                         // TODO: Check that this implementation matches the paper description:
+                        Profiler.BeginSample("Compute Center Distance");
                         float centerDistance = line.ComputeCenterDistance(matchCandidate);
+                        Profiler.EndSample();
 
                         if (bestMatch == null || centerDistance < minDistance) {
                             bestMatch = matchCandidate;
                             minDistance = centerDistance;
-                            logMsg += ": Possible match !";
                         }
                     }
                 }
-                logMsg += "\n";
             }
+            Profiler.EndSample();
 
             // If a match is found and near enough, use this line to update the match state estimate:
+            Profiler.BeginSample("Line Update");
             if (bestMatch != null && minDistance <= LineMaxMatchDistance) {
                 bestMatch.lineColor = Color.blue;       // Blue color for matched lines
                 bestMatch.UpdateLineUsingMatching(line);
 
                 // Update all the model (except the matching line) using the wipe triangle of this line:
                 if (wipeTriangle != null)
-                    modelLines = wipeTriangle.UpdateLines(modelLines, bestMatch, LineMinLength);
+                    wipeTriangle.UpdateLines(modelLines, bestMatch, LineMinLength);
 
-                modelLines.Add(bestMatch);
-                logMsg += "=> Match found !";
+                // modelLines.Add(bestMatch);
             }
 
             // Else, just add this new line to the model:
@@ -313,14 +325,12 @@ public class GeometryClustering : MonoBehaviour
                 line.lineColor = Color.green;       // Green color for new lines
 
                 if (wipeTriangle != null)
-                    modelLines = wipeTriangle.UpdateLines(modelLines, null, LineMinLength);
+                    wipeTriangle.UpdateLines(modelLines, null, LineMinLength);
 
-                modelLines.Add(line);
-                logMsg += "=> New line !";
-                Debug.Log("New line (" + (++newLineCount) + ") !");
+                modelLines.AddLast(line);
+                //Debug.Log("New line (" + (++newLineCount) + ") !");
             }
-
-            // Debug.Log(logMsg);
+            Profiler.EndSample();
         }
 
         // List of wipe triangles that we built, that will be used to remove inconsistent circles:

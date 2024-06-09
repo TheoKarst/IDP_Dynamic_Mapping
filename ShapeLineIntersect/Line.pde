@@ -1,6 +1,6 @@
 public class Line {
   private PVector start, end;
-  private final PVector n;
+  private final PVector n;        // 90° rotation of (end - start) in counterclockwise order
   
   private boolean startValid = true;
   private ArrayList<PVector> points; 
@@ -32,20 +32,21 @@ public class Line {
     ellipse(start.x, -start.y, 5, 5);
   }
   
-  public boolean IsAbove(PVector point) {
+  public boolean IsLeftOfLine(PVector point) {
     return n.dot(PVector.sub(point, start, new PVector())) >= 0;
   }
   
   public float IntersectDistance(PVector A, PVector B) {
     PVector AB = PVector.sub(B, A, new PVector());
     PVector CD = PVector.sub(end, start, new PVector());
-    PVector AC = PVector.sub(start, A, new PVector());
     
     float den = CD.x * AB.y - CD.y * AB.x;
     
     if(den == 0)
       return -1;
-      
+    
+    PVector AC = PVector.sub(start, A, new PVector());
+    
     return (AC.y * AB.x - AC.x * AB.y) / den;
   }
   

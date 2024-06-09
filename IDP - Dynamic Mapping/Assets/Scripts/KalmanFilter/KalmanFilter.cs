@@ -118,8 +118,10 @@ public class KalmanFilter {
                 cov = stateCovarianceEstimate.ExtractLandmarkCovariance(i);
 
                 Gizmos.color = Color.green;
-                Gizmos.DrawCube(new Vector3((float) position[0], 0.5f, (float) position[1]),
-                                new Vector3(Mathf.Sqrt((float) cov[0, 0]), 0, Mathf.Sqrt((float) cov[1, 1])));
+                // Gizmos.DrawCube(new Vector3((float) position[0], 0.5f, (float) position[1]),
+                //                new Vector3(Mathf.Sqrt((float) cov[0, 0]), 0, Mathf.Sqrt((float) cov[1, 1])));
+
+                Gizmos.DrawSphere(new Vector3((float)position[0], 0.5f, (float)position[1]), 0.1f);
             }
         }
 
