@@ -43,4 +43,12 @@ public class Utils {
         float factor = Mathf.Pow(10, digits);
         return Mathf.Round(value * factor) / factor;
     }
+
+    public static Vector3 To3D(Vector2 position, float height) {
+        return new Vector3(position.x, height, position.y);
+    }
+
+    public static Vector2 To2D(Vector3 position) {
+        return new Vector2(position.x, position.z);
+    }
 }

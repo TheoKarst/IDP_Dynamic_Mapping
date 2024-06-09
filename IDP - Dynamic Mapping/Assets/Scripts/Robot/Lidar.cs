@@ -28,10 +28,14 @@ public class Lidar : MonoBehaviour {
     // List of observations made by the LIDAR, as well as the observation index and if the observation is valid or not:
     private ExtendedObservation[] observations;
 
-    // The landmark candidates are the valid observations returned from Douglas Peucker algorithm,
-    // that corresponds to convex corners (more stable as concave ones). The rejected candidates are
-    // the other points returned from Douglas Peucker algorithm.
-    private List<int> landmarkCandidates, rejectedCandidates;
+    // filteredCorners: List of observations that we get after running Douglas Peucker algorithm
+    // on the list of observations
+    // filteredConvexCorners: Subset of filteredCorners, that correspond to convex corners (used as landmarks
+    // candidates)
+    private List<int> filteredCorners, filteredConvexCorners;
+
+    // Current wipe shape used to update the model of the environment:
+    private WipeShape currentWipeShape;
 
     // Start is called before the first frame update
     void Start() {
@@ -44,17 +48,17 @@ public class Lidar : MonoBehaviour {
     void Update() {}
 
     public void OnDrawGizmos() {
-        if (drawCorners && landmarkCandidates != null) {
-            Gizmos.color = Color.green;
+        if (drawCorners && filteredCorners != null) {
+            Gizmos.color = Color.red;
 
-            foreach (int index in landmarkCandidates)
+            foreach (int index in filteredCorners)
                 Gizmos.DrawSphere(hitPoints[index], 0.2f);
         }
 
-        if (drawCorners && rejectedCandidates != null) {
-            Gizmos.color = Color.red;
+        if (drawCorners && filteredConvexCorners != null) {
+            Gizmos.color = Color.green;
 
-            foreach (int index in rejectedCandidates)
+            foreach (int index in filteredConvexCorners)
                 Gizmos.DrawSphere(hitPoints[index], 0.2f);
         }
 
@@ -113,8 +117,8 @@ public class Lidar : MonoBehaviour {
         if (observations == null)
             return;
 
-        landmarkCandidates = new List<int>();
-        rejectedCandidates = new List<int>();
+        filteredConvexCorners = new List<int>();
+        filteredCorners = new List<int>();
 
         // Use Douglas Peucker algorithm to reduce the set of observations made by the LIDAR:
         int[] subset = DouglasPeucker(observations, DouglasPeuckerEpsilon);
@@ -125,7 +129,7 @@ public class Lidar : MonoBehaviour {
         for(int i = 0; i < count; i++) {
             ExtendedObservation curr = observations[subset[i]];
             if (!curr.isValid) {
-                rejectedCandidates.Add(subset[i]);
+                filteredCorners.Add(subset[i]);
                 continue;
             }
 
@@ -145,10 +149,14 @@ public class Lidar : MonoBehaviour {
             float theta = Mathf.Rad2Deg * (angleB + angleE);
 
             if (theta > 220)
-                landmarkCandidates.Add(subset[i]);
+                filteredConvexCorners.Add(subset[i]);
             else
-                rejectedCandidates.Add(subset[i]);
+                filteredCorners.Add(subset[i]);
         }
+    }
+
+    public List<int> WipeShapePoints() {
+        return filteredCorners;
     }
 
     private int[] DouglasPeucker(ExtendedObservation[] observations, float epsilon) {
@@ -243,7 +251,7 @@ public class Lidar : MonoBehaviour {
     public List<Observation> GetLandmarkCandidates() {
         List<Observation> landmarks = new List<Observation>();
         
-        foreach(int index in landmarkCandidates) {
+        foreach(int index in filteredConvexCorners) {
             Observation observation = observations[index].ToObservation();
             if (worldModel.IsStatic(observation))
                 landmarks.Add(observation);

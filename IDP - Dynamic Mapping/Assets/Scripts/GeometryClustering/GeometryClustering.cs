@@ -337,6 +337,63 @@ public class GeometryClustering : MonoBehaviour
         return wipeTriangles;
     }
 
+    // Update the lines using a wipe shape instead of wipe triangles:
+    private void UpdateModelLines(Vector2 sensorPosition, List<Line> currentLines, WipeShape wipeShape) {
+        // Drawing: Reset the color of the model lines to red:
+        foreach (Line line in modelLines) line.lineColor = Color.red;
+
+        // Update the lines in the model using the wipe shape:
+
+
+        // Try to match the current lines with the lines in the model:
+        for (int i = 0; i < currentLines.Count; i++) {
+            Line line = currentLines[i];
+
+            // The best matching line we found in the model, as well as the
+            // distance between this line and the one in the model:
+            Line bestMatch = null;
+            float minDistance = -1;
+
+            Profiler.BeginSample("Lines matching");
+            foreach (Line matchCandidate in modelLines) {
+                // First test: compare the angle difference and endpoints distance between the two lines:
+                if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, LineMaxEndpointMatchDistance)) {
+
+                    // Second test: Compute the Mahalanobis distance between the lines:
+                    if (line.ComputeNormDistance(matchCandidate) < 5) {
+
+                        // Last step: Find the nearest line among the remaining candidates:
+                        // TODO: Check that this implementation matches the paper description:
+                        Profiler.BeginSample("Compute Center Distance");
+                        float centerDistance = line.ComputeCenterDistance(matchCandidate);
+                        Profiler.EndSample();
+
+                        if (bestMatch == null || centerDistance < minDistance) {
+                            bestMatch = matchCandidate;
+                            minDistance = centerDistance;
+                        }
+                    }
+                }
+            }
+            Profiler.EndSample();
+
+            // If a match is found and near enough, use this line to update the match state estimate:
+            Profiler.BeginSample("Line Update");
+            if (bestMatch != null && minDistance <= LineMaxMatchDistance) {
+                bestMatch.lineColor = Color.blue;       // Blue color for matched lines
+                bestMatch.UpdateLineUsingMatching(line);
+            }
+
+            // Else, just add this new line to the model:
+            else {
+                line.lineColor = Color.green;       // Green color for new lines
+                modelLines.AddLast(line);
+                //Debug.Log("New line (" + (++newLineCount) + ") !");
+            }
+            Profiler.EndSample();
+        }
+    }
+
     public void UpdateModelCircles(List<Circle> currentCircles, List<WipeTriangle> wipeTriangles) {
         List<Circle> newCircles = new List<Circle>();
 

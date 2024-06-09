@@ -3,8 +3,8 @@ using UnityEngine;
 
 public struct Point {
     public bool isValid;
-    public float x, y;          // Estimated position of the point, from the Kalman Filter
-    private float angle;        // Angle of the point in radians, from the LIDAR
+    public Vector2 position;    // Estimated position of the point, from the Kalman Filter
+    public float angle;         // Angle of the point in radians, from the LIDAR
 
     // Covariance matrix for the position (x, y) of the point:
     public readonly Matrix<double> Cp;
@@ -13,8 +13,7 @@ public struct Point {
     private Primitive matchingPrimitive;
 
     public Point(float x, float y, float angle, Matrix<double> covariance, bool isValid) {
-        this.x = x;
-        this.y = y;
+        this.position = new Vector2(x, y);
         this.angle = angle;
 
         this.Cp = covariance;
@@ -24,7 +23,7 @@ public struct Point {
 
     public void DrawGizmos() {
         // Center of the point in Unity 3D world space:
-        Vector3 center = new Vector3(x, 0.2f, y);
+        Vector3 center = new Vector3(position.x, 0.2f, position.y);
 
         // Draw a sphere at the position of the point:
         Gizmos.color = Color.yellow;
@@ -36,7 +35,7 @@ public struct Point {
         // If the point is matched with a primitive, draw a line, representing the speed
         // estimate of the point:
         if(matchingPrimitive != null) {
-            Vector2 speed = 10 * matchingPrimitive.VelocityOfPoint(x, y);
+            Vector2 speed = 10 * matchingPrimitive.VelocityOfPoint(position.x, position.y);
 
             Gizmos.color = Color.red;
             Gizmos.DrawLine(center, new Vector3(center.x + speed.x, center.y, center.z + speed.y));
@@ -44,10 +43,7 @@ public struct Point {
     }
 
     public static float Dist(Point a, Point b) {
-        float dX = a.x - b.x;
-        float dY = a.y - b.y;
-        
-        return Mathf.Sqrt(dX * dX + dY * dY);
+        return (b.position - a.position).magnitude;
     }
 
     public static float AngularDifference(Point a, Point b) {

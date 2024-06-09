@@ -6,11 +6,11 @@ public class CircleBuilder {
     // Points representing this circle:
     private List<Point> points;
 
-    // Regression parameters of the circle:
-    private float Rx = 0, Ry = 0;
+    // Regression parameters of the circle (Rx, Ry):
+    private Vector2 Rxy = new Vector2();
 
     // Current center of the circle:
-    private float xc, yc;
+    private Vector2 center;
 
     public CircleBuilder() {
         points = new List<Point>();
@@ -19,25 +19,18 @@ public class CircleBuilder {
     public CircleBuilder(List<Point> points) {
         this.points = points;
 
-        foreach (Point point in points) {
-            Rx += point.x;
-            Ry += point.y;
-        }
+        foreach (Point point in points)
+            Rxy += point.position;
 
-        int n = points.Count;
-        xc = Rx / n;
-        yc = Ry / n;
+        center = Rxy / points.Count;
     }
 
     public void AddPoint(Point point) {
         points.Add(point);
 
-        Rx += point.x;
-        Ry += point.y;
+        Rxy += point.position;
 
-        int n = points.Count;
-        xc = Rx / n;
-        yc = Ry / n;
+        center = Rxy / points.Count;
     }
 
     public Circle Build() {
@@ -45,7 +38,7 @@ public class CircleBuilder {
         float R = ComputeCircleRadius();
 
         // Build the circle:
-        Circle circle = new Circle(xc, yc, R);
+        Circle circle = new Circle(center.x, center.y, R);
 
         // Match all the points to the built circle:
         foreach (Point point in points) point.MatchToPrimitive(circle);
@@ -61,8 +54,8 @@ public class CircleBuilder {
 
         float sigma_x2 = 0, sigma_y2 = 0;
         foreach (Point p in points) {
-            sigma_x2 += (p.x - xc) * (p.x - xc);
-            sigma_y2 += (p.y - yc) * (p.y - yc);
+            sigma_x2 += (p.position.x - center.x) * (p.position.x - center.x);
+            sigma_y2 += (p.position.y - center.y) * (p.position.y - center.y);
         }
 
         // The division by 'n-1' instead of 'n' is known as Bessel's correction,
@@ -74,10 +67,7 @@ public class CircleBuilder {
 
     // Return the distance between the circle center and the given point:
     public float DistanceFrom(Point point) {
-        float dX = point.x - xc;
-        float dY = point.y - yc;
-
-        return Mathf.Sqrt(dX * dX + dY * dY);
+        return (point.position - center).magnitude;
     }
 
     public int PointsCount() {

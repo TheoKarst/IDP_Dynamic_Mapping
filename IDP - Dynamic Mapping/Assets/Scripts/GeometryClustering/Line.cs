@@ -1,4 +1,5 @@
 using MathNet.Numerics.LinearAlgebra;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -18,6 +19,10 @@ public class Line : Primitive {
     private Matrix<double> covariance;
 
     public Vector2 beginPoint, endPoint;
+
+    // Use a BoolAxis to represent which parts of the line are valid, according to the current
+    // observations from the LIDAR:
+    private BoolAxis lineValidity = new BoolAxis(0, 1, true);
 
     // Copy constructor:
     public Line(Line line) : this(line, line.beginPoint, line.endPoint) {}
@@ -110,6 +115,10 @@ public class Line : Primitive {
 
     public float SignedDistanceFrom(Vector2 point) {
         return point.x * Mathf.Cos(theta) + point.y * Mathf.Sin(theta) - rho;
+    }
+
+    public bool IsLeftOfLine(Vector2 point) {
+        return Vector2.Dot(Vector2.Perpendicular(endPoint - beginPoint), point - beginPoint) >= 0;
     }
 
     // Compute the Mahalanobis distance between this line and the given one:
@@ -227,7 +236,7 @@ public class Line : Primitive {
         (bool intersectC, Vector2 newC) = LineIntersect(A, A + AC, B, C);
 
         if (!intersectB || !intersectC)
-            Debug.Log("Unexpected bug: The intersection between two lines is wrong...");
+            Debug.LogError("Unexpected bug: The intersection between two lines is wrong...");
 
         Vector2 u = (newB - A).normalized, v = (newC - A).normalized;
 
@@ -240,28 +249,6 @@ public class Line : Primitive {
     // Return the length of the line, using its endpoints
     public float Length() {
         return Vector2.Distance(beginPoint, endPoint);
-    }
-
-    // Compute the intersection between this line and the segment [A,B]:
-    public Intersection ComputeIntersection(Vector2 A, Vector2 B) {
-        Vector2 AB = B - A;
-        Vector2 CD = endPoint - beginPoint;
-        Vector2 AC = beginPoint - A;
-        
-        float den = AB.x * CD.y - AB.y * CD.x;
-
-        // If lines are parallel, there is no intersection:
-        if (den == 0)
-            return null;
-
-        // Check if the finite lines are intersecting:
-        float x = (AC.x * CD.y - AC.y * CD.x) / den;
-        if (x < 0 || x > 1) return null;
-
-        float y = (AC.x * AB.y - AC.y * AB.x) / den;
-        if (y < 0 || y > 1) return null;
-
-        return new Intersection(A + x * AB, y);
     }
 
     public Vector2 VelocityOfPoint(float x, float y) {
@@ -315,6 +302,37 @@ public class Line : Primitive {
         });
     }
 
+    // Set which parts of the line are valid or invalid, according to the current observations:
+    public void UpdateValidity(List<float> changes, bool startValid) {
+        lineValidity.Reset(0, 1, startValid, changes);
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////
+    //// TODO: Remove the unnecessary line intersection computing functions...
+    /////////////////////////////////////////////////////////////////////////////////////
+    
+    // Compute the intersection between this line and the segment [A,B]:
+    public Intersection ComputeIntersection(Vector2 A, Vector2 B) {
+        Vector2 AB = B - A;
+        Vector2 CD = endPoint - beginPoint;
+        Vector2 AC = beginPoint - A;
+
+        float den = AB.x * CD.y - AB.y * CD.x;
+
+        // If lines are parallel, there is no intersection:
+        if (den == 0)
+            return null;
+
+        // Check if the finite lines are intersecting:
+        float x = (AC.x * CD.y - AC.y * CD.x) / den;
+        if (x < 0 || x > 1) return null;
+
+        float y = (AC.x * AB.y - AC.y * AB.x) / den;
+        if (y < 0 || y > 1) return null;
+
+        return new Intersection(A + x * AB, y);
+    }
+
     // Compute the intersection between two infinite lines, and return if the intersection exists:
     public static (bool, Vector2) LineIntersect(Vector2 A, Vector2 B, Vector2 C, Vector2 D) {
         Vector2 AB = B - A;
@@ -330,5 +348,19 @@ public class Line : Primitive {
         float x = (AC.x * CD.y - AC.y * CD.x) / den;
 
         return (true, A + x * AB);
+    }
+
+    public float IntersectDistance(Vector2 A, Vector2 B) {
+        Vector2 AB = B - A;
+        Vector2 CD = endPoint - beginPoint;
+
+        float den = CD.x * AB.y - CD.y * AB.x;
+
+        if (den == 0)
+            return -1;
+
+        Vector2 AC = beginPoint - A;
+
+        return (AC.y * AB.x - AC.x * AB.y) / den;
     }
 }

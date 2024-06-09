@@ -22,11 +22,11 @@ public class LineBuilder {
     public LineBuilder(Point initialPoint) {
         points.Add(initialPoint);
 
-        Rx = initialPoint.x;
-        Ry = initialPoint.y;
-        Rxx = initialPoint.x * initialPoint.x;
-        Ryy = initialPoint.y * initialPoint.y;
-        Rxy = initialPoint.x * initialPoint.y;
+        Rx = initialPoint.position.x;
+        Ry = initialPoint.position.y;
+        Rxx = initialPoint.position.x * initialPoint.position.x;
+        Ryy = initialPoint.position.y * initialPoint.position.y;
+        Rxy = initialPoint.position.x * initialPoint.position.y;
     }
 
     // Add a point to the line, and update the line parameters:
@@ -36,11 +36,11 @@ public class LineBuilder {
         // Now the endpoints are not up to date anymore:
         upToDateEndpoints = false;
 
-        Rx += point.x;
-        Ry += point.y;
-        Rxx += point.x * point.x;
-        Ryy += point.y * point.y;
-        Rxy += point.x * point.y;
+        Rx += point.position.x;
+        Ry += point.position.y;
+        Rxx += point.position.x * point.position.x;
+        Ryy += point.position.y * point.position.y;
+        Rxy += point.position.x * point.position.y;
 
         int n = points.Count;
         float N1 = Rxx * n - Rx * Rx;
@@ -105,21 +105,19 @@ public class LineBuilder {
     // in the line builder, along the line defined by the parameters (rho, theta):
     private void UpdateEndpoints() {
         float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
-        float x = rho * costheta;
-        float y = rho * sintheta;
+        
+        // "Center" of the infinite line:
+        Vector2 center = new Vector2(rho * costheta, rho * sintheta);
 
         // Unit vector along the line:
         Vector2 u = new Vector2(-sintheta, costheta);        
 
         // Compute the projection of the first point and last point of the line:
-        Point firstPoint = points[0];
-        Point lastPoint = points[points.Count - 1];
+        float pFirst = Vector2.Dot(u, points[0].position - center);
+        float pLast = Vector2.Dot(u, points[points.Count-1].position - center);
 
-        float pFirst = u.x * (firstPoint.x - x) + u.y * (firstPoint.y - y);
-        float pLast = u.x * (lastPoint.x - x) + u.y * (lastPoint.y - y);
-
-        beginPoint = new Vector2(x + pFirst * u.x, y + pFirst * u.y);
-        endPoint = new Vector2(x + pLast * u.x, y + pLast * u.y);
+        beginPoint = center + pFirst * u;
+        endPoint = center + pLast * u;
         upToDateEndpoints = true;
     }
 
@@ -184,7 +182,7 @@ public class LineBuilder {
 
     private Matrix<double> JacobianMQi(float m, float N1, float T, int i) {
         int n = points.Count;
-        float xpi = points[i].x, ypi = points[i].y;
+        float xpi = points[i].position.x, ypi = points[i].position.y;
 
         float dm_dx = (N1 * (n * ypi - Ry) - 2 * T * (n * xpi - Rx)) / (N1 * N1);
         float dm_dy = (n * xpi - Rx) / N1;
@@ -198,7 +196,7 @@ public class LineBuilder {
 
     private Matrix<double> JacobianSTi(float s, float N2, float T, int i) {
         int n = points.Count;
-        float xpi = points[i].x, ypi = points[i].y;
+        float xpi = points[i].position.x, ypi = points[i].position.y;
 
         float ds_dx = (n * ypi - Ry) / N2;
         float ds_dy = (N2 * (n * xpi - Rx) - 2 * T * (n * ypi - Ry)) / (N2 * N2);
@@ -212,7 +210,7 @@ public class LineBuilder {
 
     // Return the distance between the line and the given point:
     public float DistanceFrom(Point point) {
-        return Mathf.Abs(point.x * Mathf.Cos(theta) + point.y * Mathf.Sin(theta) - rho);
+        return Mathf.Abs(point.position.x * Mathf.Cos(theta) + point.position.y * Mathf.Sin(theta) - rho);
     }
 
     public int PointsCount() {
