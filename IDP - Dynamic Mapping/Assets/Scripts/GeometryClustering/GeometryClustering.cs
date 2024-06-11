@@ -1,5 +1,6 @@
 using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -58,17 +59,20 @@ public class GeometryClustering : MonoBehaviour
     public bool drawLines = true;
     public bool drawCircles = true;
     public bool drawCurrentLines = true;
+    public bool drawWipeShape = true;
 
     // Match to each observation (rho, theta) from the LIDAR a point in world space coordinate.
     // A point may be null if the corresponding observation was wrong (observation.distance == -1):
     private Point[] currentPoints;
 
     // Current lines and circles used to represent the environment:
-    private LinkedList<Line> modelLines = new LinkedList<Line>();
+    private List<Line> modelLines = new List<Line>();
     private List<Circle> modelCircles = new List<Circle>();
 
     // For debugging: List of lines that were built during this frame:
     private List<Line> debugCurrentLines = new List<Line>();
+
+    private WipeShape currentWipeShape;
 
     // TEST:
     private int newLineCount = 0;
@@ -85,17 +89,15 @@ public class GeometryClustering : MonoBehaviour
 
     // Update is called once per frame
     void Update() {
+        if (!lidar.InitialisationDone())
+            return;
+
         // Get the vehicle state estimate from Kalman Filter:
         VehicleState vehicleState; Matrix<double> stateCovariance;
         (vehicleState, stateCovariance) = controller.GetRobotStateEstimate();
 
         // Get the observations from the LIADR:
         ExtendedObservation[] observations = lidar.GetExtendedObservations();
-
-        // During the initialisation, the LIDAR observations may be null. In this case
-        // there is nothing to do:
-        if (observations == null)
-            return;
 
         // Get points from the LIDAR:
         Profiler.BeginSample("Compute Points");
@@ -122,39 +124,60 @@ public class GeometryClustering : MonoBehaviour
         // Use the lines from the current frame to update the model lines:
         Vector2 sensorPosition = controller.GetVehicleModel().GetSensorPosition(vehicleState);
 
+        // Build the Wipe Shape:
+        List<Point> shapePoints = new List<Point>();
+        foreach(int pointIndex in lidar.WipeShapePoints()) {
+            ExtendedObservation observation = observations[pointIndex];
+            observation.r += 0.1f;  // TEST
+
+            Vector<double> position = controller.GetVehicleModel().ComputeObservationPositionEstimate(vehicleState, observation.ToObservation());
+            float x = (float)position[0], y = (float)position[1];
+            float angle = vehicleState.phi + observation.theta;
+            shapePoints.Add(new Point(x, y, angle));
+        }
+        currentWipeShape = new WipeShape(sensorPosition, shapePoints);
+
         Profiler.BeginSample("Update Model Lines");
-        List<WipeTriangle> triangles = UpdateModelLines(sensorPosition, lines);
+        // List<WipeTriangle> triangles = UpdateModelLines(sensorPosition, lines);
+        UpdateModelLines(lines, currentWipeShape);
         Profiler.EndSample();
 
         // Use the circles from the current frame to update the model circles:
         Profiler.BeginSample("Update Model Circles");
-        UpdateModelCircles(circles, triangles);
+        // UpdateModelCircles(circles, triangles);
+        UpdateModelCircles(circles, currentWipeShape);
         Profiler.EndSample();
 
         Debug.Log("Points: " + currentPoints.Length + "; Lines: " + modelLines.Count 
-            + "; Circles: " + modelCircles.Count + "; Triangles: " + triangles.Count);
+            + "; Circles: " + modelCircles.Count);
     }
 
     public void OnDrawGizmos() {
-        if(drawCurrentLines && debugCurrentLines != null) {
+        const float height = 0.2f;
+
+        if (drawCurrentLines && debugCurrentLines != null) {
             foreach(Line line in debugCurrentLines)
-                line.DrawGizmos();
+                line.DrawGizmos(height);
         }
 
         if (drawPoints && currentPoints != null) {
             foreach (Point point in currentPoints)
                 if(point.isValid)
-                    point.DrawGizmos();
+                    point.DrawGizmos(height);
         }
 
         if (drawLines && modelLines != null) {
             foreach (Line line in modelLines)
-                line.DrawGizmos();
+                line.DrawGizmos(height);
         }
 
         if(drawCircles && modelCircles != null) {
             foreach (Circle circle in modelCircles)
-                circle.DrawGizmos();
+                circle.DrawGizmos(height);
+        }
+
+        if(drawWipeShape && currentWipeShape != null) {
+            currentWipeShape.DrawGizmos(height);
         }
     }
 
@@ -262,6 +285,7 @@ public class GeometryClustering : MonoBehaviour
         return (extractedLines, extractedCircles);
     }
 
+    /*
     private List<WipeTriangle> UpdateModelLines(Vector2 sensorPosition, List<Line> currentLines) {
 
         // List of wipe triangles built from the current lines:
@@ -335,15 +359,16 @@ public class GeometryClustering : MonoBehaviour
 
         // List of wipe triangles that we built, that will be used to remove inconsistent circles:
         return wipeTriangles;
-    }
+    }*/
 
     // Update the lines using a wipe shape instead of wipe triangles:
-    private void UpdateModelLines(Vector2 sensorPosition, List<Line> currentLines, WipeShape wipeShape) {
-        // Drawing: Reset the color of the model lines to red:
-        foreach (Line line in modelLines) line.lineColor = Color.red;
+    private void UpdateModelLines(List<Line> currentLines, WipeShape wipeShape) {
+        List<Line> newLines = new List<Line>();
 
         // Update the lines in the model using the wipe shape:
-
+        Profiler.BeginSample("Wipe Shape Line Update");
+        wipeShape.UpdateLines(modelLines);
+        Profiler.EndSample();
 
         // Try to match the current lines with the lines in the model:
         for (int i = 0; i < currentLines.Count; i++) {
@@ -387,13 +412,20 @@ public class GeometryClustering : MonoBehaviour
             // Else, just add this new line to the model:
             else {
                 line.lineColor = Color.green;       // Green color for new lines
-                modelLines.AddLast(line);
-                //Debug.Log("New line (" + (++newLineCount) + ") !");
+                newLines.Add(line);
+                Debug.Log("New line (" + (++newLineCount) + ") !");
             }
             Profiler.EndSample();
         }
+
+        // Keep only the valid parts of the lines from the model:
+        foreach (Line line in modelLines)
+            line.AddValidParts(newLines, LineMinLength);
+
+        modelLines = newLines;
     }
 
+    /*
     public void UpdateModelCircles(List<Circle> currentCircles, List<WipeTriangle> wipeTriangles) {
         List<Circle> newCircles = new List<Circle>();
 
@@ -434,5 +466,55 @@ public class GeometryClustering : MonoBehaviour
         // Use the wipe triangles of the new lines to delete inconsistent circles:
         foreach(WipeTriangle triangle in wipeTriangles) 
             modelCircles = triangle.UpdateCircles(modelCircles);
+    }
+    */
+
+    public void UpdateModelCircles(List<Circle> currentCircles, WipeShape wipeShape) {
+        List<Circle> newCircles = new List<Circle>();
+
+        // Drawing: Reset the color of the model circles to red:
+        foreach (Circle circle in modelCircles) circle.circleColor = Color.red;
+
+        // Update the circles in the model using the wipe shape:
+        Profiler.BeginSample("Wipe Shape Circle Update");
+        wipeShape.UpdateCircles(modelCircles);
+        Profiler.EndSample();
+
+        // Try to match the current circles with the circles in the model:
+        foreach (Circle circle in currentCircles) {
+            Circle bestMatch = null;
+            float minDistance = -1;
+
+            foreach (Circle matchCandidate in modelCircles) {
+                float distance = circle.DistanceFrom(matchCandidate);
+
+                if (bestMatch == null || distance < minDistance) {
+                    bestMatch = matchCandidate;
+                    minDistance = distance;
+                }
+            }
+
+            // If a match is found, use this circle to update the match state estimate:
+            if (bestMatch != null && minDistance <= CircleMaxMatchDistance) {
+                bestMatch.UpdateCircleUsingMatching(circle);
+
+                // If a circle is matched with a current circle, then it's valid:
+                bestMatch.UpdateValidity(true);
+                bestMatch.circleColor = Color.blue;
+            }
+
+            // Else, just add the circle to the model:
+            else {
+                newCircles.Add(circle);
+                circle.circleColor = Color.green;
+            }
+        }
+
+        // Keep only the valid circles in the model:
+        foreach (Circle circle in modelCircles)
+            if (circle.isValid)
+                newCircles.Add(circle);
+
+        modelCircles = newCircles;
     }
 }

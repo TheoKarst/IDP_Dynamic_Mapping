@@ -85,6 +85,25 @@ public class VehicleModel {
         return new Observation(ri, thetai);
     }
 
+    // From the vehicle state estimate, compute the position of the given observation in
+    // global space, without computing the corresponding covariance matrix:
+    public Vector<double> ComputeObservationPositionEstimate(
+        VehicleState stateEstimate, Observation observation) {
+
+        // Perform renamings for simplification:
+        float x = stateEstimate.x, y = stateEstimate.y, phi = stateEstimate.phi;
+        float r = observation.r, theta = observation.theta;
+
+        // Compute some intermediate values:
+        float cosphi = Mathf.Cos(phi), sinphi = Mathf.Sin(phi);
+        float cosphi_theta = Mathf.Cos(phi + theta), sinphi_theta = Mathf.Sin(phi + theta);
+
+        // From the state estimate and the observation, compute the global position of the observation:
+        return V.Dense(new double[] {
+            x + a * cosphi - b * sinphi + r * cosphi_theta,
+            y + a * sinphi + b * cosphi + r * sinphi_theta});
+    }
+
     // From the vehicle state estimate and covariance, compute the position of the given observation in
     // global space, as well as the associated covariance matrix:
     public (Vector<double>, Matrix<double>) ComputeObservationPositionEstimate(

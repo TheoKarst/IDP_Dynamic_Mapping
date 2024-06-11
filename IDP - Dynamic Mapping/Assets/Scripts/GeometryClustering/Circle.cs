@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class Circle : Primitive {
@@ -9,6 +10,8 @@ public class Circle : Primitive {
 
     public Vector2 position { get => new Vector2(xc, yc); }
 
+    public bool isValid = true;
+
     public Circle(float xc, float yc, float R) {
         this.xc = xc;
         this.yc = yc;
@@ -17,9 +20,9 @@ public class Circle : Primitive {
         this.xcP = this.ycP = 0;
     }
 
-    public void DrawGizmos() {
+    public void DrawGizmos(float height) {
         Gizmos.color = circleColor;
-        Gizmos.DrawSphere(new Vector3(xc, 0.2f, yc), R);
+        Gizmos.DrawSphere(Utils.To3D(xc, yc, height), R);
     }
 
     // Supposing that this circle belongs to the current model of the environment, use the
@@ -52,5 +55,11 @@ public class Circle : Primitive {
     // of the center of the circle:
     public Vector2 VelocityOfPoint(float x, float y) {
         return new Vector2(xcP, ycP);
+    }
+
+    // Set if the circle is valid (it's valid if the center of the circle is outside the
+    // current WipeShape:
+    public void UpdateValidity(bool isValid) {
+        this.isValid = isValid;
     }
 }

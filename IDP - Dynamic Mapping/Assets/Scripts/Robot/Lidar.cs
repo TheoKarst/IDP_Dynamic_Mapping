@@ -4,7 +4,7 @@ using UnityEngine;
 public class Lidar : MonoBehaviour {
 
     [Tooltip("Model used to represent the world state estimate")]
-    public RobotBresenham worldModel;
+    public GridMapBresenham worldModel;
 
     [Tooltip("Number of raycasts produced by the LIDAR")]
     public int raycastCount = 500;
@@ -34,8 +34,7 @@ public class Lidar : MonoBehaviour {
     // candidates)
     private List<int> filteredCorners, filteredConvexCorners;
 
-    // Current wipe shape used to update the model of the environment:
-    private WipeShape currentWipeShape;
+    private bool initializationDone = false;
 
     // Start is called before the first frame update
     void Start() {
@@ -85,6 +84,8 @@ public class Lidar : MonoBehaviour {
 
         // From the observations, detect the ones that correspond to corners (that are used as landmarks):
         DetectCorners();
+
+        initializationDone = true;
     }
 
     // Use raycasting to compute the observations made by the LIDAR:
@@ -128,10 +129,10 @@ public class Lidar : MonoBehaviour {
         // Use the same naming convention as the paper "Corner Detection for Room Mapping of Fire Fighting Robot":
         for(int i = 0; i < count; i++) {
             ExtendedObservation curr = observations[subset[i]];
-            if (!curr.isValid) {
-                filteredCorners.Add(subset[i]);
+            filteredCorners.Add(subset[i]);
+
+            if (!curr.isValid)
                 continue;
-            }
 
             ExtendedObservation prev = observations[subset[(i + count - 1) % count]];
             ExtendedObservation next = observations[subset[(i + 1) % count]];
@@ -150,8 +151,6 @@ public class Lidar : MonoBehaviour {
 
             if (theta > 220)
                 filteredConvexCorners.Add(subset[i]);
-            else
-                filteredCorners.Add(subset[i]);
         }
     }
 
@@ -237,6 +236,10 @@ public class Lidar : MonoBehaviour {
         }
         else
             return new (int, Vector2)[] { points[start], points[end] };
+    }
+
+    public bool InitialisationDone() {
+        return initializationDone;
     }
 
     public (float, float) GetLocalPosition() {

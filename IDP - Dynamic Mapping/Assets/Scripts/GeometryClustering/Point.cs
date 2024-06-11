@@ -12,18 +12,27 @@ public struct Point {
     // Primitive this point is supposed to belong to:
     private Primitive matchingPrimitive;
 
+    public Point(float x, float y, float angle) {
+        this.position = new Vector2(x, y);
+        this.angle = angle;
+
+        this.Cp = null;
+        this.matchingPrimitive = null;
+        this.isValid = true;
+    }
+
     public Point(float x, float y, float angle, Matrix<double> covariance, bool isValid) {
         this.position = new Vector2(x, y);
         this.angle = angle;
 
         this.Cp = covariance;
-        matchingPrimitive = null;
+        this.matchingPrimitive = null;
         this.isValid = isValid;
     }
 
-    public void DrawGizmos() {
+    public void DrawGizmos(float height) {
         // Center of the point in Unity 3D world space:
-        Vector3 center = new Vector3(position.x, 0.2f, position.y);
+        Vector3 center = Utils.To3D(position, height);
 
         // Draw a sphere at the position of the point:
         Gizmos.color = Color.yellow;
@@ -38,7 +47,7 @@ public struct Point {
             Vector2 speed = 10 * matchingPrimitive.VelocityOfPoint(position.x, position.y);
 
             Gizmos.color = Color.red;
-            Gizmos.DrawLine(center, new Vector3(center.x + speed.x, center.y, center.z + speed.y));
+            Gizmos.DrawLine(center, Utils.To3D(position + speed, height));
         }
     }
 

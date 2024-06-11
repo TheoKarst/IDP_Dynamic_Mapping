@@ -15,8 +15,8 @@ public struct ExtendedObservation {
     }
 
     public Observation ToObservation() {
-        if (!isValid)
-            Debug.LogError("Trying to create an invalid observation");
+        //if (!isValid)
+        //    Debug.LogError("Trying to create an invalid observation");
 
         return new Observation(r, theta);
     }

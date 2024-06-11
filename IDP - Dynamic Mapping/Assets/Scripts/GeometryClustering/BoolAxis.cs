@@ -59,4 +59,46 @@ public class BoolAxis {
         this.startValue = startValue;
         this.splits = splits;
     }
+
+    public void RemoveGaps(float gapSize) {
+        // TODO: Implement this !
+    }
+
+    public IEnumerable<(float min, float max)> GetTrueZones() {
+        float prev = startValue ? rangeMin : splits[0];
+
+        int index = startValue ? 0 : 1;
+        for (; index < splits.Count; index += 2) {
+            yield return (prev, splits[index]);
+            if(index+1 < splits.Count) prev = splits[index+1];
+        }
+
+        if(index == splits.Count)
+            yield return (prev, rangeMax);
+    }
+
+    public IEnumerable<(float min, float max)> GetFalseZones() {
+        float prev = startValue ? splits[0] : rangeMin;
+
+        int index = startValue ? 1 : 0;
+        for (; index < splits.Count; index += 2) {
+            yield return (prev, splits[index]);
+            if(index+1 < splits.Count) prev = splits[index + 1];
+        }
+
+        if (index == splits.Count)
+            yield return (prev, rangeMax);
+    }
+
+    public bool IsConstant() {
+        return splits.Count == 0;
+    }
+
+    public bool StartValue() {
+        return startValue;
+    }
+
+    public override string ToString() {
+        return "[Start: " + startValue + ", Splits: [" + string.Join(", ", splits) + "]]";
+    }
 }

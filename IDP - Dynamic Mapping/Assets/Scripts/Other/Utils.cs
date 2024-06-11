@@ -44,6 +44,10 @@ public class Utils {
         return Mathf.Round(value * factor) / factor;
     }
 
+    public static Vector3 To3D(float x, float y, float height) {
+        return new Vector3(x, height, y);
+    }
+
     public static Vector3 To3D(Vector2 position, float height) {
         return new Vector3(position.x, height, position.y);
     }

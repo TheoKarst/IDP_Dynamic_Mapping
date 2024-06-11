@@ -23,6 +23,7 @@ public class Line : Primitive {
     // Use a BoolAxis to represent which parts of the line are valid, according to the current
     // observations from the LIDAR:
     private BoolAxis lineValidity = new BoolAxis(0, 1, true);
+    private Vector2 lineValidityBegin, lineValidityEnd, lineValidityU;
 
     // Copy constructor:
     public Line(Line line) : this(line, line.beginPoint, line.endPoint) {}
@@ -55,9 +56,9 @@ public class Line : Primitive {
         this.endPoint = endPoint;
     }
 
-    public void DrawGizmos() {
-        Vector3 p1 = new Vector3(beginPoint.x, 0.2f, beginPoint.y);
-        Vector3 p2 = new Vector3(endPoint.x, 0.2f, endPoint.y);
+    public void DrawGizmos(float height) {
+        Vector3 p1 = Utils.To3D(beginPoint, height);
+        Vector3 p2 = Utils.To3D(endPoint, height);
         Handles.DrawBezier(p1, p2, p1, p2, lineColor, null, 4);
     }
 
@@ -185,23 +186,29 @@ public class Line : Primitive {
         // Use the endpoints that extend the line the most, among the endpoints from this line and
         // the given one, to update this line endpoints:
         float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
-        float x = rho * costheta;
-        float y = rho * sintheta;
+
+        // "Center" of the infinite line:
+        Vector2 center = new Vector2(rho * costheta, rho * sintheta);
 
         // Unit vector along the line:
         Vector2 u = new Vector2(-sintheta, costheta);
 
         // Compute the projection of the given points along this line:
-        float proj1 = u.x * (beginPoint.x - x) + u.y * (beginPoint.y - y);
-        float proj2 = u.x * (endPoint.x - x) + u.y * (endPoint.y - y);
-        float proj3 = u.x * (other.beginPoint.x - x) + u.y * (other.beginPoint.y - y);
-        float proj4 = u.x * (other.endPoint.x - x) + u.y * (other.endPoint.y - y);
+        float proj1 = Vector2.Dot(beginPoint - center, u);
+        float proj2 = Vector2.Dot(endPoint - center, u);
+        float proj3 = Vector2.Dot(other.beginPoint - center, u);
+        float proj4 = Vector2.Dot(other.endPoint - center, u);
 
         float pMin = Mathf.Min(proj1, proj2, proj3, proj4);
         float pMax = Mathf.Max(proj1, proj2, proj3, proj4);
 
-        beginPoint = new Vector2(x + pMin * u.x, y + pMin * u.y);
-        endPoint = new Vector2(x + pMax * u.x, y + pMax * u.y);
+        // Debug.Log("Resize line: [" + proj1 + ", " + proj2 + "] => [" + pMin + ", " + pMax + "]");
+
+        beginPoint = center + pMin * u;
+        endPoint = center + pMax * u;
+
+        // We also have to update which parts of the line are valid or not:
+        UpdateValidity(other.beginPoint, other.endPoint);
     }
 
     public WipeTriangle BuildWipeTriangle(Vector2 sensorPosition, float triangleExtent, float insideAngleMargin) {
@@ -305,12 +312,67 @@ public class Line : Primitive {
     // Set which parts of the line are valid or invalid, according to the current observations:
     public void UpdateValidity(List<float> changes, bool startValid) {
         lineValidity.Reset(0, 1, startValid, changes);
+        lineValidityBegin = beginPoint;
+        lineValidityEnd = endPoint;
+
+        lineValidityU = endPoint - beginPoint;
+        lineValidityU /= lineValidityU.sqrMagnitude;
+
+        // Debug.Log("Reset validity [0, 1]: " + lineValidity);
+    }
+
+    private void UpdateValidity(Vector2 matchBegin, Vector2 matchEnd) {
+        float pBegin = Vector2.Dot(matchBegin - lineValidityBegin, lineValidityU);
+        float pEnd = Vector2.Dot(matchEnd - lineValidityBegin, lineValidityU);
+
+        if (pBegin > pEnd)
+            (pBegin, pEnd) = (pEnd, pBegin);
+
+        // TEST:
+        pBegin -= 0.01f;
+        pEnd += 0.01f;
+
+        lineValidity.SetValue(pBegin, pEnd, true);
+        // Debug.Log("Update validity: [" + pBegin + ", " + pEnd + "]");
+    }
+
+    public void AddValidParts(List<Line> dest, float minLineLength) {
+        // string logMsg = "Line validity: " + lineValidity + " => ";
+        
+        if (lineValidity.IsConstant()) {
+            if (lineValidity.StartValue() == true) {
+                dest.Add(this);
+                // Debug.Log(logMsg += "Keep line");
+            }
+            // else
+            //    Debug.Log(logMsg += "Delete line");
+            return;
+        }
+
+        float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
+        Vector2 center = new Vector2(rho * costheta, rho * sintheta);
+        Vector2 u = new Vector2(-sintheta, costheta);
+
+        // logMsg += "Split line: ";
+        foreach ((float min, float max) validZone in lineValidity.GetTrueZones()) {
+            Vector2 p1 = lineValidityBegin + validZone.min * (lineValidityEnd - lineValidityBegin);
+            Vector2 p2 = lineValidityBegin + validZone.max * (lineValidityEnd - lineValidityBegin);
+
+            float proj1 = Vector2.Dot(p1 - center, u);
+            float proj2 = Vector2.Dot(p2 - center, u);
+
+            if (Mathf.Abs(proj2 - proj1) >= minLineLength) {
+                dest.Add(new Line(this, center + proj1 * u, center + proj2 * u));
+                // logMsg += "[" + validZone.min + "; " + validZone.max + "]; ";
+            }
+        }
+        // Debug.Log(logMsg);
     }
 
     /////////////////////////////////////////////////////////////////////////////////////
     //// TODO: Remove the unnecessary line intersection computing functions...
     /////////////////////////////////////////////////////////////////////////////////////
-    
+
     // Compute the intersection between this line and the segment [A,B]:
     public Intersection ComputeIntersection(Vector2 A, Vector2 B) {
         Vector2 AB = B - A;
