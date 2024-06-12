@@ -1,52 +1,47 @@
+using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Lidar : MonoBehaviour {
+public class Lidar {
 
-    [Tooltip("Model used to represent the world state estimate")]
-    public GridMapBresenham worldModel;
+    // GameObject representing the LIDAR:
+    private GameObject lidar;
 
-    [Tooltip("Number of raycasts produced by the LIDAR")]
-    public int raycastCount = 500;
+    // Number of raycasts produced by the LIDAR:
+    private int raycastCount;
 
-    [Tooltip("Maximum distance of the raycasts")]
-    public float raycastDistance = 20;
+    // Maximum distance of the raycasts:
+    private float raycastDistance;
 
-    [Tooltip("Epsilon we are using in Douglas Peucker algorithm to simplify the " +
-        "contour shape of the LIDAR, before corners extraction")]
-    public float DouglasPeuckerEpsilon = 0.2f;
+    // Epsilon we are using in Douglas Peucker algorithm to simplify the contour shape of the LIDAR,
+    // before corners extraction:
+    private float douglasPeuckerEpsilon;
 
-    public bool drawRays = true;
-    public bool drawCorners = true;
-
-    // Real position of the hit points from the LIDAR (only used for drawing):
-    private Vector3[] hitPoints;
-
-    // For drawing only:
-    private Vector3 lastScanPosition, lastScanForward;
-
-    // List of observations made by the LIDAR, as well as the observation index and if the observation is valid or not:
+    // List of observations made by the LIDAR, as well as the observation index
+    // and if the observation is valid (a hit was found) or not:
     private ExtendedObservation[] observations;
 
-    // filteredCorners: List of observations that we get after running Douglas Peucker algorithm
-    // on the list of observations
-    // filteredConvexCorners: Subset of filteredCorners, that correspond to convex corners (used as landmarks
-    // candidates)
-    private List<int> filteredCorners, filteredConvexCorners;
+    // List of observations that we get after running Douglas Peucker algorithm on the list of observations:
+    private List<int> filteredCorners;
 
-    private bool initializationDone = false;
+    // Subset of filteredCorners, that correspond to convex corners (used as landmarks candidates):
+    private List<int> filteredConvexCorners;
 
-    // Start is called before the first frame update
-    void Start() {
-        hitPoints = new Vector3[raycastCount];
-        observations = new ExtendedObservation[raycastCount];
+    // Used for drawing only:
+    private Vector3[] hitPoints;                        // Real position of the hit points
+    private Vector3 lastScanPosition, lastScanForward;  // Real position of the LIDAR during last scan
+
+    public Lidar(GameObject lidar, RobotManager.LidarParams lidarParams) {
+        this.lidar = lidar;
+        this.raycastCount = lidarParams.raycastCount;
+        this.raycastDistance = lidarParams.raycastDistance;
+        this.douglasPeuckerEpsilon = lidarParams.douglasPeuckerEpsilon;
+
+        this.hitPoints = new Vector3[raycastCount];
+        this.observations = new ExtendedObservation[raycastCount];
     }
 
-    // Update is called once per frame. We do nothing here: the raycasting computation is done
-    // when calling PerformLidarScan(). This solves some synchronization issues:
-    void Update() {}
-
-    public void OnDrawGizmos() {
+    public void DrawGizmos(bool drawRays, bool drawCorners) {
         if (drawCorners && filteredCorners != null) {
             Gizmos.color = Color.red;
 
@@ -73,36 +68,35 @@ public class Lidar : MonoBehaviour {
         }
     }
 
-    // Use raycasting to compute the observations made by the LIDAR:
-    public void PerformLidarScan() {
+    public void Update() {
         // Save the current position and orientation of the LIDAR, to draw gizmos later:
-        lastScanPosition = transform.position;
-        lastScanForward = transform.TransformDirection(Vector3.forward);
+        lastScanPosition = lidar.transform.position;
+        lastScanForward = lidar.transform.TransformDirection(Vector3.forward);
 
-        // Compute the raycast intersections with the environment, and update the observations:
+        // Use raycasting to compute the observations from the LIDAR:
         ComputeObservations();
 
-        // From the observations, detect the ones that correspond to corners (that are used as landmarks):
+        // Detect the corners among the previous observations:
         DetectCorners();
-
-        initializationDone = true;
     }
 
     // Use raycasting to compute the observations made by the LIDAR:
     private void ComputeObservations() {
+
+        // Use raycasting to compute the current observations:
         float observationAngle = 0;
-        Vector3 direction = transform.TransformDirection(Vector3.forward);
+        Vector3 direction = lidar.transform.TransformDirection(Vector3.forward);
 
         for (int i = 0; i < observations.Length; i++) {
             RaycastHit hit;
-            if (Physics.Raycast(transform.position, direction, out hit, raycastDistance)) {
+            if (Physics.Raycast(lidar.transform.position, direction, out hit, raycastDistance)) {
                 hitPoints[i] = hit.point;
 
                 // Used for localisation, mapping, etc...
                 observations[i] = new ExtendedObservation(hit.distance, observationAngle, i, true);
             }
             else {
-                hitPoints[i] = transform.position + direction * raycastDistance;
+                hitPoints[i] = lidar.transform.position + direction * raycastDistance;
 
                 // Used for localisation, mapping, etc...
                 observations[i] = new ExtendedObservation(raycastDistance, observationAngle, i, false);
@@ -115,18 +109,15 @@ public class Lidar : MonoBehaviour {
     }
 
     private void DetectCorners() {
-        if (observations == null)
-            return;
-
         filteredConvexCorners = new List<int>();
         filteredCorners = new List<int>();
 
         // Use Douglas Peucker algorithm to reduce the set of observations made by the LIDAR:
-        int[] subset = DouglasPeucker(observations, DouglasPeuckerEpsilon);
+        int[] subset = DouglasPeucker(observations, douglasPeuckerEpsilon);
 
         int count = subset.Length;
 
-        // Use the same naming convention as the paper "Corner Detection for Room Mapping of Fire Fighting Robot":
+        // Use the same naming convention as the paper "Corner Detection for Room Mapping of Fire Fighting RobotManager":
         for(int i = 0; i < count; i++) {
             ExtendedObservation curr = observations[subset[i]];
             filteredCorners.Add(subset[i]);
@@ -154,8 +145,28 @@ public class Lidar : MonoBehaviour {
         }
     }
 
-    public List<int> WipeShapePoints() {
-        return filteredCorners;
+    public WipeShape BuildWipeShape(RobotManager manager, VehicleState vehicleState, Vector2 sensorPosition, float extentMargin) {
+        
+        // Use the filteredCorners to build the WipeShape:
+        List<Point> shapePoints = new List<Point>(filteredCorners.Count);
+        foreach (int index in filteredCorners) {
+            ExtendedObservation observation = observations[index];
+
+            // Add a margin to the observation:
+            observation.r += extentMargin;
+
+            // Compute the world space position of the observation:
+            Vector<double> position = manager.ComputeObservationPositionEstimate(observation.ToObservation());
+            float x = (float)position[0], y = (float)position[1];
+
+            // Compute the world space angle of the observation:
+            float angle = vehicleState.phi + observation.theta;
+
+            // Build the point:
+            shapePoints.Add(new Point(x, y, angle));
+        }
+
+        return new WipeShape(sensorPosition, shapePoints);
     }
 
     private int[] DouglasPeucker(ExtendedObservation[] observations, float epsilon) {
@@ -238,12 +249,9 @@ public class Lidar : MonoBehaviour {
             return new (int, Vector2)[] { points[start], points[end] };
     }
 
-    public bool InitialisationDone() {
-        return initializationDone;
-    }
-
+    // Position of the LIDAR on the robot:
     public (float, float) GetLocalPosition() {
-        return (transform.localPosition.z, -transform.localPosition.x);
+        return (lidar.transform.localPosition.z, -lidar.transform.localPosition.x);
     }
 
     public ExtendedObservation[] GetExtendedObservations() {
@@ -251,7 +259,7 @@ public class Lidar : MonoBehaviour {
     }
 
     // Use the static landmark candidates to update our state estimate:
-    public List<Observation> GetLandmarkCandidates() {
+    public List<Observation> GetLandmarkCandidates(WorldModel worldModel) {
         List<Observation> landmarks = new List<Observation>();
         
         foreach(int index in filteredConvexCorners) {
@@ -273,9 +281,9 @@ public class Lidar : MonoBehaviour {
     public void DrawObservation(Observation observation, Color color) {
         float duration = 0.02f;
 
-        Vector3 direction = transform.TransformDirection(Vector3.forward);
+        Vector3 direction = lidar.transform.TransformDirection(Vector3.forward);
         direction = Quaternion.AngleAxis(-observation.theta * Mathf.Rad2Deg, Vector3.up) * direction;
 
-        Debug.DrawRay(transform.position, direction * observation.r, color, duration);
+        Debug.DrawRay(lidar.transform.position, direction * observation.r, color, duration);
     }
 }

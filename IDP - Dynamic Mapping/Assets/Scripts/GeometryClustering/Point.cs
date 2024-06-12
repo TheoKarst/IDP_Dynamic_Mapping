@@ -1,7 +1,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
-public struct Point {
+public class Point {
     public bool isValid;
     public Vector2 position;    // Estimated position of the point, from the Kalman Filter
     public float angle;         // Angle of the point in radians, from the LIDAR
@@ -44,7 +44,7 @@ public struct Point {
         // If the point is matched with a primitive, draw a line, representing the speed
         // estimate of the point:
         if(matchingPrimitive != null) {
-            Vector2 speed = 10 * matchingPrimitive.VelocityOfPoint(position.x, position.y);
+            Vector2 speed = 100 * matchingPrimitive.VelocityOfPoint(position.x, position.y);
 
             Gizmos.color = Color.red;
             Gizmos.DrawLine(center, Utils.To3D(position + speed, height));

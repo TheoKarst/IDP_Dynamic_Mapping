@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 1757787695715176204}
   - component: {fileID: 4582742122444791371}
   - component: {fileID: 3316204894339064747}
-  - component: {fileID: 9173688893389855765}
   m_Layer: 0
   m_Name: Lidar
   m_TagString: Untagged
@@ -84,24 +83,6 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &9173688893389855765
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1992746048627492761}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12748d0346ee30b4090d5cecfee22803, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  worldModel: {fileID: 4858635489502067460}
-  raycastCount: 500
-  raycastDistance: 50
-  DouglasPeuckerEpsilon: 0.5
-  drawRays: 0
-  drawCorners: 1
 --- !u!1 &3846728743519492197
 GameObject:
   m_ObjectHideFlags: 0
@@ -277,9 +258,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8597297214547135948}
-  - component: {fileID: 4858635489502067460}
-  - component: {fileID: 5064090248960098729}
-  - component: {fileID: 447026085796987970}
+  - component: {fileID: 4088753169920909541}
   m_Layer: 0
   m_Name: Robot
   m_TagString: Untagged
@@ -305,7 +284,7 @@ Transform:
   - {fileID: 6513797229023282492}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
---- !u!114 &4858635489502067460
+--- !u!114 &4088753169920909541
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -314,70 +293,61 @@ MonoBehaviour:
   m_GameObject: {fileID: 8296391503009627891}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 10654d9603ac62a4d90ad8c0780fb6b7, type: 3}
+  m_Script: {fileID: 11500000, guid: 6eca411602db2b24fb04f976f6e2fd91, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  image: {fileID: 0}
-  pixelSize: 1
-  cellSize: 0.1
-  mapWidth: 700
-  mapHeight: 400
-  lidar: {fileID: 9173688893389855765}
-  controller: {fileID: 5064090248960098729}
-  maxConfidence: 0.95
-  framesToConsiderStatic: 60
-  framesToConsiderDynamic: 2
---- !u!114 &5064090248960098729
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8296391503009627891}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bfdbb4d2584fb6c4498c27773b9c75ef, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  lidar: {fileID: 9173688893389855765}
-  lockKeys: 0
-  writeLogFile: 0
-  acceleration: 10
-  L: 0.3
-  maxSpeed: 1
-  maxSteering: 5
-  friction: 10
-  waitBetweenMeasures: 0.02
-  drawConfirmedLandmarks: 0
-  drawPotentialLandmarks: 0
-  drawObservations: 0
-  minDistanceBetweenLandmarks: 2
---- !u!114 &447026085796987970
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8296391503009627891}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 92c7567aebdb06e4c88242fb915722f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  lidar: {fileID: 9173688893389855765}
-  controller: {fileID: 5064090248960098729}
-  PointCriticalDistance: 2
-  LineCriticalDistance: 0.2
-  CriticalAlpha: 5
-  CircleCriticalDistance: 0.2
-  LineMinLength: 0.3
-  LineMaxMatchAngle: 5
-  LineMaxEndpointMatchDistance: 1
-  LineMaxMatchDistance: 2
-  CircleMaxMatchDistance: 0.5
-  WipeTriangleExtent: 0.4
-  MinCircleLineDistance: 0.5
-  drawPoints: 1
-  drawLines: 1
-  drawCircles: 1
-  drawCurrentLines: 0
+  waitBetweenUpdates: 0.02
+  robotObject: {fileID: 8296391503009627891}
+  controllerParams:
+    forceForward: 0
+    forceBackward: 0
+    forceLeft: 0
+    forceRight: 0
+    acceleration: 10
+    L: 0.3
+    maxSpeed: 2
+    maxSteering: 10
+    friction: 10
+  lidarObject: {fileID: 1992746048627492761}
+  lidarParams:
+    raycastCount: 500
+    raycastDistance: 10
+    douglasPeuckerEpsilon: 0.2
+    drawRays: 0
+    drawCorners: 1
+  kalmanParams:
+    writeLogFile: 0
+    maxLandmarksPerUpdate: 5
+    minDistanceBetweenLandmarks: 1
+    drawConfirmedLandmarks: 0
+    drawPotentialLandmarks: 0
+    drawObservations: 0
+  gridMapParams:
+    mapImage: {fileID: 0}
+    textureUpdateWait: 10
+    showTexture: 1
+    pixelSize: 2
+    cellSize: 0.1
+    mapWidth: 100
+    mapHeight: 60
+    maxConfidence: 0.99
+    framesToConsiderStatic: 60
+    framesToConsiderDynamic: 20
+  geometryClusterParams:
+    PointCriticalDistance: 0.2
+    LineCriticalDistance: 0.06
+    CriticalAlpha: 1
+    CircleCriticalDistance: 0.2
+    LineMinLength: 0.3
+    LineMaxMatchAngle: 10
+    LineMaxEndpointMatchDistance: 0.1
+    LineMaxMatchDistance: 0.2
+    CircleMaxMatchDistance: 0.2
+    WipeTriangleExtent: 0.1
+    WipeTriangleInsideAngleMargin: 1
+    MinCircleLineDistance: 0.5
+    drawPoints: 1
+    drawLines: 1
+    drawCircles: 1
+    drawCurrentLines: 1
+    drawWipeShape: 1

@@ -1,65 +1,17 @@
 using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.Profiling;
 
-public class GeometryClustering : MonoBehaviour
-{
-    public Lidar lidar;
-    public RobotController controller;
+public class GeometryClustering {
 
-    [Header("Geometry Extraction:")]
+    // 
+    private RobotManager robot;
 
-    [Tooltip("Maximum distance between two consecutive points to be matched to the same line")]
-    public float PointCriticalDistance = 0.2f;
-
-    [Tooltip("Maximum orthogonal distance of a point to a matching line")]
-    public float LineCriticalDistance = 0.06f;
-
-    [Tooltip("Maximum angle (in degrees) between two consecutive points to be matched to the same line")]
-    public float CriticalAlpha = 1f;
+    private RobotManager.GeometryClusterParams parameters;
     private float CriticalAlphaRadians;
-
-    [Tooltip("Maximum distance between two consecutive points to be matched to the same circle cluster")]
-    public float CircleCriticalDistance = 0.2f;
-
-    [Tooltip("Minimum length of a line (smaller lines are considered as circle clusters)")]
-    public float LineMinLength = 0.3f;
-
-    [Header("Geometry Matching:")]
-
-    [Tooltip("Maximum angle (in degrees) between two lines to be matched together")]
-    public float LineMaxMatchAngle = 10f;
     private float LineMaxMatchAngleRadians;
-
-    [Tooltip("Maximum distance between the endpoint of two lines to be matched together")]
-    public float LineMaxEndpointMatchDistance = 0.1f;
-
-    [Tooltip("Maximum distance between two lines to be matched together")]
-    public float LineMaxMatchDistance = 0.2f;
-
-    [Tooltip("Maximum distance between two circles to be matched together")]
-    public float CircleMaxMatchDistance = 0.2f;
-
-    [Header("Geometry removing")]
-
-    [Tooltip("Extent of the wipe triangle built for new lines")]
-    public float WipeTriangleExtent = 0.1f;
-
-    [Tooltip("Margin angle (in degrees) of the wipe triangles")]
-    public float WipeTriangleInsideAngleMargin = 1f;
     private float WipeTriangleInsideAngleMarginRadians;
-
-    [Tooltip("Minimum distance between a circle and a line in the model")]
-    public float MinCircleLineDistance = 0.5f;
-
-    [Header("Drawing")]
-    public bool drawPoints = true;
-    public bool drawLines = true;
-    public bool drawCircles = true;
-    public bool drawCurrentLines = true;
-    public bool drawWipeShape = true;
 
     // Match to each observation (rho, theta) from the LIDAR a point in world space coordinate.
     // A point may be null if the corresponding observation was wrong (observation.distance == -1):
@@ -77,31 +29,22 @@ public class GeometryClustering : MonoBehaviour
     // TEST:
     private int newLineCount = 0;
 
-    // Start is called before the first frame update
-    void Start() {
-        CriticalAlphaRadians = Mathf.Deg2Rad * CriticalAlpha;
-        LineMaxMatchAngleRadians = Mathf.Deg2Rad * LineMaxMatchAngle;
-        WipeTriangleInsideAngleMarginRadians = Mathf.Deg2Rad * WipeTriangleInsideAngleMargin;
+    public GeometryClustering(RobotManager.GeometryClusterParams parameters, int lidarRaycasts) {
+        this.parameters = parameters;
+
+        CriticalAlphaRadians = Mathf.Deg2Rad * parameters.CriticalAlpha;
+        LineMaxMatchAngleRadians = Mathf.Deg2Rad * parameters.LineMaxMatchAngle;
+        WipeTriangleInsideAngleMarginRadians = Mathf.Deg2Rad * parameters.WipeTriangleInsideAngleMargin;
 
         // Allocate the list of points once, since it's since is not going to change:
-        currentPoints = new Point[lidar.raycastCount];
+        currentPoints = new Point[lidarRaycasts];
     }
 
-    // Update is called once per frame
-    void Update() {
-        if (!lidar.InitialisationDone())
-            return;
-
-        // Get the vehicle state estimate from Kalman Filter:
-        VehicleState vehicleState; Matrix<double> stateCovariance;
-        (vehicleState, stateCovariance) = controller.GetRobotStateEstimate();
-
-        // Get the observations from the LIADR:
-        ExtendedObservation[] observations = lidar.GetExtendedObservations();
-
+    public void UpdateModel(RobotManager manager, VehicleState vehicleState, Matrix<double> stateCovariance, ExtendedObservation[] observations, WipeShape wipeShape) {
+        
         // Get points from the LIDAR:
         Profiler.BeginSample("Compute Points");
-        ComputePoints(vehicleState, stateCovariance, observations);
+        ComputePoints(manager, vehicleState, stateCovariance, observations);
         Profiler.EndSample();
         
         // Then use the points to perform lines and circles extraction:
@@ -112,7 +55,7 @@ public class GeometryClustering : MonoBehaviour
         Profiler.EndSample();
 
         // For debugging:
-        if(drawCurrentLines) {
+        if(parameters.drawCurrentLines) {
             debugCurrentLines.Clear();
             foreach(Line line in lines) {
                 Line copy = new Line(line);
@@ -121,21 +64,7 @@ public class GeometryClustering : MonoBehaviour
             }
         }
 
-        // Use the lines from the current frame to update the model lines:
-        Vector2 sensorPosition = controller.GetVehicleModel().GetSensorPosition(vehicleState);
-
-        // Build the Wipe Shape:
-        List<Point> shapePoints = new List<Point>();
-        foreach(int pointIndex in lidar.WipeShapePoints()) {
-            ExtendedObservation observation = observations[pointIndex];
-            observation.r += 0.1f;  // TEST
-
-            Vector<double> position = controller.GetVehicleModel().ComputeObservationPositionEstimate(vehicleState, observation.ToObservation());
-            float x = (float)position[0], y = (float)position[1];
-            float angle = vehicleState.phi + observation.theta;
-            shapePoints.Add(new Point(x, y, angle));
-        }
-        currentWipeShape = new WipeShape(sensorPosition, shapePoints);
+        currentWipeShape = wipeShape;
 
         Profiler.BeginSample("Update Model Lines");
         // List<WipeTriangle> triangles = UpdateModelLines(sensorPosition, lines);
@@ -152,7 +81,9 @@ public class GeometryClustering : MonoBehaviour
             + "; Circles: " + modelCircles.Count);
     }
 
-    public void OnDrawGizmos() {
+    public void DrawGizmos(bool drawCurrentLines, bool drawPoints, 
+        bool drawLines, bool drawCircles, bool drawWipeShape) {
+
         const float height = 0.2f;
 
         if (drawCurrentLines && debugCurrentLines != null) {
@@ -160,7 +91,7 @@ public class GeometryClustering : MonoBehaviour
                 line.DrawGizmos(height);
         }
 
-        if (drawPoints && currentPoints != null) {
+        if (drawPoints && currentPoints != null && currentPoints[0] != null) {
             foreach (Point point in currentPoints)
                 if(point.isValid)
                     point.DrawGizmos(height);
@@ -183,10 +114,10 @@ public class GeometryClustering : MonoBehaviour
 
     // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
     // to compute the estimated position of all the observations of the LIDAR in world space:
-    private void ComputePoints(VehicleState vehicleState, Matrix<double> stateCovariance, ExtendedObservation[] observations) {
+    private void ComputePoints(RobotManager manager, VehicleState vehicleState, Matrix<double> stateCovariance, ExtendedObservation[] observations) {
 
         // Convert observations into points, using the vehicle state estimate:
-        VehicleModel model = controller.GetVehicleModel();
+        VehicleModel model = manager.GetVehicleModel();
         
         for(int i = 0; i < observations.Length; i++) {
             ExtendedObservation observation = observations[i];
@@ -230,8 +161,8 @@ public class GeometryClustering : MonoBehaviour
                 Point previousPoint = lineBuilder.GetLastPoint();
 
                 // Try to match the current point with the current line:
-                bool condition1 = Point.Dist(previousPoint, currentPoint) <= PointCriticalDistance;
-                bool condition2 = lineBuilder.PointsCount() < 3 || lineBuilder.DistanceFrom(currentPoint) <= LineCriticalDistance;
+                bool condition1 = Point.Dist(previousPoint, currentPoint) <= parameters.PointCriticalDistance;
+                bool condition2 = lineBuilder.PointsCount() < 3 || lineBuilder.DistanceFrom(currentPoint) <= parameters.LineCriticalDistance;
                 bool condition3 = Point.AngularDifference(previousPoint, currentPoint) <= CriticalAlphaRadians;
                 
                 // If the three conditions are met, we can add the point to the line:
@@ -242,7 +173,7 @@ public class GeometryClustering : MonoBehaviour
 
                 // Else, if the current line is long enough to be extracted, then extract it, and add the current
                 // point in a new line:
-                else if (lineBuilder.PointsCount() >= 3 && lineBuilder.Length() >= LineMinLength) {
+                else if (lineBuilder.PointsCount() >= 3 && lineBuilder.Length() >= parameters.LineMinLength) {
                     extractedLines.Add(lineBuilder.Build());
                     lineBuilder = new LineBuilder(currentPoint);
                     continue;
@@ -258,7 +189,7 @@ public class GeometryClustering : MonoBehaviour
             // 2. If we are currently building a circle:
 
             // If the current point can be added to the current circle, add it:
-            if (circleBuilder.DistanceFrom(currentPoint) <= CircleCriticalDistance) {
+            if (circleBuilder.DistanceFrom(currentPoint) <= parameters.CircleCriticalDistance) {
                 circleBuilder.AddPoint(currentPoint);
             }
 
@@ -275,7 +206,7 @@ public class GeometryClustering : MonoBehaviour
         }
 
         // Finally, extract the current line or current circle if necessary:
-        if (lineBuilder != null && lineBuilder.PointsCount() >= 3 && lineBuilder.Length() >= LineMinLength) {
+        if (lineBuilder != null && lineBuilder.PointsCount() >= 3 && lineBuilder.Length() >= parameters.LineMinLength) {
             extractedLines.Add(lineBuilder.Build());
         }
         else if(circleBuilder != null && circleBuilder.PointsCount() >= 2) {
@@ -365,6 +296,9 @@ public class GeometryClustering : MonoBehaviour
     private void UpdateModelLines(List<Line> currentLines, WipeShape wipeShape) {
         List<Line> newLines = new List<Line>();
 
+        // Drawing: Reset the color of the model lines to red:
+        foreach (Line line in modelLines) line.lineColor = Color.red;
+
         // Update the lines in the model using the wipe shape:
         Profiler.BeginSample("Wipe Shape Line Update");
         wipeShape.UpdateLines(modelLines);
@@ -382,7 +316,7 @@ public class GeometryClustering : MonoBehaviour
             Profiler.BeginSample("Lines matching");
             foreach (Line matchCandidate in modelLines) {
                 // First test: compare the angle difference and endpoints distance between the two lines:
-                if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, LineMaxEndpointMatchDistance)) {
+                if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, parameters.LineMaxEndpointMatchDistance)) {
 
                     // Second test: Compute the Mahalanobis distance between the lines:
                     if (line.ComputeNormDistance(matchCandidate) < 5) {
@@ -404,7 +338,7 @@ public class GeometryClustering : MonoBehaviour
 
             // If a match is found and near enough, use this line to update the match state estimate:
             Profiler.BeginSample("Line Update");
-            if (bestMatch != null && minDistance <= LineMaxMatchDistance) {
+            if (bestMatch != null && minDistance <= parameters.LineMaxMatchDistance) {
                 bestMatch.lineColor = Color.blue;       // Blue color for matched lines
                 bestMatch.UpdateLineUsingMatching(line);
             }
@@ -420,7 +354,7 @@ public class GeometryClustering : MonoBehaviour
 
         // Keep only the valid parts of the lines from the model:
         foreach (Line line in modelLines)
-            line.AddValidParts(newLines, LineMinLength);
+            line.AddValidParts(newLines, parameters.LineMinLength);
 
         modelLines = newLines;
     }
@@ -495,7 +429,7 @@ public class GeometryClustering : MonoBehaviour
             }
 
             // If a match is found, use this circle to update the match state estimate:
-            if (bestMatch != null && minDistance <= CircleMaxMatchDistance) {
+            if (bestMatch != null && minDistance <= parameters.CircleMaxMatchDistance) {
                 bestMatch.UpdateCircleUsingMatching(circle);
 
                 // If a circle is matched with a current circle, then it's valid:

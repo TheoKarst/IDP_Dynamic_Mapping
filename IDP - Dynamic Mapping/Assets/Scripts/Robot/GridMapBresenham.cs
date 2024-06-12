@@ -2,34 +2,29 @@ using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class GridMapBresenham : MonoBehaviour, WorldModel
+public class GridMapBresenham : WorldModel
 {
-    public RawImage image;
-    public int pixelSize = 4;
+    // Script used to get the position of an observation in world space:
+    private RobotManager manager;
 
-    [Tooltip("Size of each cell")]
-    public float cellSize = 0.1f;
-    public int mapWidth = 50;
-    public int mapHeight = 50;
+    // Image and corresponding texture used to print the grid:
+    private RawImage mapImage;
+    private Texture2D texture;
 
-    public Lidar lidar;
-    public RobotController controller;
+    // Parameters of the grid map:
+    private int pixelSize = 4;
 
-    public bool showTextureMap = true;
+    private float cellSize = 0.1f;
+    private int mapWidth = 50;
+    private int mapHeight = 50;
 
-    public float maxConfidence = 0.99f;
+    private float maxConfidence = 0.99f;
+    private int framesToConsiderStatic = 60;
+    private int framesToConsiderDynamic = 20;
 
-    [Tooltip("Average number of frames to wait before considering an object as static in the static grid")]
-    public int framesToConsiderStatic = 60;
-
-    [Tooltip("Average number of frames to wait before considering an object as dynamic in the dynamic grid")]
-    public int framesToConsiderDynamic = 20;
-
+    // Values used to update the grid when new observations are made:
     private float HighStatic, LowStatic;
     private float HighDynamic, LowDynamic;
-    
-
-    private Texture2D texture;
 
     // Possible state for each cell of the grid:
     private const int FREE = 0;
@@ -41,10 +36,28 @@ public class GridMapBresenham : MonoBehaviour, WorldModel
     private float[][] staticMap;
     private float[][] dynamicMap;
 
+    // Value in the grid corresponding to the maximum confidence:
     private float maxLogOddValue;
 
-    // Start is called before the first frame update
-    void Start() {
+    public GridMapBresenham(RobotManager manager, RobotManager.GridMapParams gridMapParams) {
+        this.manager = manager;
+
+        this.mapImage = gridMapParams.mapImage;
+        this.pixelSize = gridMapParams.pixelSize;
+
+        this.cellSize = gridMapParams.cellSize;
+        this.mapWidth = gridMapParams.mapWidth;
+        this.mapHeight = gridMapParams.mapHeight;
+
+        this.maxConfidence = gridMapParams.maxConfidence;
+        this.framesToConsiderStatic = gridMapParams.framesToConsiderStatic;
+        this.framesToConsiderDynamic = gridMapParams.framesToConsiderDynamic;
+
+        // Create the grids and compute the required parameters to update the grid:
+        SetupGrid();
+    }
+
+    private void SetupGrid() {
         // Map width and height should be a multiple of 2:
         mapWidth &= ~1;
         mapHeight &= ~1;
@@ -75,72 +88,36 @@ public class GridMapBresenham : MonoBehaviour, WorldModel
             }
         }
 
-        texture = new Texture2D(mapWidth, 3 * mapHeight);
+        texture = new Texture2D(mapWidth, 2 * mapHeight);
         texture.filterMode = FilterMode.Point;  // no smooth pixels
 
-        image.GetComponent<RectTransform>().sizeDelta = new Vector2(mapWidth * pixelSize, 3 * mapHeight * pixelSize);
-        image.texture = texture;
+        mapImage.GetComponent<RectTransform>().sizeDelta = new Vector2(mapWidth * pixelSize, 2 * mapHeight * pixelSize);
+        mapImage.texture = texture;
     }
 
-    // Update is called once per frame
-    void Update() {
-        // Get the state estimate (Kalman Filter) of the robot from the robot controller:
-        (VehicleState vehicleState, _) = controller.GetRobotStateEstimate();
+    // Update the static and dynamic maps using the current sensor position and observations:
+    public void UpdateMaps(Vector2 sensorPosition, float sensorAngle, ExtendedObservation[] observations) {
 
-        Vector2 sensorPosition = controller.GetVehicleModel().GetSensorPosition(vehicleState);
-
-        // Tempoary fix: Improve this
-        // float robotX = lidar.transform.position.x;
-        // float robotY = lidar.transform.position.z;
-        // float robotAngle = Mathf.Deg2Rad * (90 - lidar.transform.rotation.eulerAngles.y);
-
-        // Activate or not the texture:
-        image.gameObject.SetActive(showTextureMap);
-
-        // And update the static and dynamic maps using distances values from the LIDAR:
-        UpdateMaps(sensorPosition.x, sensorPosition.y, vehicleState.phi);
-    }
-
-
-    private void UpdateMaps(float robotX, float robotY, float robotAngle) {
-
-        // Get the observations returned from the LIDAR (-1 if no collision):
-        ExtendedObservation[] observations = lidar.GetExtendedObservations();
-
-        if (observations == null)
-            return;
-
-        // Erase current map:
-        if (showTextureMap) {
-            for (int x = 0; x < mapWidth; x++)
-                for (int y = 2 * mapHeight; y < 3 * mapHeight; y++)
-                    texture.SetPixel(x, y, Color.gray);
-        }
-
-        // Position of the robot in the grids:
-        int x0 = Mathf.FloorToInt(robotX / cellSize) + mapWidth / 2;
-        int y0 = Mathf.FloorToInt(robotY / cellSize) + mapHeight / 2;
+        // Position of the sensor in the grids:
+        int x0 = Mathf.FloorToInt(sensorPosition.x / cellSize) + mapWidth / 2;
+        int y0 = Mathf.FloorToInt(sensorPosition.y / cellSize) + mapHeight / 2;
 
         // For each raycast, use Bresenham's algorithm to compute the intersection between the
         // raycast and the grids, and update the cells accordingly:
         foreach (ExtendedObservation observation in observations) {
-            float angle = robotAngle + observation.theta;
+            float angle = sensorAngle + observation.theta;
 
             // Compute the position of the end of the ray, in world space:
-            float xWorld = robotX + Mathf.Cos(angle) * observation.r;
-            float yWorld = robotY + Mathf.Sin(angle) * observation.r;
+            float xWorld = sensorPosition.x + Mathf.Cos(angle) * observation.r;
+            float yWorld = sensorPosition.y + Mathf.Sin(angle) * observation.r;
 
             // Convert the world position into a cell position:
             int x1 = Mathf.FloorToInt(xWorld / cellSize) + mapWidth / 2;
             int y1 = Mathf.FloorToInt(yWorld / cellSize) + mapHeight / 2;
 
             // Update the cells touched by the raycast:
-            Bresenham(x0, y0, x1, y1, observation.r >= 0);
+            Bresenham(x0, y0, x1, y1, observation.isValid);
         }
-
-        // Update the texture to reflect the changes on the maps:
-        if(showTextureMap)
-            texture.Apply();
     }
 
     private void Bresenham(int x0, int y0, int x1, int y1, bool collision) {
@@ -170,10 +147,6 @@ public class GridMapBresenham : MonoBehaviour, WorldModel
         if (state == UNKNOWN || x < 0 || x >= mapWidth || y < 0 || y >= mapHeight)
             return;
 
-        // Update the current cell color:
-        if(showTextureMap)
-            texture.SetPixel(x, y + 2 * mapHeight, state == FREE ? Color.white : Color.black);
-
         float previousStaticValue = getMapValue(x, y, staticMap);
 
         // Update the static and dynamic maps according to Tables 1 and 2
@@ -189,14 +162,6 @@ public class GridMapBresenham : MonoBehaviour, WorldModel
         // of an obstacle (this allows to take changes of the map into account):
         staticMap[x][y] = Mathf.Clamp(staticMap[x][y], -maxLogOddValue, maxLogOddValue);
         dynamicMap[x][y] = Mathf.Clamp(dynamicMap[x][y], -maxLogOddValue, maxLogOddValue);
-
-        // Get the new values for the static and dynamic maps:
-        if (showTextureMap) {
-            float s = 1 - getMapValue(x, y, staticMap);
-            float d = 1 - getMapValue(x, y, dynamicMap);
-            texture.SetPixel(x, y + mapHeight, new Color(s, s, s));
-            texture.SetPixel(x, y, new Color(d, d, d));
-        }
     }
 
     private float getMapValue(int x, int y, float[][] map)
@@ -212,12 +177,8 @@ public class GridMapBresenham : MonoBehaviour, WorldModel
     }
 
     public bool IsStatic(Observation observation) {
-        // Get the state estimate (Kalman Filter) of the robot from the robot controller:
-        (VehicleState vehicleState, _) = controller.GetRobotStateEstimate();
-
         // Compute the position of the observation, using the vehicle state estimate:
-        Vector<double> position = controller.GetVehicleModel()
-            .ComputeObservationPositionEstimate(vehicleState, observation);
+        Vector<double> position = manager.ComputeObservationPositionEstimate(observation);
 
         // Convert the world position into a cell position:
         int xCell = Mathf.FloorToInt((float) position[0] / cellSize) + mapWidth / 2;
@@ -233,5 +194,26 @@ public class GridMapBresenham : MonoBehaviour, WorldModel
         }
 
         return false;
+    }
+
+    public void DrawMap(bool showMap, bool updateTexture) {
+        if(showMap && updateTexture) {
+            Color[] pixels = new Color[2 * mapWidth * mapHeight];
+            for (int x = 0; x < mapWidth; x++) {
+                for (int y = 0; y < mapHeight; y++) {
+                    // Gray color of the static cell:
+                    float gray = 1 - getMapValue(x, y, staticMap);
+                    pixels[mapWidth * y + x] = new Color(gray, gray, gray);
+
+                    // Gray color of the dynamic cell:
+                    gray = 1 - getMapValue(x, y, dynamicMap);
+                    pixels[mapWidth * (mapHeight + y) + x] = new Color(gray, gray, gray);
+                }
+            }
+            texture.SetPixels(pixels);
+            texture.Apply();
+        }
+
+        mapImage.gameObject.SetActive(showMap);
     }
 }

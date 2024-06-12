@@ -59,8 +59,8 @@ public class KalmanFilter {
     // on the state estimate:
     private VehicleState statePredictionOnly;
 
-    // Use a pointer to the robot controller to have the real state of the robot (only used for logs):
-    private RobotController controller;
+    // Use a reference to the robot manager to have the real state of the robot (only used for logs):
+    private RobotManager manager;
 
     // Debugging: Save the observations to draw them:
     private List<Vector<double>> observationsPos;
@@ -69,10 +69,10 @@ public class KalmanFilter {
     // Used to print debug messages in the console / in a text file:
     private Logger logger;
 
-    public KalmanFilter(RobotController controller, VehicleState initialState, VehicleModel vehicleModel, 
-        int maxLandmarksPerUpdate, float minDistanceBetweenLandmarks, Logger logger) {
+    public KalmanFilter(RobotManager manager, VehicleState initialState, VehicleModel vehicleModel, 
+        RobotManager.KalmanParams parameters, Logger logger) {
 
-        this.controller = controller;
+        this.manager = manager;
 
         // Initialize the state estimate with the given start position of the robot:
         this.stateEstimate = initialState;
@@ -81,8 +81,8 @@ public class KalmanFilter {
 
         this.vehicleModel = vehicleModel;
 
-        this.maxLandmarksPerUpdate = maxLandmarksPerUpdate;
-        this.minDistanceBetweenLandmarks = minDistanceBetweenLandmarks;
+        this.maxLandmarksPerUpdate = parameters.maxLandmarksPerUpdate;
+        this.minDistanceBetweenLandmarks = parameters.minDistanceBetweenLandmarks;
 
         this.logger = logger;
         logger.Log("time;real_x;real_y;real_phi;predict_x;predict_y;predict_phi;update_x;update_y;update_phi");
@@ -207,7 +207,7 @@ public class KalmanFilter {
             stateEstimate = statePrediction;
             stateCovarianceEstimate = stateCovariancePrediction;
 
-            logger.Log(controller.GetRobotRealState(), statePredictionOnly, stateEstimate);
+            logger.Log(manager.GetRobotRealState(), statePredictionOnly, stateEstimate);
             return;
         }
 
@@ -235,8 +235,8 @@ public class KalmanFilter {
             Observation.Substract(observation, observationPrediction, innovationStack, OBSERVATION_DIM * i);
 
             // Debug: Draw the expected observation and the real observation:
-            controller.lidar.DrawObservation(observationPrediction, Color.blue);
-            controller.lidar.DrawObservation(observation, Color.green);
+            manager.GetLidar().DrawObservation(observationPrediction, Color.blue);
+            manager.GetLidar().DrawObservation(observation, Color.green);
 
             // Compute Hi, the observation Jacobian associated with this landmark using equation (37),
             // and stack it into Hstack:
@@ -255,7 +255,7 @@ public class KalmanFilter {
         stateCovarianceEstimate = stateCovariancePrediction - W * S.TransposeAndMultiply(W);    // Equation (16)
 
         // Write data to the log file:
-        logger.Log(controller.GetRobotRealState(), statePredictionOnly, stateEstimate);
+        logger.Log(manager.GetRobotRealState(), statePredictionOnly, stateEstimate);
     }
 
     // From an observation of the LIDAR, the predicted state, the predicted state covariance estimate
@@ -380,9 +380,11 @@ public class KalmanFilter {
         potentialLandmarks = newPotentialLandmarks;
     }
 
-    public (VehicleState, Matrix<double>) GetStateEstimate() {
-        Matrix<double> covariance = stateCovarianceEstimate.ExtractPvv();
+    public VehicleState GetStateEstimate() {
+        return stateEstimate;
+    }
 
-        return (stateEstimate, covariance);
+    public Matrix<double> GetStateCovarianceEstimate() {
+        return stateCovarianceEstimate.ExtractPvv();
     }
 }

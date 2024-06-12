@@ -10984,6 +10984,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 4088753169920909541, guid: a2599afcab23ec2449164794973d807a, type: 3}
+      propertyPath: gridMapParams.mapImage
+      value: 
+      objectReference: {fileID: 1741178508}
     - target: {fileID: 4858635489502067460, guid: a2599afcab23ec2449164794973d807a, type: 3}
       propertyPath: image
       value: 

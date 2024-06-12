@@ -23,6 +23,7 @@ public class WipeShape {
         if (points.Count == 0)
             return;
 
+        Gizmos.color = Color.white;
         Point prev = points[points.Count - 1];
         foreach (Point point in points) {
             Gizmos.DrawLine(Utils.To3D(prev.position, height), Utils.To3D(point.position, height));
