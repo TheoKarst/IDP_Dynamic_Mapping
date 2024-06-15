@@ -125,6 +125,8 @@ public class RobotManager : MonoBehaviour {
     [Header("General")]
     public GameObject robotObject;
     public GameObject lidarObject;
+    public bool readFromFiles = true;
+    public string folder;
 
     [Tooltip("Wait before performing a new lidar scan, position estimate and map update")]
     public float waitBetweenUpdates = 0.02f;
