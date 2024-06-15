@@ -1,4 +1,4 @@
-ArrayList<PVector> curveRegularization(ArrayList<PVector> curve, float step) {
+ArrayList<PVector> curveRegularization1(ArrayList<PVector> curve, float step) {
   ArrayList<PVector> result = new ArrayList<PVector>();
   
   if(curve.size() == 0)
