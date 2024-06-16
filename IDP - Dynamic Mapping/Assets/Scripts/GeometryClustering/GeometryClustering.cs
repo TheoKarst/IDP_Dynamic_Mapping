@@ -4,18 +4,14 @@ using UnityEngine;
 using UnityEngine.Profiling;
 
 public class GeometryClustering {
+    private GeometryClusterParams parameters;
 
-    // 
-    private RobotManager robot;
-
-    private RobotManager.GeometryClusterParams parameters;
     private float CriticalAlphaRadians;
     private float LineMaxMatchAngleRadians;
     private float WipeTriangleInsideAngleMarginRadians;
 
-    // Match to each observation (rho, theta) from the LIDAR a point in world space coordinate.
-    // A point may be null if the corresponding observation was wrong (observation.distance == -1):
-    private Point[] currentPoints;
+    // Match to each observation (rho, theta) from the LIDAR a point in world space coordinate:
+    private List<Point> currentPoints;
 
     // Current lines and circles used to represent the environment:
     private List<Line> modelLines = new List<Line>();
@@ -29,24 +25,27 @@ public class GeometryClustering {
     // TEST:
     private int newLineCount = 0;
 
-    public GeometryClustering(RobotManager.GeometryClusterParams parameters, int lidarRaycasts) {
+    public GeometryClustering(GeometryClusterParams parameters) {
         this.parameters = parameters;
 
         CriticalAlphaRadians = Mathf.Deg2Rad * parameters.CriticalAlpha;
         LineMaxMatchAngleRadians = Mathf.Deg2Rad * parameters.LineMaxMatchAngle;
         WipeTriangleInsideAngleMarginRadians = Mathf.Deg2Rad * parameters.WipeTriangleInsideAngleMargin;
-
-        // Allocate the list of points once, since it's since is not going to change:
-        currentPoints = new Point[lidarRaycasts];
     }
 
-    public void UpdateModel(RobotManager manager, VehicleState vehicleState, Matrix<double> stateCovariance, ExtendedObservation[] observations, WipeShape wipeShape) {
-        
+    public void UpdateModel(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
+        Vector2[] positions;
+
         // Get points from the LIDAR:
-        Profiler.BeginSample("Compute Points");
-        ComputePoints(manager, vehicleState, stateCovariance, observations);
+        Profiler.BeginSample("Compute points");
+        (positions, currentPoints) = ComputePoints(model, vehicleState, stateCovariance, observations);
         Profiler.EndSample();
-        
+
+        // Build the Wipe Shape:
+        Profiler.BeginSample("Build Wipe Shape");
+        currentWipeShape = BuildWipeShape(sensorPose, positions);
+        Profiler.EndSample();
+
         // Then use the points to perform lines and circles extraction:
         List<Line> lines; List<Circle> circles;
 
@@ -64,8 +63,6 @@ public class GeometryClustering {
             }
         }
 
-        currentWipeShape = wipeShape;
-
         Profiler.BeginSample("Update Model Lines");
         // List<WipeTriangle> triangles = UpdateModelLines(sensorPosition, lines);
         UpdateModelLines(lines, currentWipeShape);
@@ -77,8 +74,8 @@ public class GeometryClustering {
         UpdateModelCircles(circles, currentWipeShape);
         Profiler.EndSample();
 
-        Debug.Log("Points: " + currentPoints.Length + "; Lines: " + modelLines.Count 
-            + "; Circles: " + modelCircles.Count);
+        // Debug.Log("Points: " + currentPoints.Count + "; Lines: " + modelLines.Count 
+        //    + "; Circles: " + modelCircles.Count);
     }
 
     public void DrawGizmos(bool drawCurrentLines, bool drawPoints, 
@@ -93,8 +90,7 @@ public class GeometryClustering {
 
         if (drawPoints && currentPoints != null && currentPoints[0] != null) {
             foreach (Point point in currentPoints)
-                if(point.isValid)
-                    point.DrawGizmos(height);
+                point.DrawGizmos(height);
         }
 
         if (drawLines && modelLines != null) {
@@ -114,30 +110,48 @@ public class GeometryClustering {
 
     // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
     // to compute the estimated position of all the observations of the LIDAR in world space:
-    private void ComputePoints(RobotManager manager, VehicleState vehicleState, Matrix<double> stateCovariance, ExtendedObservation[] observations) {
-
-        // Convert observations into points, using the vehicle state estimate:
-        VehicleModel model = manager.GetVehicleModel();
+    private static (Vector2[] positions, List<Point> points) ComputePoints(VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
+        Vector2[] positions = new Vector2[observations.Length];
+        List<Point> points = new List<Point>();
         
         for(int i = 0; i < observations.Length; i++) {
-            ExtendedObservation observation = observations[i];
+            Observation observation = new Observation(observations[i].r, observations[i].theta);
 
-            // If the observation is valid, estimate its position using the robot state:
-            if (observation.isValid) {
+            // If the observation was out of the range of the LIDAR, still compute
+            // the estimated position of the clamped observation, that may be useful
+            // to build the WipeShape (we don't need the corresponding
+            // covariance estimate):
+            if (observations[i].outOfRange) {
+                positions[i] = model.ComputeObservationPositionEstimate(vehicleState, observation);
+            }
+
+            // Else, compute the observation position and corresponding covariance
+            // matrix to update the model lines and circles:
+            else {
                 Vector<double> position; Matrix<double> covariance;
                 (position, covariance) =
-                    model.ComputeObservationPositionEstimate(vehicleState, stateCovariance, observation.ToObservation());
+                    model.ComputeObservationPositionEstimate(vehicleState, stateCovariance, observation);
 
                 float x = (float)position[0], y = (float)position[1], theta = observation.theta;
-                currentPoints[i] = new Point(x, y, theta, covariance, true);
-            }
-            else
-                currentPoints[i] = new Point(0, 0, 0, null, false);
+
+                positions[i] = new Vector2(x, y);
+                points.Add(new Point(x, y, theta, covariance));
+            }                
         }
+
+        return (positions, points);
+    }
+
+    private WipeShape BuildWipeShape(Pose2D sensorPose, Vector2[] currentPoints) {
+        List<Vector2> points = LidarUtils.ComputeWipeShapePoints(currentPoints,
+            parameters.stepRadius, parameters.minLookAhead, parameters.epsilon);
+
+
+        return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), points);
     }
 
     // Cluster extraction (lines and circles):
-    private (List<Line>, List<Circle>) ClusterExtraction(Point[] points) {
+    private (List<Line>, List<Circle>) ClusterExtraction(List<Point> points) {
         List<Line> extractedLines = new List<Line>();
         List<Circle> extractedCircles = new List<Circle>();
 
@@ -148,7 +162,6 @@ public class GeometryClustering {
         CircleBuilder circleBuilder = null;
 
         foreach (Point currentPoint in points) {
-            if (!currentPoint.isValid) continue;
 
             // Initialisation: this should be executed just for the first non null point:
             if(lineBuilder == null && circleBuilder == null) {

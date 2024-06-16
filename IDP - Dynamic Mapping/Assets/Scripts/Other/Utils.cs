@@ -55,4 +55,15 @@ public class Utils {
     public static Vector2 To2D(Vector3 position) {
         return new Vector2(position.x, position.z);
     }
+
+    public static string ToString(float[] array) {
+        string result = "[";
+
+        for (int i = 0; i < array.Length; i++) {
+            result += array[i];
+            if (i + 1 < array.Length) result += "; ";
+        }
+
+        return result;
+    }
 }

@@ -5,12 +5,12 @@ public class RobotController {
     private GameObject robot;
 
     // List of parameters representing the behaviour of the script:
-    private RobotManager.ControllerParams parameters;
+    private ControllerParams parameters;
 
     private float velocity = 0;
     private float steering = 0;
 
-    public RobotController(GameObject robot, RobotManager.ControllerParams parameters) {
+    public RobotController(GameObject robot, ControllerParams parameters) {
         this.robot = robot;
         this.parameters = parameters;
     }

@@ -1,11 +1,7 @@
-using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class GridMapBresenham : WorldModel
-{
-    // Script used to get the position of an observation in world space:
-    private RobotManager manager;
+public class GridMapBresenham : WorldModel {
 
     // Image and corresponding texture used to print the grid:
     private RawImage mapImage;
@@ -39,9 +35,7 @@ public class GridMapBresenham : WorldModel
     // Value in the grid corresponding to the maximum confidence:
     private float maxLogOddValue;
 
-    public GridMapBresenham(RobotManager manager, RobotManager.GridMapParams gridMapParams) {
-        this.manager = manager;
-
+    public GridMapBresenham(GridMapParams gridMapParams) {
         this.mapImage = gridMapParams.mapImage;
         this.pixelSize = gridMapParams.pixelSize;
 
@@ -96,27 +90,27 @@ public class GridMapBresenham : WorldModel
     }
 
     // Update the static and dynamic maps using the current sensor position and observations:
-    public void UpdateMaps(Vector2 sensorPosition, float sensorAngle, ExtendedObservation[] observations) {
+    public void UpdateMaps(Pose2D sensorPose, AugmentedObservation[] observations) {
 
         // Position of the sensor in the grids:
-        int x0 = Mathf.FloorToInt(sensorPosition.x / cellSize) + mapWidth / 2;
-        int y0 = Mathf.FloorToInt(sensorPosition.y / cellSize) + mapHeight / 2;
+        int x0 = Mathf.FloorToInt(sensorPose.x / cellSize) + mapWidth / 2;
+        int y0 = Mathf.FloorToInt(sensorPose.y / cellSize) + mapHeight / 2;
 
         // For each raycast, use Bresenham's algorithm to compute the intersection between the
         // raycast and the grids, and update the cells accordingly:
-        foreach (ExtendedObservation observation in observations) {
-            float angle = sensorAngle + observation.theta;
+        foreach (AugmentedObservation observation in observations) {
+            float angle = sensorPose.angle + observation.theta;
 
             // Compute the position of the end of the ray, in world space:
-            float xWorld = sensorPosition.x + Mathf.Cos(angle) * observation.r;
-            float yWorld = sensorPosition.y + Mathf.Sin(angle) * observation.r;
+            float xWorld = sensorPose.x + Mathf.Cos(angle) * observation.r;
+            float yWorld = sensorPose.y + Mathf.Sin(angle) * observation.r;
 
             // Convert the world position into a cell position:
             int x1 = Mathf.FloorToInt(xWorld / cellSize) + mapWidth / 2;
             int y1 = Mathf.FloorToInt(yWorld / cellSize) + mapHeight / 2;
 
             // Update the cells touched by the raycast:
-            Bresenham(x0, y0, x1, y1, observation.isValid);
+            Bresenham(x0, y0, x1, y1, !observation.outOfRange);
         }
     }
 
@@ -176,13 +170,14 @@ public class GridMapBresenham : WorldModel
         return p / (1 + p);
     }
 
-    public bool IsStatic(Observation observation) {
-        // Compute the position of the observation, using the vehicle state estimate:
-        Vector<double> position = manager.ComputeObservationPositionEstimate(observation);
+    public bool IsStatic(Vector2 worldPosition) {
+        // TODO: Correct this bug:
+        return true;
 
+        /*
         // Convert the world position into a cell position:
-        int xCell = Mathf.FloorToInt((float) position[0] / cellSize) + mapWidth / 2;
-        int yCell = Mathf.FloorToInt((float) position[1] / cellSize) + mapHeight / 2;
+        int xCell = Mathf.FloorToInt(worldPosition.x / cellSize) + mapWidth / 2;
+        int yCell = Mathf.FloorToInt(worldPosition.y / cellSize) + mapHeight / 2;
 
         // Check if there is a static cell around this cell:
         const int border = 5;
@@ -193,7 +188,7 @@ public class GridMapBresenham : WorldModel
             }
         }
 
-        return false;
+        return false;*/
     }
 
     public void DrawMap(bool showMap, bool updateTexture) {

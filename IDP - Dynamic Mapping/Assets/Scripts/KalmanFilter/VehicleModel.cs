@@ -18,8 +18,18 @@ public class VehicleModel {
     // Parameters defining the dimensions of the model:
     private float a, b, L;
 
-    public VehicleModel(Lidar lidar, float L, float maxSpeed, float maxSteering, float deltaTime) {
-        (this.a, this.b) = lidar.GetLocalPosition();
+    public VehicleModel(float a, float b, float L, Matrix<double> processNoiseError, Matrix<double> observationError) {
+        this.a = a;
+        this.b = b;
+        this.L = L;
+
+        this.ProcessNoiseError = processNoiseError;
+        this.ObservationError = observationError;
+    }
+
+    public VehicleModel(float a, float b, float L, float maxSpeed, float maxSteering, float deltaTime) {
+        this.a = a;
+        this.b = b;
         this.L = L;
 
         // Covariance of the error on the linear and angular position of the robot:
@@ -87,7 +97,7 @@ public class VehicleModel {
 
     // From the vehicle state estimate, compute the position of the given observation in
     // global space, without computing the corresponding covariance matrix:
-    public Vector<double> ComputeObservationPositionEstimate(
+    public Vector2 ComputeObservationPositionEstimate(
         VehicleState stateEstimate, Observation observation) {
 
         // Perform renamings for simplification:
@@ -99,9 +109,8 @@ public class VehicleModel {
         float cosphi_theta = Mathf.Cos(phi + theta), sinphi_theta = Mathf.Sin(phi + theta);
 
         // From the state estimate and the observation, compute the global position of the observation:
-        return V.Dense(new double[] {
-            x + a * cosphi - b * sinphi + r * cosphi_theta,
-            y + a * sinphi + b * cosphi + r * sinphi_theta});
+        return new Vector2(x + a * cosphi - b * sinphi + r * cosphi_theta,
+                           y + a * sinphi + b * cosphi + r * sinphi_theta);
     }
 
     // From the vehicle state estimate and covariance, compute the position of the given observation in

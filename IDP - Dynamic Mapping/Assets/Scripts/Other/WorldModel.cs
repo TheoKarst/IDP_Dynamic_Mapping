@@ -1,5 +1,7 @@
+using UnityEngine;
+
 public interface WorldModel {
 
-    // Return if the given observation made by the LIDAR corresponds to a dynamic or a static object:
-    bool IsStatic(Observation observation);
-}
+    // Return if the given world position corresponds to a static object:
+    bool IsStatic(Vector2 worldPosition);
+    }

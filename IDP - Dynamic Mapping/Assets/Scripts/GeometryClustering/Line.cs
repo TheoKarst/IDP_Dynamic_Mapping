@@ -329,8 +329,8 @@ public class Line : Primitive {
             (pBegin, pEnd) = (pEnd, pBegin);
 
         // TEST:
-        pBegin -= 0.01f;
-        pEnd += 0.01f;
+        pBegin -= 0.1f;
+        pEnd += 0.1f;
 
         lineValidity.SetValue(pBegin, pEnd, true);
         // Debug.Log("Update validity: [" + pBegin + ", " + pEnd + "]");
