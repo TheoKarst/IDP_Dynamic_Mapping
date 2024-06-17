@@ -35,11 +35,11 @@ public class SimulatedRobot : Robot {
 
     void Start() {
         // Instantiate the LIDAR:
-        lidar = new Lidar(lidarObject, raycastCount, raycastDistance);
+        lidar = new Lidar(lidarObject, raycastCount, raycastDistance, 0);
 
         // Instantiate the model we are going to use for the robot:
-        (float a, float b) = lidar.GetLocalPosition();
-        vehicleModel = new VehicleModel(a, b, controllerParams.L, controllerParams.maxSpeed,
+        Pose2D[] lidarPoses = new Pose2D[] { lidar.GetLocalPose() };
+        vehicleModel = new VehicleModel(lidarPoses, controllerParams.L, controllerParams.maxSpeed,
             Mathf.Deg2Rad * controllerParams.maxSteering, waitBetweenUpdates);
 
         // Instantiate the script to move the robot with arrow keys:
@@ -57,7 +57,9 @@ public class SimulatedRobot : Robot {
         // real state of the robot to build the next robot frame:
         if (currentTime - lastTimeUpdate >= waitBetweenUpdates) {
             // Use raycasting to compute observations from the LIDAR:
-            AugmentedObservation[] observations = lidar.ComputeObservations();
+            AugmentedObservation[][] observations = new AugmentedObservation[][] {
+                lidar.ComputeObservations()
+            };
 
             // Get the real state of the robot from the controller:
             VehicleState vehicleState = controller.GetRobotRealState();

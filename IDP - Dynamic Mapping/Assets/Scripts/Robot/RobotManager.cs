@@ -34,18 +34,20 @@ public class RobotManager : MonoBehaviour {
             // Get the current data of the robot:
             DataloaderRobot.RobotData data = robot.GetCurrentFrame();
 
-            // Also get the current pose of the LIDAR:
+            // Get the vehicle model of the robot to compute the pose of each LIDAR on the robot:
             VehicleModel model = robot.GetVehicleModel();
-            Pose2D sensorPose = model.GetSensorPose(data.vehicleState);
 
-            // Then update the grid maps:
-            worldGridMap.UpdateMaps(sensorPose, data.observations);
+            // Then, for each LIDAR in the current frame, use the LIDAR observations to update the world models:
+            for(int i = 0; i < data.observations.Length; i++) {
+                Pose2D sensorPose = model.GetWorldSensorPose(data.vehicleState, i);
 
-            // And update the geometry clustering algorithm:
-            geometryClustering.UpdateModel(
-                sensorPose, model, 
-                data.vehicleState, data.vehicleStateCovariance, 
-                data.observations);
+                worldGridMap.UpdateMaps(sensorPose, data.observations[i]);
+
+                geometryClustering.UpdateModel(
+                    sensorPose, model,
+                    data.vehicleState, data.vehicleStateCovariance,
+                    data.observations[i]);
+            }
 
             updateCount++;
         }

@@ -5,6 +5,9 @@ public class Lidar {
     // GameObject representing the LIDAR:
     private GameObject lidar;
 
+    // Index of this LIDAR (since we may want to use multiple LIDARs):
+    private int lidarIndex;
+
     // Number of raycasts produced by the LIDAR:
     private int raycastCount;
 
@@ -17,8 +20,9 @@ public class Lidar {
     // Used for drawing only:
     private Vector3 lastScanPosition, lastScanForward;  // Real position of the LIDAR during last scan
 
-    public Lidar(GameObject lidar, int raycastCount, float raycastDistance) {
+    public Lidar(GameObject lidar, int raycastCount, float raycastDistance, int lidarIndex) {
         this.lidar = lidar;
+        this.lidarIndex = lidarIndex;
         this.raycastCount = raycastCount;
         this.raycastDistance = raycastDistance;
 
@@ -51,10 +55,10 @@ public class Lidar {
         for (int i = 0; i < observations.Length; i++) {
             RaycastHit hit;
             if (Physics.Raycast(lidar.transform.position, direction, out hit, raycastDistance)) {
-                observations[i] = new AugmentedObservation(hit.distance, observationAngle, false);
+                observations[i] = new AugmentedObservation(hit.distance, observationAngle, lidarIndex, false);
             }
             else {
-                observations[i] = new AugmentedObservation(raycastDistance, observationAngle, true);
+                observations[i] = new AugmentedObservation(raycastDistance, observationAngle, lidarIndex, true);
             }
 
             // Rotate the direction of the raycast counterclockwise:
@@ -90,9 +94,13 @@ public class Lidar {
         return new WipeShape(sensorPosition, shapePoints);
     }*/
 
-    // Position of the LIDAR on the robot:
-    public (float, float) GetLocalPosition() {
-        return (lidar.transform.localPosition.z, -lidar.transform.localPosition.x);
+    // Local pose of the LIDAR on the robot:
+    public Pose2D GetLocalPose() {
+        float x = lidar.transform.localPosition.z;
+        float y = -lidar.transform.localPosition.x;
+        float angle = -lidar.transform.localRotation.eulerAngles.y * Mathf.Deg2Rad;
+
+        return new Pose2D(x, y, angle);
     }
 
     public AugmentedObservation[] GetObservations() {

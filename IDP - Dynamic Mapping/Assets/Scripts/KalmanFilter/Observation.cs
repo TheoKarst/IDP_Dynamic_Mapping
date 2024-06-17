@@ -6,10 +6,12 @@ public struct Observation {
 
     public float r;
     public float theta;
+    public int lidarIndex;
 
-    public Observation(float r, float theta) {
+    public Observation(float r, float theta, int lidarIndex) {
         this.r = r;
         this.theta = theta;
+        this.lidarIndex = lidarIndex;
     }
 
     public static void Substract(Observation a, Observation b, Vector<double> dest, int index) {
@@ -21,6 +23,6 @@ public struct Observation {
         string print_r = Utils.ScientificNotation(r);
         string print_t = Utils.ScientificNotation(Mathf.Rad2Deg * theta);
 
-        return "[r: " + print_r + ", theta: " + print_t + "°]";
+        return "[Lidar n°" + lidarIndex + ": r: " + print_r + ", theta: " + print_t + "°]";
     }
 }

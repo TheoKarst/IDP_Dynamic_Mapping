@@ -61,8 +61,10 @@ public class LidarUtils {
         List<Observation> landmarks = new List<Observation>();
 
         foreach (int index in subset) {
-            Observation observation 
-                = new Observation(observations[index].r, observations[index].theta);
+            Observation observation = new Observation(
+                observations[index].r, 
+                observations[index].theta, 
+                observations[index].lidarIndex);
 
             // Use the vehicle model and vehicle state to get the world space position of
             // the observation:

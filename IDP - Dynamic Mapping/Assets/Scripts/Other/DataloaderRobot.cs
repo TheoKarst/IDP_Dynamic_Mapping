@@ -49,10 +49,11 @@ public class DataloaderRobot : Robot {
         public VehicleState vehicleState;
         public Matrix<double> vehicleStateCovariance;
 
-        public AugmentedObservation[] observations;
+        // List of observations made by each LIDAR on the robot:
+        public AugmentedObservation[][] observations;
 
         public RobotData(float timestamp, VehicleState state,
-            Matrix<double> stateCovariance, AugmentedObservation[] observations) {
+            Matrix<double> stateCovariance, AugmentedObservation[][] observations) {
 
             this.timestamp = timestamp;
             this.vehicleState = state;
@@ -62,6 +63,8 @@ public class DataloaderRobot : Robot {
     }
 
     public class LidarData {
+        public Pose2D localPose;
+
         public Vector3 position;
         public Quaternion rotation;
         public Vector3 localPosition;
@@ -69,10 +72,11 @@ public class DataloaderRobot : Robot {
 
         public AugmentedObservation[] observations;
 
-        public LidarData(Vector3 position, Quaternion rotation, 
-            Vector3 localPosition, Quaternion localRotation, 
+        public LidarData(Pose2D localPose, Vector3 position, Quaternion rotation, 
+            Vector3 localPosition, Quaternion localRotation,
             AugmentedObservation[] observations) {
 
+            this.localPose = localPose;
             this.position = position;
             this.rotation = rotation;
             this.localPosition = localPosition;
@@ -111,8 +115,8 @@ public class DataloaderRobot : Robot {
 
     private RobotData currentFrame = null;
 
-    private LidarData frontLidarData;
-    private LidarData rearLidarData;
+    private const int FRONT_LIDAR_INDEX = 0;
+    private const int REAR_LIDAR_INDEX = 1;
 
     private float currentTime;
     private int currentStep = 0;
@@ -134,8 +138,12 @@ public class DataloaderRobot : Robot {
             errorLidarAngle * errorLidarAngle * Mathf.Deg2Rad * Mathf.Deg2Rad,
         });
 
-        // Create a vehicle model with sensorPose = vehiclePose:
-        vehicleModel = new VehicleModel(0, 0, 0, processNoiseError, observationError);
+        // Create a vehicle model:
+        Pose2D[] lidarPoses = new Pose2D[2];
+        lidarPoses[FRONT_LIDAR_INDEX] = GetLocalPose(frontLidar.transform.localPosition, frontLidar.transform.localRotation);
+        lidarPoses[REAR_LIDAR_INDEX] = GetLocalPose(rearLidar.transform.localPosition, rearLidar.transform.localRotation);
+
+        vehicleModel = new VehicleModel(lidarPoses, 0, processNoiseError, observationError);
     }
 
     // Update is called once per frame
@@ -149,27 +157,25 @@ public class DataloaderRobot : Robot {
     }
 
     public void OnDrawGizmos() {
-        if(drawRays) {
-            if(frontLidarData != null) {
-                for (int i = 0; i < frontLidarData.observations.Length; i++) {
-                    AugmentedObservation observation = frontLidarData.observations[i];
+        if(drawRays && currentFrame != null) {
+            AugmentedObservation[] observations = currentFrame.observations[FRONT_LIDAR_INDEX];
+            for (int i = 0; i < observations.Length; i++) {
+                AugmentedObservation observation = observations[i];
 
-                    Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * observation.theta, Vector3.up) * frontLidar.transform.forward;
+                Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * observation.theta, Vector3.up) * frontLidar.transform.forward;
 
-                    Gizmos.color = Color.Lerp(Color.red, Color.white, 1f * i / frontLidarData.observations.Length);
-                    Gizmos.DrawRay(frontLidar.transform.position, direction * observation.r);
-                }
+                Gizmos.color = Color.Lerp(Color.red, Color.white, 1f * i / observations.Length);
+                Gizmos.DrawRay(frontLidar.transform.position, direction * observation.r);
             }
 
-            if (rearLidarData != null) {
-                for (int i = 0; i < rearLidarData.observations.Length; i++) {
-                    AugmentedObservation observation = rearLidarData.observations[i];
+            observations = currentFrame.observations[REAR_LIDAR_INDEX];
+            for (int i = 0; i < observations.Length; i++) {
+                AugmentedObservation observation = observations[i];
 
-                    Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * observation.theta, Vector3.up) * rearLidar.transform.forward;
+                Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * observation.theta, Vector3.up) * rearLidar.transform.forward;
 
-                    Gizmos.color = Color.Lerp(Color.red, Color.white, 1f * i / rearLidarData.observations.Length);
-                    Gizmos.DrawRay(rearLidar.transform.position, direction * observation.r);
-                }
+                Gizmos.color = Color.Lerp(Color.red, Color.white, 1f * i / observations.Length);
+                Gizmos.DrawRay(rearLidar.transform.position, direction * observation.r);
             }
         }
     }
@@ -232,18 +238,24 @@ public class DataloaderRobot : Robot {
         // Extract useful data from the JSON:
         float timestamp = data.timestamp;
 
-        rearLidarData = ParseLidarData(data.captures[0]);
-        frontLidarData = ParseLidarData(data.captures[2]);
+        LidarData rearLidarData = ParseLidarData(data.captures[0], REAR_LIDAR_INDEX);
+        LidarData frontLidarData = ParseLidarData(data.captures[2], FRONT_LIDAR_INDEX);
 
         if(rearLidarData == null || frontLidarData == null)
             return null;
 
+        // Update the transform of the LIDARs:
         frontLidar.transform.position = frontLidarData.position;
         frontLidar.transform.rotation = frontLidarData.rotation;
         rearLidar.transform.position = rearLidarData.position;
         rearLidar.transform.rotation = rearLidarData.rotation;
 
-        // Now compute the robot transform from the frontLidar:
+        // Update the vehicle model accordingly:
+        vehicleModel.UpdateLidarPose(FRONT_LIDAR_INDEX, frontLidarData.localPose);
+        vehicleModel.UpdateLidarPose(REAR_LIDAR_INDEX, rearLidarData.localPose);
+
+        // Now compute the robot transform from the frontLidar (it would be the same
+        // to do so from the rear LIDAR):
         Quaternion rotation = frontLidarData.rotation * Quaternion.Inverse(frontLidarData.localRotation);
         Vector3 position = frontLidarData.position - rotation * frontLidarData.localPosition;
 
@@ -257,8 +269,13 @@ public class DataloaderRobot : Robot {
         VehicleState vehicleState = new VehicleState(x, y, phi);
         Debug.Log("Vehicle state: " + vehicleState);
 
-        // TODO: Return a valid robot data:
-        return new RobotData(timestamp, vehicleState, vehicleModel.ProcessNoiseError, null);
+        // Stack the observations from both LIDARs into an array:
+        AugmentedObservation[][] observations = new AugmentedObservation[2][];
+        observations[REAR_LIDAR_INDEX] = rearLidarData.observations;
+        observations[FRONT_LIDAR_INDEX] = frontLidarData.observations;
+
+        // Finally return the current frame, with all the data we loaded from the json file:
+        return new RobotData(timestamp, vehicleState, vehicleModel.ProcessNoiseError, observations);
     }
 
     private Vector3 ToVector3(float[] data) {
@@ -269,7 +286,7 @@ public class DataloaderRobot : Robot {
         return new Quaternion(data[0], data[1], data[2], data[3]);
     }
 
-    private LidarData ParseLidarData(Capture capture) {
+    private LidarData ParseLidarData(Capture capture, int lidarIndex) {
         float[] local_position_data = capture.position;
         float[] local_rotation_data = capture.rotation;
         float[] global_position_data = capture.globalPosition;
@@ -290,20 +307,31 @@ public class DataloaderRobot : Robot {
         Quaternion localRotation = ToQuaternion(local_rotation_data);
         Vector3 position = ToVector3(global_position_data);
         Quaternion rotation = ToQuaternion(global_rotation_data);
-        AugmentedObservation[] observations = BuildObservations(ranges, angles);
+        AugmentedObservation[] observations = BuildObservations(ranges, angles, lidarIndex);
 
-        return new LidarData(position, rotation, localPosition, localRotation, observations);
+        // Compute the local pose of the LIDAR:
+        Pose2D localPose = GetLocalPose(localPosition, localRotation);
+
+        return new LidarData(localPose, position, rotation, localPosition, localRotation, observations);
     }
 
-    private AugmentedObservation[] BuildObservations(float[] ranges, float[] angles) {
+    private AugmentedObservation[] BuildObservations(float[] ranges, float[] angles, int lidarIndex) {
         int maxCount = Mathf.Min(ranges.Length, angles.Length);
 
         List<AugmentedObservation> observations = new List<AugmentedObservation>();
         for(int i = 0; i < maxCount; i++) {
             if (ranges[i] >= minObservationRadius)
-                observations.Add(new AugmentedObservation(ranges[i], -Mathf.Deg2Rad * angles[i], false));
+                observations.Add(new AugmentedObservation(ranges[i], -Mathf.Deg2Rad * angles[i], lidarIndex, false));
         }
 
         return observations.ToArray();
+    }
+
+    private Pose2D GetLocalPose(Vector3 localPosition, Quaternion localRotation) {
+        float x = localPosition.z;
+        float y = -localPosition.x;
+        float angle = -localRotation.eulerAngles.y * Mathf.Deg2Rad;
+
+        return new Pose2D(x, y, angle);
     }
 }

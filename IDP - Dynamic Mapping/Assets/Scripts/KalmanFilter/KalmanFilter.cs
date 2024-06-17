@@ -30,6 +30,10 @@ public class KalmanFilter {
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    // Index of the LIDAR we want to use for localisation (for now, using multiple LIDARs at the same
+    // time in the Kalman Filter is not supported):
+    private int lidarIndex;
+
     // Model of the vehicle (used to perform all the operations specific to the vehicle model):
     private VehicleModel vehicleModel;
     
@@ -71,9 +75,10 @@ public class KalmanFilter {
     private Logger logger;
 
     public KalmanFilter(KalmanRobot robot, VehicleState initialState, VehicleModel vehicleModel, 
-        KalmanParams parameters, Logger logger) {
+        KalmanParams parameters, Logger logger, int lidarIndex) {
 
         this.robot = robot;
+        this.lidarIndex = lidarIndex;
 
         // Initialize the state estimate with the given start position of the robot:
         this.stateEstimate = initialState;
@@ -232,8 +237,8 @@ public class KalmanFilter {
 
             // Equation (11): From the state prediction, and for each observation that was matched with
             // a landmark, predict what the observation should be: z_hat(k+1|k)
-            Observation observationPrediction = vehicleModel.PredictObservation(statePrediction, 
-                                                                                landmark.x, landmark.y);
+            Observation observationPrediction 
+                = vehicleModel.PredictObservation(statePrediction, landmark.x, landmark.y, lidarIndex);
 
             // Compare the expected observation with the real one to compute the innovation vector:
             Observation.Substract(observation, observationPrediction, innovationStack, OBSERVATION_DIM * i);
@@ -244,7 +249,7 @@ public class KalmanFilter {
 
             // Compute Hi, the observation Jacobian associated with this landmark using equation (37),
             // and stack it into Hstack:
-            vehicleModel.ComputeHi(statePrediction, landmark, landmarkIndex, Hstack, OBSERVATION_DIM * i);
+            vehicleModel.ComputeHi(statePrediction, landmark, landmarkIndex, Hstack, OBSERVATION_DIM * i, lidarIndex);
 
             // Also update the stack observation noise:
             Rstack.SetSubMatrix(i * OBSERVATION_DIM, i * OBSERVATION_DIM, vehicleModel.ObservationError);

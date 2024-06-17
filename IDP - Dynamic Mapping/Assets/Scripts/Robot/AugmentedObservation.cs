@@ -3,14 +3,16 @@
 public class AugmentedObservation {
     public float r;
     public float theta;
+    public int lidarIndex;
 
     // If the observation is out of the max range of the LIDAR (in this case, the
     // observation radius is cropped to the maximum range):
     public bool outOfRange;
 
-    public AugmentedObservation(float r, float theta, bool outOfRange) {
+    public AugmentedObservation(float r, float theta, int lidarIndex, bool outOfRange) {
         this.r = r;
         this.theta = theta;
+        this.lidarIndex = lidarIndex;
         this.outOfRange = outOfRange;
     }
 }

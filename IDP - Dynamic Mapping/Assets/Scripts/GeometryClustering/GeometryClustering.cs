@@ -150,7 +150,7 @@ public class GeometryClustering {
         List<Point> points = new List<Point>();
 
         (Vector<double>[] Xps, Matrix<double>[] Cps) 
-            = model.ComputeObservationsPositionsEstimates(vehicleState, stateCovariance, observations);
+            = model.ComputeObservationsPositionsEstimates(vehicleState, stateCovariance, observations, observations[0].lidarIndex);
 
         for(int i = 0; i < positions.Length; i++) {
             if (observations[i].outOfRange) {
