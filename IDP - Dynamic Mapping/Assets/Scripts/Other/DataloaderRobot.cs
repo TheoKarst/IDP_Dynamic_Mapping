@@ -51,7 +51,7 @@ public class DataloaderRobot : Robot {
 
         public AugmentedObservation[] observations;
 
-        public RobotData(float timestamp, VehicleState state, 
+        public RobotData(float timestamp, VehicleState state,
             Matrix<double> stateCovariance, AugmentedObservation[] observations) {
 
             this.timestamp = timestamp;
@@ -61,12 +61,32 @@ public class DataloaderRobot : Robot {
         }
     }
 
+    public class LidarData {
+        public Vector3 position;
+        public Quaternion rotation;
+        public Vector3 localPosition;
+        public Quaternion localRotation;
+
+        public AugmentedObservation[] observations;
+
+        public LidarData(Vector3 position, Quaternion rotation, 
+            Vector3 localPosition, Quaternion localRotation, 
+            AugmentedObservation[] observations) {
+
+            this.position = position;
+            this.rotation = rotation;
+            this.localPosition = localPosition;
+            this.localRotation = localRotation;
+            this.observations = observations;
+        }
+    }
+
     public GameObject robotObject;
-    public float lidarHeight = 0.1f;
+    public GameObject rearLidar;
+    public GameObject frontLidar;
+
     public float minObservationRadius = 0.1f;
     public bool drawRays = true;
-
-    // public GameObject lidarObject;
 
     [Tooltip("Button to restart loading data from the beginning")]
     public bool restart = false;
@@ -91,12 +111,8 @@ public class DataloaderRobot : Robot {
 
     private RobotData currentFrame = null;
 
-    private Vector3 robotPosition;
-    private Quaternion robotRotation;
-
-    // Local pose of the LIDAR:
-    // private Vector3 lidarLocalPosition;
-    // private Quaternion lidarLocalRotation;
+    private LidarData frontLidarData;
+    private LidarData rearLidarData;
 
     private float currentTime;
     private int currentStep = 0;
@@ -106,11 +122,6 @@ public class DataloaderRobot : Robot {
 
     // Start is called before the first frame update
     void Start() {
-        robotPosition = robotObject.transform.position;
-        robotRotation = robotObject.transform.rotation;
-        // lidarLocalPosition = lidarObject.transform.localPosition;
-        // lidarLocalRotation = lidarObject.transform.localRotation;
-
         // Build the covariance matrix representing the error on the robot state:
         Matrix<double> processNoiseError = M.Diagonal(new double[] {
             errorPos * errorPos,
@@ -135,24 +146,30 @@ public class DataloaderRobot : Robot {
         }
         else if (readingComplete)
             run = false;
-
-        robotObject.transform.position = robotPosition;
-        robotObject.transform.rotation = robotRotation;
-        // lidarObject.transform.localPosition = lidarLocalPosition;
-        // lidarObject.transform.localRotation = lidarLocalRotation;
     }
 
     public void OnDrawGizmos() {
-        if(currentFrame != null && drawRays) {
+        if(drawRays) {
+            if(frontLidarData != null) {
+                for (int i = 0; i < frontLidarData.observations.Length; i++) {
+                    AugmentedObservation observation = frontLidarData.observations[i];
 
-            for(int i = 0; i < currentFrame.observations.Length; i++) {
-                AugmentedObservation observation = currentFrame.observations[i];
-                
-                Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * observation.theta, Vector3.up) * robotObject.transform.forward;
+                    Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * observation.theta, Vector3.up) * frontLidar.transform.forward;
 
-                Gizmos.color = Color.Lerp(Color.red, Color.white, 1f * i / currentFrame.observations.Length);
-                Gizmos.DrawRay(robotObject.transform.position + new Vector3(0, lidarHeight, 0),
-                    direction * observation.r);
+                    Gizmos.color = Color.Lerp(Color.red, Color.white, 1f * i / frontLidarData.observations.Length);
+                    Gizmos.DrawRay(frontLidar.transform.position, direction * observation.r);
+                }
+            }
+
+            if (rearLidarData != null) {
+                for (int i = 0; i < rearLidarData.observations.Length; i++) {
+                    AugmentedObservation observation = rearLidarData.observations[i];
+
+                    Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * observation.theta, Vector3.up) * rearLidar.transform.forward;
+
+                    Gizmos.color = Color.Lerp(Color.red, Color.white, 1f * i / rearLidarData.observations.Length);
+                    Gizmos.DrawRay(rearLidar.transform.position, direction * observation.r);
+                }
             }
         }
     }
@@ -209,43 +226,39 @@ public class DataloaderRobot : Robot {
         string text = File.ReadAllText(filename);
         FrameData data = JsonUtility.FromJson<FrameData>(text);
 
-        if (data == null || data.captures == null)
+        if (data == null || data.captures == null || data.captures.Length < 3)
             return null;
 
         // Extract useful data from the JSON:
         float timestamp = data.timestamp;
-        float[] position_data = data.captures[0].position;
-        float[] rotation_data = data.captures[0].rotation;
-        float[] global_position_data = data.captures[0].globalPosition;
-        float[] global_rotation_data = data.captures[0].globalRotation;
-        Annotation[] annotations = data.captures[0].annotations;
 
-        if (position_data == null || rotation_data == null || annotations == null
-            || global_position_data == null || global_rotation_data == null)
+        rearLidarData = ParseLidarData(data.captures[0]);
+        frontLidarData = ParseLidarData(data.captures[2]);
+
+        if(rearLidarData == null || frontLidarData == null)
             return null;
 
-        float[] ranges = annotations[0].ranges;
-        float[] angles = annotations[0].angles;
+        frontLidar.transform.position = frontLidarData.position;
+        frontLidar.transform.rotation = frontLidarData.rotation;
+        rearLidar.transform.position = rearLidarData.position;
+        rearLidar.transform.rotation = rearLidarData.rotation;
 
-        if(ranges == null || angles == null)
-            return null;
+        // Now compute the robot transform from the frontLidar:
+        Quaternion rotation = frontLidarData.rotation * Quaternion.Inverse(frontLidarData.localRotation);
+        Vector3 position = frontLidarData.position - rotation * frontLidarData.localPosition;
 
-        // Convert the ranges and angles into observations:
-        AugmentedObservation[] observations = BuildObservations(ranges, angles);
+        robotObject.transform.position = position;
+        robotObject.transform.rotation = rotation;
 
-        robotPosition = ToVector3(global_position_data);
-        robotRotation = ToQuaternion(global_rotation_data);
-        // lidarLocalPosition = ToVector3(position_data);
-        // lidarLocalRotation = ToQuaternion(rotation_data);
+        float x = position.x;
+        float y = position.z;
+        float phi = Mathf.Deg2Rad * (90 - rotation.eulerAngles.y);
 
-        // Convert the position and rotation into a vehicle state:
-        float x = robotPosition.x;
-        float y = robotPosition.z;
-        float angle = Mathf.Deg2Rad * (90 - robotRotation.eulerAngles.y);
-        VehicleState vehicleState = new VehicleState(x, y, angle);
-        Debug.Log("Vehicle state: " + vehicleState + "; Robot angle: " + robotRotation.eulerAngles.y);
+        VehicleState vehicleState = new VehicleState(x, y, phi);
+        Debug.Log("Vehicle state: " + vehicleState);
 
-        return new RobotData(timestamp, vehicleState, vehicleModel.ProcessNoiseError, observations);
+        // TODO: Return a valid robot data:
+        return new RobotData(timestamp, vehicleState, vehicleModel.ProcessNoiseError, null);
     }
 
     private Vector3 ToVector3(float[] data) {
@@ -254,6 +267,32 @@ public class DataloaderRobot : Robot {
 
     private Quaternion ToQuaternion(float[] data) {
         return new Quaternion(data[0], data[1], data[2], data[3]);
+    }
+
+    private LidarData ParseLidarData(Capture capture) {
+        float[] local_position_data = capture.position;
+        float[] local_rotation_data = capture.rotation;
+        float[] global_position_data = capture.globalPosition;
+        float[] global_rotation_data = capture.globalRotation;
+        Annotation[] annotations = capture.annotations;
+
+        if (local_position_data == null || local_rotation_data == null || annotations == null
+            || global_position_data == null || global_rotation_data == null)
+            return null;
+
+        float[] ranges = annotations[0].ranges;
+        float[] angles = annotations[0].angles;
+
+        if (ranges == null || angles == null)
+            return null;
+
+        Vector3 localPosition = ToVector3(local_position_data);
+        Quaternion localRotation = ToQuaternion(local_rotation_data);
+        Vector3 position = ToVector3(global_position_data);
+        Quaternion rotation = ToQuaternion(global_rotation_data);
+        AugmentedObservation[] observations = BuildObservations(ranges, angles);
+
+        return new LidarData(position, rotation, localPosition, localRotation, observations);
     }
 
     private AugmentedObservation[] BuildObservations(float[] ranges, float[] angles) {

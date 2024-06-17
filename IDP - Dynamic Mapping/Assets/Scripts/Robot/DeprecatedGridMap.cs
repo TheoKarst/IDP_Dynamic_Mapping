@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-public class GridMap : MonoBehaviour
+public class DeprecatedGridMap : MonoBehaviour
 {
     public RawImage image;
     public int pixelSize = 4;
