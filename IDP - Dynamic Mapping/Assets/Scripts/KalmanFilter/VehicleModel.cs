@@ -149,6 +149,76 @@ public class VehicleModel {
         return (Xp, Cp);
     }
 
+    // TESTING: Compute the observation position estimate for a list of observations.
+    // The objective is to have a faster function:
+    public (Vector<double>[], Matrix<double>[]) ComputeObservationsPositionsEstimates(
+        VehicleState stateEstimate, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
+
+        // Arrays  to store the result:
+        Vector<double>[] Xps = new Vector<double>[observations.Length];
+        Matrix<double>[] Cps = new Matrix<double>[observations.Length];
+
+        // Perform renamings for simplification:
+        float x = stateEstimate.x, y = stateEstimate.y, phi = stateEstimate.phi;
+
+        // Compute some intermediate values:
+        float cosphi = Mathf.Cos(phi), sinphi = Mathf.Sin(phi);
+        
+        float sensorX = x + a * cosphi - b * sinphi;
+        float sensorY = y + a * sinphi + b * cosphi;
+        float F02_tmp = -a * sinphi - b * cosphi;
+        float F12_tmp = a * cosphi - b * sinphi;
+
+        // 1. Init F (-1 means we will compute this in the loop):
+        Matrix<double> F = M.DenseOfArray(new double[,] {
+            { 1, 0, -1 },
+            { 0, 1, -1 } });
+
+        // 2. Init G (-1 means we will compute this in the loop):
+        Matrix<double> G = M.DenseOfArray(new double[,] {
+            { -1, -1 },
+            { -1, -1 } });
+        
+        // Now for each observation, compute Xp and Cp:
+        for(int i = 0; i < observations.Length; i++) {
+            AugmentedObservation observation = observations[i];
+
+            float cosphi_theta = Mathf.Cos(phi + observation.theta);
+            float sinphi_theta = Mathf.Sin(phi + observation.theta);
+
+            float r_cosphi_theta = observation.r * cosphi_theta;
+            float r_sinphi_theta = observation.r * sinphi_theta;
+
+            // 1. From the state estimate and the observation, compute the global position of the observation:
+            Xps[i] = V.Dense(new double[] {
+                sensorX + r_cosphi_theta,
+                sensorY + r_sinphi_theta 
+            });
+
+            // If the observation was out of range, no need to compute Cp:
+            if(observation.outOfRange) {
+                Cps[i] = null;
+                continue;
+            }
+
+            // 2. Compute the Jacobian of f relatively to the vehicle state:
+            F[0, 2] = F02_tmp - r_sinphi_theta;
+            F[1, 2] = F12_tmp + r_cosphi_theta;
+
+            // 3. Compute the Jacobian of f relatively to the observation:
+            G[0, 0] = cosphi_theta;
+            G[0, 1] = -r_sinphi_theta;
+            G[1, 0] = sinphi_theta;
+            G[1, 1] = r_cosphi_theta;
+
+            // 4. Now we can compute the covariance matrix associated to the observation position estimate:
+            Cps[i] = F * stateCovariance.TransposeAndMultiply(F)
+                   + G * ObservationError.TransposeAndMultiply(G);
+        }
+
+        return (Xps, Cps);
+    }
+
     // Compute the Jacobian of the PredictObservation() function for a given landmark, with respect to the
     // state, and stack the result in dest matrix, at the given index:
     public void ComputeHi(VehicleState predictedState, Landmark landmark, int landmarkIndex, Matrix<double> dest, int index) {
@@ -187,13 +257,13 @@ public class VehicleModel {
         dest.SetSubMatrix(index, STATE_DIM + landmarkIndex * LANDMARK_DIM, Hpi);
     }
 
-    // From the vehicle state estimate, compute the world space position of the LIDAR:
-    public Vector2 GetSensorPosition(VehicleState stateEstimate) {
+    // From the vehicle state estimate, compute the world space pose of the LIDAR:
+    public Pose2D GetSensorPose(VehicleState stateEstimate) {
         float cosphi = Mathf.Cos(stateEstimate.phi), sinphi = Mathf.Sin(stateEstimate.phi);
 
         float sensorX = stateEstimate.x + a * cosphi - b * sinphi;
         float sensorY = stateEstimate.y + a * sinphi + b * cosphi;
 
-        return new Vector2(sensorX, sensorY);
+        return new Pose2D(sensorX, sensorY, stateEstimate.phi);
     }
 }

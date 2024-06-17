@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class RobotManager : MonoBehaviour {
 
-    public SimulatedRobot robot;
+    public Robot robot;
 
     public GridMapParams gridMapParams;
     public GeometryClusterParams geometryClusterParams;
@@ -35,14 +35,15 @@ public class RobotManager : MonoBehaviour {
             DataloaderRobot.RobotData data = robot.GetCurrentFrame();
 
             // Also get the current pose of the LIDAR:
-            Pose2D sensorPose = robot.GetSensorPose();
+            VehicleModel model = robot.GetVehicleModel();
+            Pose2D sensorPose = model.GetSensorPose(data.vehicleState);
 
             // Then update the grid maps:
             worldGridMap.UpdateMaps(sensorPose, data.observations);
 
             // And update the geometry clustering algorithm:
             geometryClustering.UpdateModel(
-                sensorPose, robot.GetVehicleModel(), 
+                sensorPose, model, 
                 data.vehicleState, data.vehicleStateCovariance, 
                 data.observations);
 

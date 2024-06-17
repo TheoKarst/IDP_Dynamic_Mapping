@@ -85,7 +85,7 @@ public class GridMapBresenham : WorldModel {
         texture = new Texture2D(mapWidth, 2 * mapHeight);
         texture.filterMode = FilterMode.Point;  // no smooth pixels
 
-        mapImage.GetComponent<RectTransform>().sizeDelta = new Vector2(mapWidth * pixelSize, 2 * mapHeight * pixelSize);
+        // mapImage.GetComponent<RectTransform>().sizeDelta = new Vector2(mapWidth * pixelSize, 2 * mapHeight * pixelSize);
         mapImage.texture = texture;
     }
 

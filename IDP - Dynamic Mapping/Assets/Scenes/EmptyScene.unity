@@ -405,6 +405,7 @@ GameObject:
   - component: {fileID: 1305996267}
   - component: {fileID: 1305996266}
   - component: {fileID: 1305996265}
+  - component: {fileID: 1305996268}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -479,13 +480,27 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1305996264}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: 0, y: 20, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
+--- !u!114 &1305996268
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1305996264}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cea113e1752b8864dbf6be89d36af2dd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  target: {fileID: 7367791565222339433}
+  zoomSpeed: 1
 --- !u!1 &1367705416
 GameObject:
   m_ObjectHideFlags: 0
@@ -497,7 +512,6 @@ GameObject:
   - component: {fileID: 1367705420}
   - component: {fileID: 1367705419}
   - component: {fileID: 1367705418}
-  - component: {fileID: 1367705417}
   m_Layer: 0
   m_Name: Reference Measure
   m_TagString: Untagged
@@ -505,53 +519,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 0
---- !u!114 &1367705417
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1367705416}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6eca411602db2b24fb04f976f6e2fd91, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  robot: {fileID: 0}
-  gridMapParams:
-    mapImage: {fileID: 0}
-    textureUpdateWait: 10
-    showTexture: 0
-    pixelSize: 1
-    cellSize: 0.1
-    mapWidth: 100
-    mapHeight: 100
-    maxConfidence: 0.99
-    framesToConsiderStatic: 60
-    framesToConsiderDynamic: 20
-  geometryClusterParams:
-    PointCriticalDistance: 0.2
-    LineCriticalDistance: 0.06
-    CriticalAlpha: 1
-    CircleCriticalDistance: 0.2
-    LineMinLength: 0.3
-    LineMaxMatchAngle: 10
-    LineMaxEndpointMatchDistance: 0.1
-    LineMaxMatchDistance: 0.2
-    CircleMaxMatchDistance: 0.2
-    WipeTriangleExtent: 0.1
-    WipeShapeExtent: 0.1
-    WipeTriangleInsideAngleMargin: 1
-    MinCircleLineDistance: 0.5
-    stepRadius: 0
-    minLookAhead: 0
-    epsilon: 0
-    douglasEpsilon: 0
-    drawPoints: 1
-    drawLines: 1
-    drawCircles: 1
-    drawCurrentLines: 1
-    drawWipeShape: 1
 --- !u!23 &1367705418
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -980,7 +947,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7367791565222339433}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6eca411602db2b24fb04f976f6e2fd91, type: 3}
   m_Name: 
@@ -998,15 +965,15 @@ MonoBehaviour:
     framesToConsiderStatic: 60
     framesToConsiderDynamic: 20
   geometryClusterParams:
-    PointCriticalDistance: 0.2
-    LineCriticalDistance: 0.06
-    CriticalAlpha: 1
-    CircleCriticalDistance: 0.2
+    PointCriticalDistance: 2
+    LineCriticalDistance: 0.4
+    CriticalAlpha: 5
+    CircleCriticalDistance: 0.5
     LineMinLength: 0.3
-    LineMaxMatchAngle: 10
-    LineMaxEndpointMatchDistance: 0.1
-    LineMaxMatchDistance: 0.2
-    CircleMaxMatchDistance: 0.2
+    LineMaxMatchAngle: 180
+    LineMaxEndpointMatchDistance: 1
+    LineMaxMatchDistance: 5
+    CircleMaxMatchDistance: 0.5
     WipeTriangleExtent: 0.1
     WipeShapeExtent: 0.1
     WipeTriangleInsideAngleMargin: 1
@@ -1015,9 +982,9 @@ MonoBehaviour:
     minLookAhead: 3
     epsilon: 0.05
     douglasEpsilon: 0.1
-    drawPoints: 1
-    drawLines: 0
-    drawCircles: 1
+    drawPoints: 0
+    drawLines: 1
+    drawCircles: 0
     drawCurrentLines: 0
     drawWipeShape: 1
 --- !u!114 &8138558424500982985
@@ -1033,12 +1000,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   robotObject: {fileID: 7367791565222339433}
-  lidarObject: {fileID: 7530674074739498182}
+  lidarHeight: 0.15
+  minObservationRadius: 0.1
+  drawRays: 0
   restart: 0
-  errorPos: 0.01
-  errorAngle: 2
-  errorLidarRange: 0.01
-  errorLidarAngle: 2
+  run: 0
+  errorPos: 1
+  errorAngle: 40
+  errorLidarRange: 1
+  errorLidarAngle: 10
 --- !u!23 &8692937412897592187
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1145,7 +1115,7 @@ SceneRoots:
   - {fileID: 1305996267}
   - {fileID: 1251816676}
   - {fileID: 1535177889}
-  - {fileID: 1260774628}
-  - {fileID: 1367705420}
   - {fileID: 1797762987}
+  - {fileID: 1260774628}
   - {fileID: 5822468955504383679}
+  - {fileID: 1367705420}

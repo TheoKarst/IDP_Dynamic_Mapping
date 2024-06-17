@@ -23,7 +23,7 @@ public class GeometryClustering {
     private WipeShape currentWipeShape;
 
     // TEST:
-    private int newLineCount = 0;
+    // private int newLineCount = 0;
 
     public GeometryClustering(GeometryClusterParams parameters) {
         this.parameters = parameters;
@@ -74,8 +74,8 @@ public class GeometryClustering {
         UpdateModelCircles(circles, currentWipeShape);
         Profiler.EndSample();
 
-        // Debug.Log("Points: " + currentPoints.Count + "; Lines: " + modelLines.Count 
-        //    + "; Circles: " + modelCircles.Count);
+        Debug.Log("Points: " + currentPoints.Count + "; Lines: " + modelLines.Count 
+            + "; Circles: " + modelCircles.Count);
     }
 
     public void DrawGizmos(bool drawCurrentLines, bool drawPoints, 
@@ -108,6 +108,7 @@ public class GeometryClustering {
         }
     }
 
+    /*
     // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
     // to compute the estimated position of all the observations of the LIDAR in world space:
     private static (Vector2[] positions, List<Point> points) ComputePoints(VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
@@ -140,14 +141,48 @@ public class GeometryClustering {
         }
 
         return (positions, points);
+    }*/
+
+    // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
+    // to compute the estimated position of all the observations of the LIDAR in world space:
+    private static (Vector2[] positions, List<Point> points) ComputePoints(VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
+        Vector2[] positions = new Vector2[observations.Length];
+        List<Point> points = new List<Point>();
+
+        (Vector<double>[] Xps, Matrix<double>[] Cps) 
+            = model.ComputeObservationsPositionsEstimates(vehicleState, stateCovariance, observations);
+
+        for(int i = 0; i < positions.Length; i++) {
+            if (observations[i].outOfRange) {
+                positions[i] = new Vector2((float)Xps[i][0], (float)Xps[i][1]);
+            }
+            else {
+                float x = (float)Xps[i][0];
+                float y = (float)Xps[i][1];
+                float theta = observations[i].theta;
+
+                positions[i] = new Vector2(x, y);
+                points.Add(new Point(x, y, theta, Cps[i]));
+            }
+        }
+
+        return (positions, points);
     }
 
     private WipeShape BuildWipeShape(Pose2D sensorPose, Vector2[] currentPoints) {
         List<Vector2> points = LidarUtils.ComputeWipeShapePoints(currentPoints,
             parameters.stepRadius, parameters.minLookAhead, parameters.epsilon);
 
+        // Convert into an array:
+        Vector2[] pointsArray = new Vector2[points.Count];
+        for (int i = 0; i < points.Count; i++)
+            pointsArray[i] = points[i];
 
-        return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), points);
+        // Run Douglas Peucker to get less points for the shape:
+        Vector2[] filtered = LidarUtils.DouglasPeucker(pointsArray, parameters.douglasEpsilon);
+        
+        // Build the WipeShape:
+        return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), filtered);
     }
 
     // Cluster extraction (lines and circles):
@@ -327,7 +362,13 @@ public class GeometryClustering {
             float minDistance = -1;
 
             Profiler.BeginSample("Lines matching");
+            // string logMsg = "Line " + i + ": [" + line.LogParams() + "]\n";
             foreach (Line matchCandidate in modelLines) {
+                // logMsg += line.LogMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, parameters.LineMaxEndpointMatchDistance);
+                // logMsg += "\t[" + matchCandidate.LogParams() + "=>"
+                //    + Utils.ScientificNotation(line.ComputeNormDistance(matchCandidate)) + "]\t";
+                // logMsg += "[" + Utils.ScientificNotation(line.ComputeCenterDistance(matchCandidate)) + "]";
+
                 // First test: compare the angle difference and endpoints distance between the two lines:
                 if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, parameters.LineMaxEndpointMatchDistance)) {
 
@@ -343,9 +384,11 @@ public class GeometryClustering {
                         if (bestMatch == null || centerDistance < minDistance) {
                             bestMatch = matchCandidate;
                             minDistance = centerDistance;
+                            // logMsg += ": Possible match !";
                         }
                     }
                 }
+                // logMsg += "\n";
             }
             Profiler.EndSample();
 
@@ -354,14 +397,17 @@ public class GeometryClustering {
             if (bestMatch != null && minDistance <= parameters.LineMaxMatchDistance) {
                 bestMatch.lineColor = Color.blue;       // Blue color for matched lines
                 bestMatch.UpdateLineUsingMatching(line);
+                // logMsg += "=> Match found !";
             }
 
             // Else, just add this new line to the model:
             else {
                 line.lineColor = Color.green;       // Green color for new lines
                 newLines.Add(line);
-                Debug.Log("New line (" + (++newLineCount) + ") !");
+                // Debug.Log("New line (" + (++newLineCount) + ") !");
+                // logMsg += "=> New line !";
             }
+            // Debug.Log(logMsg);
             Profiler.EndSample();
         }
 

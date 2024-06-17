@@ -1,8 +1,9 @@
 using MathNet.Numerics.LinearAlgebra;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
-public class DataloaderRobot : MonoBehaviour {
+public class DataloaderRobot : Robot {
 
     // Matrix builder used as a shortcut for vector and matrix creation:
     private static MatrixBuilder<double> M = Matrix<double>.Build;
@@ -61,10 +62,15 @@ public class DataloaderRobot : MonoBehaviour {
     }
 
     public GameObject robotObject;
-    public GameObject lidarObject;
+    public float lidarHeight = 0.1f;
+    public float minObservationRadius = 0.1f;
+    public bool drawRays = true;
+
+    // public GameObject lidarObject;
 
     [Tooltip("Button to restart loading data from the beginning")]
     public bool restart = false;
+    public bool run = false;
 
     [Header("Process Noise Error")]
     [Tooltip("Estimated error covariance on the position of the robot")]
@@ -83,18 +89,16 @@ public class DataloaderRobot : MonoBehaviour {
 
     private VehicleModel vehicleModel;
 
-    private bool isRunning = false;
-
     private RobotData currentFrame = null;
 
     private Vector3 robotPosition;
     private Quaternion robotRotation;
 
     // Local pose of the LIDAR:
-    private Vector3 lidarLocalPosition;
-    private Quaternion lidarLocalRotation;
+    // private Vector3 lidarLocalPosition;
+    // private Quaternion lidarLocalRotation;
 
-    private float startTime;
+    private float currentTime;
     private int currentStep = 0;
     private bool readingComplete = false;
 
@@ -104,8 +108,8 @@ public class DataloaderRobot : MonoBehaviour {
     void Start() {
         robotPosition = robotObject.transform.position;
         robotRotation = robotObject.transform.rotation;
-        lidarLocalPosition = lidarObject.transform.localPosition;
-        lidarLocalRotation = lidarObject.transform.localRotation;
+        // lidarLocalPosition = lidarObject.transform.localPosition;
+        // lidarLocalRotation = lidarObject.transform.localRotation;
 
         // Build the covariance matrix representing the error on the robot state:
         Matrix<double> processNoiseError = M.Diagonal(new double[] {
@@ -125,17 +129,21 @@ public class DataloaderRobot : MonoBehaviour {
 
     // Update is called once per frame
     void Update() {
-        if(isRunning && !readingComplete)
-            LoadNextFrame("Assets/data/warehouse", Time.time - startTime);
+        if (run && !readingComplete) {
+            currentTime += Time.deltaTime;
+            LoadNextFrame("Assets/data/warehouse", currentTime);
+        }
+        else if (readingComplete)
+            run = false;
 
         robotObject.transform.position = robotPosition;
         robotObject.transform.rotation = robotRotation;
-        lidarObject.transform.localPosition = lidarLocalPosition;
-        lidarObject.transform.localRotation = lidarLocalRotation;
+        // lidarObject.transform.localPosition = lidarLocalPosition;
+        // lidarObject.transform.localRotation = lidarLocalRotation;
     }
 
     public void OnDrawGizmos() {
-        if(currentFrame != null) {
+        if(currentFrame != null && drawRays) {
 
             for(int i = 0; i < currentFrame.observations.Length; i++) {
                 AugmentedObservation observation = currentFrame.observations[i];
@@ -143,7 +151,8 @@ public class DataloaderRobot : MonoBehaviour {
                 Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * observation.theta, Vector3.up) * robotObject.transform.forward;
 
                 Gizmos.color = Color.Lerp(Color.red, Color.white, 1f * i / currentFrame.observations.Length);
-                Gizmos.DrawRay(robotObject.transform.position, direction * observation.r);
+                Gizmos.DrawRay(robotObject.transform.position + new Vector3(0, lidarHeight, 0),
+                    direction * observation.r);
             }
         }
     }
@@ -151,10 +160,10 @@ public class DataloaderRobot : MonoBehaviour {
     public void OnValidate() {
         if (restart) {
             restart = false;
-            isRunning = true;
+            run = false;
 
             currentFrame = null;
-            startTime = Time.time;
+            currentTime = 0;
             currentStep = 0;
             
             readingComplete = false;
@@ -162,28 +171,18 @@ public class DataloaderRobot : MonoBehaviour {
         }
     }
 
-    public bool IsNewFrameAvailable() {
+    public override bool IsNewFrameAvailable() {
         bool tmp = newFrameAvailable;
         newFrameAvailable = false;
         return tmp;
     }
 
-    public RobotData GetCurrentFrame() {
+    public override RobotData GetCurrentFrame() {
         return currentFrame;
     }
 
-    public VehicleModel GetVehicleModel() {
+    public override VehicleModel GetVehicleModel() {
         return vehicleModel;
-    }
-
-    public Pose2D GetSensorPose() {
-        // Compute the sensor pose from the current robot data:
-        VehicleState vehicleState = currentFrame.vehicleState;
-
-        Vector2 sensorPosition = vehicleModel.GetSensorPosition(vehicleState);
-        float sensorAngle = vehicleState.phi;
-
-        return new Pose2D(sensorPosition.x, sensorPosition.y, sensorAngle);
     }
 
     private void LoadNextFrame(string folder, float currentTime) {
@@ -232,15 +231,12 @@ public class DataloaderRobot : MonoBehaviour {
             return null;
 
         // Convert the ranges and angles into observations:
-        int count = Mathf.Min(ranges.Length, angles.Length);
-        AugmentedObservation[] observations = new AugmentedObservation[count];
-        for(int i = 0; i < observations.Length; i++)
-            observations[i] = new AugmentedObservation(ranges[i], Mathf.Deg2Rad * angles[i], false);
+        AugmentedObservation[] observations = BuildObservations(ranges, angles);
 
         robotPosition = ToVector3(global_position_data);
         robotRotation = ToQuaternion(global_rotation_data);
-        lidarLocalPosition = ToVector3(position_data);
-        lidarLocalRotation = ToQuaternion(rotation_data);
+        // lidarLocalPosition = ToVector3(position_data);
+        // lidarLocalRotation = ToQuaternion(rotation_data);
 
         // Convert the position and rotation into a vehicle state:
         float x = robotPosition.x;
@@ -258,5 +254,17 @@ public class DataloaderRobot : MonoBehaviour {
 
     private Quaternion ToQuaternion(float[] data) {
         return new Quaternion(data[0], data[1], data[2], data[3]);
+    }
+
+    private AugmentedObservation[] BuildObservations(float[] ranges, float[] angles) {
+        int maxCount = Mathf.Min(ranges.Length, angles.Length);
+
+        List<AugmentedObservation> observations = new List<AugmentedObservation>();
+        for(int i = 0; i < maxCount; i++) {
+            if (ranges[i] >= minObservationRadius)
+                observations.Add(new AugmentedObservation(ranges[i], -Mathf.Deg2Rad * angles[i], false));
+        }
+
+        return observations.ToArray();
     }
 }

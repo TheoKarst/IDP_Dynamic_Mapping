@@ -4,26 +4,31 @@ using UnityEngine.Assertions;
 
 public class WipeShape {
     private Vector2 center;
-    private List<Vector2> points = new List<Vector2>();
+    private Vector2[] points;
     private float[] angles;
 
-    public WipeShape(Vector2 center, List<Vector2> points) {
+    public WipeShape(Vector2 center, Vector2[] points) {
         this.center = center;
         this.points = points;
 
-        this.angles = new float[points.Count];
-        float prevAngle = Mathf.Atan2(points[0].y - center.y,
+        this.angles = new float[points.Length];
+        angles[0] = Mathf.Atan2(points[0].y - center.y,
                                       points[0].x - center.x);
+        string logMsg = "[" + angles[0] * Mathf.Rad2Deg;
 
-        for (int i = 1; i < points.Count; i++) {
+        for (int i = 1; i < points.Length; i++) {
             float pointAngle = Mathf.Atan2(points[i].y - center.y, 
                                            points[i].x - center.x);
 
-            float step = Mathf.Repeat(pointAngle - prevAngle, 2 * Mathf.PI);
-            Assert.IsTrue(step < Mathf.PI, "Assertion error while building the wipe shape");
+            float step = Mathf.Repeat(pointAngle - angles[i-1], 2 * Mathf.PI);
+            if(step >= Mathf.PI)
+                Debug.LogError("Assertion error while building the wipe shape");
 
-            prevAngle = angles[i] = prevAngle + step;
+            angles[i] = angles[i-1] + step;
+            logMsg += "; " + angles[i] * Mathf.Rad2Deg;
         }
+        if(angles[angles.Length - 1] - angles[0] > 2 * Mathf.PI)
+            Debug.LogError("Angles: " + logMsg + "]; First point: " + points[0] + ", Last: " + points[points.Length-1]);
 
         /*
         string log = "";
@@ -36,11 +41,11 @@ public class WipeShape {
     }
 
     public void DrawGizmos(float height) {
-        if (points.Count == 0)
+        if (points.Length == 0)
             return;
 
         Gizmos.color = Color.white;
-        Vector2 prev = points[points.Count - 1];
+        Vector2 prev = points[points.Length - 1];
         foreach (Vector2 point in points) {
             Gizmos.DrawLine(Utils.To3D(prev, height), Utils.To3D(point, height));
             prev = point;
@@ -63,13 +68,13 @@ public class WipeShape {
     }
 
     private void UpdateLineValidity(Line line) {
-        if (points.Count < 3) {
+        if (points.Length < 3) {
             Debug.LogError("Wipe Shape has less than 3 points !");
             return;
         }
 
         // All the indices are modulo n:
-        int n = points.Count;
+        int n = points.Length;
 
         int startPoint, endPoint, direction, count;
 
@@ -116,7 +121,7 @@ public class WipeShape {
                 startPointOutside = Vector2.Dot(line.beginPoint - current, normal) >= 0;
 
                 // if(!startPointOutside) {
-                //     Debug.Log("Point: " + line.beginPoint + " is in the shape (Section: "+ startPoint + ") . Normal of (" + current.position + "; " + next.position + "): " + normal + "; Line direction: " + direction);
+                //    Debug.Log("Point: " + line.beginPoint + " is in the shape (Section: " + startPoint + ") . Normal of (" + current + "; " + next + "): " + normal + "; Line direction: " + direction);
                 // }
             }
 
@@ -139,7 +144,7 @@ public class WipeShape {
 
     private void UpdateCircleValidity(Circle circle) {
         int nextIndex = FindSection(circle.position);
-        int previousIndex = nextIndex > 0 ? nextIndex - 1 : points.Count - 1;
+        int previousIndex = nextIndex > 0 ? nextIndex - 1 : points.Length - 1;
 
         Vector2 nextPos = points[nextIndex];
         Vector2 prevPos = points[previousIndex];
@@ -164,10 +169,10 @@ public class WipeShape {
         pointAngle = angles[0] + Mathf.Repeat(pointAngle - angles[0], 2 * Mathf.PI);
 
         int section = 0;
-        while (section < points.Count && angles[section] < pointAngle)
+        while (section < points.Length && angles[section] < pointAngle)
             section++;
 
         // Keep the result between 0 and points.Count:
-        return section == points.Count ? 0 : section;
+        return section == points.Length ? 0 : section;
     }
 }

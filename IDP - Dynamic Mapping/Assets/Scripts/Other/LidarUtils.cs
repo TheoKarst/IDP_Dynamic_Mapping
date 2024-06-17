@@ -17,7 +17,7 @@ public class LidarUtils {
         }
 
         // Run Douglas Peucker algorithm on the set of points, to get a subset of points:
-        return DouglasPeucker(points, epsilon, true);
+        return DouglasPeuckerIndices(points, epsilon, true);
     }
 
     // From a subset of observations, return the corners with an angle greater than "minAngleDegrees":
@@ -87,12 +87,12 @@ public class LidarUtils {
     // points represent a loop, and we thus perform a further check to see if we need
     // to keep the first and last point of the curve (that are otherwise always kept
     // by Douglas Peucker algorithm):
-    private static int[] DouglasPeucker(Vector2[] points, float epsilon, bool loop) {
+    private static int[] DouglasPeuckerIndices(Vector2[] points, float epsilon, bool loop) {
         int[] indices = new int[points.Length];
         for (int i = 0; i < indices.Length; i++) indices[i] = i;
 
         // Perform Douglas Peucker algorithm on the set of points:
-        indices = DouglasPeucker(points, indices, 0, points.Length - 1, epsilon);
+        indices = DouglasPeuckerIndices(points, indices, 0, points.Length - 1, epsilon);
 
         // If loop = true, check if we need to keep the first and last point of the curve:
         if (loop && indices.Length >= 4) {
@@ -119,7 +119,7 @@ public class LidarUtils {
         return indices;
     }
 
-    private static int[] DouglasPeucker(Vector2[] points, int[] indices, int start, int end, float epsilon) {
+    private static int[] DouglasPeuckerIndices(Vector2[] points, int[] indices, int start, int end, float epsilon) {
         Vector2 startPoint = points[indices[start]];
         Vector2 endPoint = points[indices[end]];
 
@@ -139,8 +139,8 @@ public class LidarUtils {
         }
 
         if (maxDistance > epsilon) {
-            int[] indices1 = DouglasPeucker(points, indices, start, index, epsilon);
-            int[] indices2 = DouglasPeucker(points, indices, index, end, epsilon);
+            int[] indices1 = DouglasPeuckerIndices(points, indices, start, index, epsilon);
+            int[] indices2 = DouglasPeuckerIndices(points, indices, index, end, epsilon);
 
             int[] result = new int[indices1.Length + indices2.Length - 1];
             System.Array.Copy(indices1, result, indices1.Length - 1);
@@ -262,5 +262,42 @@ public class LidarUtils {
         }
 
         return result;
+    }
+
+    public static Vector2[] DouglasPeucker(Vector2[] points, float epsilon) {
+        return DouglasPeucker(points, 0, points.Length - 1, epsilon);
+    }
+
+    private static Vector2[] DouglasPeucker(Vector2[] points, int start, int end, float epsilon) {
+        Vector2 startPoint = points[start];
+        Vector2 endPoint = points[end];
+
+        Vector2 u = new Vector2(startPoint.y - endPoint.y, endPoint.x - startPoint.x).normalized;
+
+        // Find the point with maximum orthogonal distance:
+        int index = -1;
+        float maxDistance = 0;
+
+        for (int i = start + 1; i < end; i++) {
+            float distance = Mathf.Abs(Vector2.Dot(points[i] - startPoint, u));
+
+            if (distance >= maxDistance) {
+                maxDistance = distance;
+                index = i;
+            }
+        }
+
+        if (maxDistance > epsilon) {
+            Vector2[] list1 = DouglasPeucker(points, start, index, epsilon);
+            Vector2[] list2 = DouglasPeucker(points, index, end, epsilon);
+
+            Vector2[] result = new Vector2[list1.Length + list2.Length - 1];
+            System.Array.Copy(list1, result, list1.Length - 1);
+            System.Array.Copy(list2, 0, result, list1.Length - 1, list2.Length);
+
+            return result;
+        }
+        else
+            return new Vector2[] { points[start], points[end] };
     }
 }

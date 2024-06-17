@@ -1,6 +1,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 public class KalmanFilter {
     // Matrix builder used as a shortcut for vector and matrix creation:
@@ -60,7 +61,7 @@ public class KalmanFilter {
     private VehicleState statePredictionOnly;
 
     // Use a reference to the simulated robot to have the real state of the robot (only used for logs):
-    private SimulatedRobot robot;
+    private KalmanRobot robot;
 
     // Debugging: Save the observations to draw them:
     private List<Vector<double>> observationsPos;
@@ -69,7 +70,7 @@ public class KalmanFilter {
     // Used to print debug messages in the console / in a text file:
     private Logger logger;
 
-    public KalmanFilter(SimulatedRobot robot, VehicleState initialState, VehicleModel vehicleModel, 
+    public KalmanFilter(KalmanRobot robot, VehicleState initialState, VehicleModel vehicleModel, 
         KalmanParams parameters, Logger logger) {
 
         this.robot = robot;
@@ -180,7 +181,8 @@ public class KalmanFilter {
         //// 2. Observation: Match each observation with a landmark, and use the errors to update the state estimate: 
         List<(Observation, int)> landmarkAssociation = new List<(Observation, int)>();
 
-        foreach(Observation observation in observations) {
+        Profiler.BeginSample("Landmarks Association");
+        foreach (Observation observation in observations) {
             
             // Use the landmark association algorithm defined in the Appendix II to associate our
             // observation with a possible landmark:
@@ -197,6 +199,7 @@ public class KalmanFilter {
                     break;
             }
         }
+        Profiler.EndSample();
 
         // Update the set of landmarks:
         UpdatePotentialLandmarks(stateCovariancePrediction);
@@ -221,6 +224,7 @@ public class KalmanFilter {
         Matrix<double> Hstack = M.Sparse(stackSize, STATE_DIM + confirmedLandmarks.Count * LANDMARK_DIM);
         Matrix<double> Rstack = M.Sparse(stackSize, stackSize);
 
+        Profiler.BeginSample("Build Hstack, Rstack");
         for(int i = 0; i < landmarkAssociation.Count; i++) {
             Observation observation; int landmarkIndex;
             (observation, landmarkIndex) = landmarkAssociation[i];
@@ -245,14 +249,19 @@ public class KalmanFilter {
             // Also update the stack observation noise:
             Rstack.SetSubMatrix(i * OBSERVATION_DIM, i * OBSERVATION_DIM, vehicleModel.ObservationError);
         }
+        Profiler.EndSample();
 
+        Profiler.BeginSample("Compute innovation");
         // Finally compute the innovation covariance matrix using Hstack and Rstack (Equation 14):
         Matrix<double> S, W;
         (S, W) = stateCovariancePrediction.ComputeInnovationAndGainMatrices(Hstack, Rstack);
+        Profiler.EndSample();
 
         //// 3. Update: Update the state estimate from our observation
+        Profiler.BeginSample("Update");
         stateEstimate = statePrediction + W * innovationStack;                                  // Equation (15)
         stateCovarianceEstimate = stateCovariancePrediction - W * S.TransposeAndMultiply(W);    // Equation (16)
+        Profiler.EndSample();
 
         // Write data to the log file:
         logger.Log(robot.GetRobotRealState(), statePredictionOnly, stateEstimate);
