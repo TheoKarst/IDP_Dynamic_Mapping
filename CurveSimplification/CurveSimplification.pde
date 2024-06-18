@@ -4,8 +4,8 @@ ArrayList<PVector> transformedCurve = new ArrayList<PVector>();
 void setup() {
   size(1600, 1000, P2D);
   
-  initialCurve = randomCurve(50000, new PVector(width/2, height/2), height/10, height/2);
-  benchmarks();
+  // initialCurve = randomCurve(50000, new PVector(width/2, height/2), height/10, height/2);
+  // benchmarks();
 }
 
 void draw() {
@@ -40,9 +40,23 @@ void keyPressed() {
     println(transformedCurve.size() + " points.");
   }
   else if(key == 't') {
-    print("Curve regularization 3 + Douglas Peucker: ");
-    transformedCurve = DouglasPeucker(curveRegularization3(initialCurve, 100, 3, 10), 10);
+    print("Curve regularization 4: ");
+    transformedCurve = curveRegularization4(initialCurve, 100, 3, 10);
     println(transformedCurve.size() + " points.");
+  }
+  else if(key == 'y') {
+    print("Curve regularization 4 + Douglas Peucker: ");
+    transformedCurve = DouglasPeucker(curveRegularization4(initialCurve, 100, 3, 10), 10);
+    println(transformedCurve.size() + " points.");
+  }
+  else if(key == 's') {
+    saveCurve(initialCurve, "initial_curve.csv");
+    println("Initial curve saved in the file: initial_curve.csv");
+  }
+  else if(key == 'l') {
+    initialCurve = loadCurve("initial_curve.csv");
+    transformedCurve.clear();
+    println("The curve saved in the file: 'initial_curve.csv' was successfully loaded !");
   }
   else if(key == 'c') {
     initialCurve.clear();
@@ -71,6 +85,26 @@ void drawCurve(ArrayList<PVector> points, color curveColor, boolean drawPoints, 
       ellipse(point.x, -point.y, 5, 5);
     }
   }
+}
+
+void saveCurve(ArrayList<PVector> points, String filename) {
+  PrintWriter writer = createWriter(filename);
+  for(PVector point : points)
+    writer.println(point.x + ";" + point.y);
+  writer.flush();
+  writer.close();
+}
+
+ArrayList<PVector> loadCurve(String filename) {
+  String[] lines = loadStrings(filename);
+  ArrayList<PVector> points = new ArrayList<PVector>(lines.length);
+  
+  for(String line : lines) {
+    String[] data = line.split(";");
+    points.add(new PVector(float(data[0]), float(data[1])));
+  }
+  
+  return points;
 }
 
 ArrayList<PVector> randomCurve(int pointsCount, PVector center, float minRadius, float maxRadius) {

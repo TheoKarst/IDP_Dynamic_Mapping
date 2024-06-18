@@ -20,13 +20,15 @@ public class GeometryClustering {
     // For debugging: List of lines that were built during this frame:
     private List<Line> debugCurrentLines = new List<Line>();
 
+    private GridMap gridMap;
     private WipeShape currentWipeShape;
 
     // TEST:
     // private int newLineCount = 0;
 
-    public GeometryClustering(GeometryClusterParams parameters) {
+    public GeometryClustering(GeometryClusterParams parameters, GridMap gridMap) {
         this.parameters = parameters;
+        this.gridMap = gridMap;
 
         CriticalAlphaRadians = Mathf.Deg2Rad * parameters.CriticalAlpha;
         LineMaxMatchAngleRadians = Mathf.Deg2Rad * parameters.LineMaxMatchAngle;
@@ -35,6 +37,13 @@ public class GeometryClustering {
 
     public void UpdateModel(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
         Vector2[] positions;
+
+        // Clear the previous grid map, and add in it the current model lines:
+        Profiler.BeginSample("Grid Map Update");
+        gridMap.Clear();
+        foreach(Line line in modelLines)
+            gridMap.RegisterLine(line);
+        Profiler.EndSample();
 
         // Get points from the LIDAR:
         Profiler.BeginSample("Compute points");
@@ -363,7 +372,8 @@ public class GeometryClustering {
 
             Profiler.BeginSample("Lines matching");
             // string logMsg = "Line " + i + ": [" + line.LogParams() + "]\n";
-            foreach (Line matchCandidate in modelLines) {
+            // foreach (Line matchCandidate in modelLines) {
+            foreach(Line matchCandidate in gridMap.FindNeighbors(line)) {
                 // logMsg += line.LogMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, parameters.LineMaxEndpointMatchDistance);
                 // logMsg += "\t[" + matchCandidate.LogParams() + "=>"
                 //    + Utils.ScientificNotation(line.ComputeNormDistance(matchCandidate)) + "]\t";

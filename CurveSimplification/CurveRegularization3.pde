@@ -66,7 +66,6 @@ ArrayList<PVector> curveRegularization3(ArrayList<PVector> curve, float stepRadi
         PVector u = new PVector(pivot.y - nextPivot.y, nextPivot.x - pivot.x).normalize();
         
         PVector tmp = new PVector();
-        
         for(int i = lastPivotIndex + 1; i < index; i++) {
           float distance = PVector.sub(curve.get(i), pivot, tmp).dot(u);
           

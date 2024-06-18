@@ -1,14 +1,23 @@
 using UnityEngine;
+using UnityEngine.Profiling;
 
 public class RobotManager : MonoBehaviour {
 
     public Robot robot;
+
+    [Header("Line match grid map")]
+    public float centerX = 0;
+    public float centerY = 0;
+    public int width = 40;
+    public int height = 40;
+    public float cellSize = 2;
 
     public GridMapParams gridMapParams;
     public GeometryClusterParams geometryClusterParams;
 
     private GridMapBresenham worldGridMap;
     private GeometryClustering geometryClustering;
+    private GridMap gridMap;
 
     private long updateCount = 0;
 
@@ -17,7 +26,7 @@ public class RobotManager : MonoBehaviour {
         worldGridMap = new GridMapBresenham(gridMapParams);
         
         // Instantiate the geometry clustering algorithm:
-        geometryClustering = new GeometryClustering(geometryClusterParams);
+        geometryClustering = new GeometryClustering(geometryClusterParams, gridMap);
     }
 
     // Update is called once per frame
@@ -41,12 +50,16 @@ public class RobotManager : MonoBehaviour {
             for(int i = 0; i < data.observations.Length; i++) {
                 Pose2D sensorPose = model.GetWorldSensorPose(data.vehicleState, i);
 
+                Profiler.BeginSample("Static/Dynamic maps update");
                 worldGridMap.UpdateMaps(sensorPose, data.observations[i]);
+                Profiler.EndSample();
 
+                Profiler.BeginSample("Geometry clustering update");
                 geometryClustering.UpdateModel(
                     sensorPose, model,
                     data.vehicleState, data.vehicleStateCovariance,
                     data.observations[i]);
+                Profiler.EndSample();
             }
 
             updateCount++;
@@ -67,6 +80,13 @@ public class RobotManager : MonoBehaviour {
                 geometryClusterParams.drawCircles, 
                 geometryClusterParams.drawWipeShape);
         }
+
+        // if (gridMap != null)
+        //     gridMap.DrawGizmos(0.2f);
+    }
+
+    public void OnValidate() {
+        gridMap = new GridMap(width, height, centerX, centerY, cellSize);
     }
 
     public WorldModel GetWorldModel() {

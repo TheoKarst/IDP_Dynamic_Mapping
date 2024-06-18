@@ -1,8 +1,4 @@
-int pixelSize = 10;
-
-PVector v = new PVector(30, 0);
-
-boolean R_pressed = false;
+int pixelSize = 20;
 
 void setup() {
   size(1600, 1000, P2D);
@@ -13,27 +9,21 @@ void setup() {
 void draw() {
   background(255);
   
-  float centerX = width / (2 * pixelSize) + 0.25f;
-  float centerY = height / (2 * pixelSize) + 0.25f;
+  float centerX = width / (2 * pixelSize) + 0.5f;
+  float centerY = height / (2 * pixelSize) + 0.5f;
   
   noStroke();
   fill(0);
-  drawLineBresenham2(centerX, centerY, centerX + v.x, centerY + v.y);
+  drawLineBresenham2(centerX, centerY, float(mouseX) / pixelSize, float(mouseY) / pixelSize);
   
   stroke(255, 0, 0);
   strokeWeight(2);
-  line(pixelSize * centerX, pixelSize * centerY, pixelSize * (centerX + v.x), pixelSize * (centerY + v.y));
-  
-  if(R_pressed)
-    v.rotate(PI / 300);
+  line(pixelSize * centerX, pixelSize * centerY, mouseX, mouseY);
 }
 
 void keyPressed() {
-  if(key == 'r') R_pressed = true;
-}
-
-void keyReleased() {
-  if(key == 'r') R_pressed = false;
+  if(key == ' ')
+    loop();
 }
 
 void drawLineBresenham(int x0, int y0, int x1, int y1) {
@@ -82,11 +72,9 @@ void drawLineBresenham2(float x0, float y0, float x1, float y1) {
   float slopeX = 1/abs(x1-x0);
   float slopeY = 1/abs(y1-y0);
   
-  
-  while(true) {
+  int stepsCount = abs(xEnd-x) + abs(yEnd-y);
+  for(int i = 0; i <= stepsCount; i++) {
     setPixel(x, y);
-    
-    if(x==xEnd && y==yEnd) break;
     
     if(tMaxX < tMaxY) {
       tMaxX += slopeX;

@@ -3097,6 +3097,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   robot: {fileID: 3012714565942262461}
+  centerX: 0
+  centerY: 0
+  width: 70
+  height: 40
+  cellSize: 0.2
   gridMapParams:
     mapImage: {fileID: 1741178508}
     textureUpdateWait: 10
