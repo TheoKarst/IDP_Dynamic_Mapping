@@ -4,9 +4,6 @@ using static DataloaderRobot;
 public class SimulatedRobot : Robot {
 
     [Header("General")]
-    [Tooltip("The manager will be used to know if a landmark candidate is static or dynamic")]
-    public RobotManager manager;
-
     [Tooltip("Wait before performing a new lidar scan, position estimate and map update")]
     public float waitBetweenUpdates = 0.02f;
 

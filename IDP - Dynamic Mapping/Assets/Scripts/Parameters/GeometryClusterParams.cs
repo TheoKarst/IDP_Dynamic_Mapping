@@ -32,27 +32,25 @@ public class GeometryClusterParams {
     [Tooltip("Maximum distance between two circles to be matched together")]
     public float CircleMaxMatchDistance = 0.2f;
 
-    [Header("Geometry removing")]
-    [Tooltip("Extent of the wipe triangle built for new lines")]
-    public float WipeTriangleExtent = 0.1f;
+    // Deprecated:
+    // [Header("Geometry removing")]
+    // [Tooltip("Extent of the wipe triangle built for new lines")]
+    // public float WipeTriangleExtent = 0.1f;
+    // public float WipeShapeExtent = 0.1f;
 
-    public float WipeShapeExtent = 0.1f;
+    // [Tooltip("Margin angle (in degrees) of the wipe triangles")]
+    // public float WipeTriangleInsideAngleMargin = 1f;
 
-    [Tooltip("Margin angle (in degrees) of the wipe triangles")]
-    public float WipeTriangleInsideAngleMargin = 1f;
-
-    [Tooltip("Minimum distance between a circle and a line in the model")]
-    public float MinCircleLineDistance = 0.5f;
+    // [Tooltip("Minimum distance between a circle and a line in the model")]
+    // public float MinCircleLineDistance = 0.5f;
 
     [Header("Wipe Shape")]
-    [Min(0.01f)]
-    public float stepRadius;
-    [Min(0)]
-    public int minLookAhead;
-    [Min(0)]
-    public float epsilon;
-    [Min(0)]
-    public float douglasEpsilon;
+    [Range(0f, 90f)]
+    [Tooltip("Angle of the wipe cone associated to the observations")]
+    public float alpha = 15;
+    [Min(0f)]
+    [Tooltip("Epsilon used in Douglas Peucker algorithm to filter the points of the shape")]
+    public float epsilon = 0.2f;
 
     [Header("Drawing")]
     public bool drawPoints = true;

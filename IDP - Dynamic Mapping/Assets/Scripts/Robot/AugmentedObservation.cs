@@ -15,4 +15,8 @@ public class AugmentedObservation {
         this.lidarIndex = lidarIndex;
         this.outOfRange = outOfRange;
     }
+
+    public Observation ToObservation() {
+        return new Observation(r, theta, lidarIndex);
+    }
 }

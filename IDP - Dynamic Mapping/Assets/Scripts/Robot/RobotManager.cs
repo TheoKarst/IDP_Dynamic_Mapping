@@ -6,6 +6,7 @@ public class RobotManager : MonoBehaviour {
     public Robot robot;
 
     [Header("Line match grid map")]
+    public bool showMatchGridMap = false;
     public float centerX = 0;
     public float centerY = 0;
     public int width = 40;
@@ -81,8 +82,8 @@ public class RobotManager : MonoBehaviour {
                 geometryClusterParams.drawWipeShape);
         }
 
-        // if (gridMap != null)
-        //     gridMap.DrawGizmos(0.2f);
+        if (showMatchGridMap && gridMap != null)
+            gridMap.DrawGizmos(0.2f);
     }
 
     public void OnValidate() {

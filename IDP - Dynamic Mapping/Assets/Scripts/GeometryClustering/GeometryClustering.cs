@@ -8,7 +8,6 @@ public class GeometryClustering {
 
     private float CriticalAlphaRadians;
     private float LineMaxMatchAngleRadians;
-    private float WipeTriangleInsideAngleMarginRadians;
 
     // Match to each observation (rho, theta) from the LIDAR a point in world space coordinate:
     private List<Point> currentPoints;
@@ -24,7 +23,7 @@ public class GeometryClustering {
     private WipeShape currentWipeShape;
 
     // TEST:
-    // private int newLineCount = 0;
+    private int newLineCount = 0;
 
     public GeometryClustering(GeometryClusterParams parameters, GridMap gridMap) {
         this.parameters = parameters;
@@ -32,7 +31,6 @@ public class GeometryClustering {
 
         CriticalAlphaRadians = Mathf.Deg2Rad * parameters.CriticalAlpha;
         LineMaxMatchAngleRadians = Mathf.Deg2Rad * parameters.LineMaxMatchAngle;
-        WipeTriangleInsideAngleMarginRadians = Mathf.Deg2Rad * parameters.WipeTriangleInsideAngleMargin;
     }
 
     public void UpdateModel(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
@@ -52,7 +50,8 @@ public class GeometryClustering {
 
         // Build the Wipe Shape:
         Profiler.BeginSample("Build Wipe Shape");
-        currentWipeShape = BuildWipeShape(sensorPose, positions);
+        // currentWipeShape = BuildWipeShape(sensorPose, positions);
+        currentWipeShape = BuildWipeShape3(sensorPose, model, vehicleState, observations);
         Profiler.EndSample();
 
         // Then use the points to perform lines and circles extraction:
@@ -83,8 +82,8 @@ public class GeometryClustering {
         UpdateModelCircles(circles, currentWipeShape);
         Profiler.EndSample();
 
-        Debug.Log("Points: " + currentPoints.Count + "; Lines: " + modelLines.Count 
-            + "; Circles: " + modelCircles.Count);
+        // Debug.Log("Points: " + currentPoints.Count + "; Lines: " + modelLines.Count 
+        //    + "; Circles: " + modelCircles.Count);
     }
 
     public void DrawGizmos(bool drawCurrentLines, bool drawPoints, 
@@ -178,6 +177,7 @@ public class GeometryClustering {
         return (positions, points);
     }
 
+    /*
     private WipeShape BuildWipeShape(Pose2D sensorPose, Vector2[] currentPoints) {
         List<Vector2> points = LidarUtils.ComputeWipeShapePoints(currentPoints,
             parameters.stepRadius, parameters.minLookAhead, parameters.epsilon);
@@ -192,6 +192,36 @@ public class GeometryClustering {
         
         // Build the WipeShape:
         return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), filtered);
+    }
+
+    private WipeShape BuildWipeShape2(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, AugmentedObservation[] observations) {
+        List<int> indices = WipeShapeUtils.HighPassSubsample(observations, parameters.stepAngle * Mathf.Deg2Rad);
+
+        Vector2[] points = new Vector2[indices.Count];
+        for(int i = 0; i < indices.Count; i++) {
+            Observation observation = observations[indices[i]].ToObservation();
+            points[i] = model.ComputeObservationPositionEstimate(vehicleState, observation);
+        }
+
+        // Run Douglas Peucker to get less points for the shape:
+        Vector2[] filtered = LidarUtils.DouglasPeucker(points, parameters.douglasEpsilon);
+
+        return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), filtered);
+    }*/
+
+    private WipeShape BuildWipeShape3(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, AugmentedObservation[] observations) {
+        // Apply alpha filter to the shape:
+        int[] indices = WipeShapeUtils.AlphaFilter(observations, parameters.alpha * Mathf.Deg2Rad);
+
+        Vector2[] points = new Vector2[indices.Length];
+        for(int i = 0; i < indices.Length; i++) {
+            points[i] = model.ComputeObservationPositionEstimate(vehicleState, observations[indices[i]].ToObservation());
+        }
+
+        // Apply Douglas Peucker algorithm to the remaining points:
+        points = LidarUtils.DouglasPeucker(points, parameters.epsilon);
+
+        return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), points);
     }
 
     // Cluster extraction (lines and circles):
@@ -414,7 +444,7 @@ public class GeometryClustering {
             else {
                 line.lineColor = Color.green;       // Green color for new lines
                 newLines.Add(line);
-                // Debug.Log("New line (" + (++newLineCount) + ") !");
+                Debug.Log("New line (" + (++newLineCount) + ") !");
                 // logMsg += "=> New line !";
             }
             // Debug.Log(logMsg);

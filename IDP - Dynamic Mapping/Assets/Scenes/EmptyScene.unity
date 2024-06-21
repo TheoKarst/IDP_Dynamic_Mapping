@@ -140,7 +140,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &533851273
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -185,15 +185,15 @@ RectTransform:
   m_GameObject: {fileID: 533851272}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1535177889}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.15, y: 0.5}
-  m_AnchorMax: {x: 0.15, y: 0.5}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 400, y: 400}
+  m_SizeDelta: {x: 800, y: 800}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &738752998
 GameObject:
@@ -1063,20 +1063,26 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7367791565222339433}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6eca411602db2b24fb04f976f6e2fd91, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   robot: {fileID: 8138558424500982985}
+  showMatchGridMap: 0
+  centerX: 0
+  centerY: 0
+  width: 40
+  height: 30
+  cellSize: 2
   gridMapParams:
     mapImage: {fileID: 533851273}
-    textureUpdateWait: 10
-    showTexture: 0
-    pixelSize: 4
-    cellSize: 0.05
-    mapWidth: 200
-    mapHeight: 120
+    textureUpdateWait: 1
+    showTexture: 1
+    pixelSize: 2
+    cellSize: 0.2
+    mapWidth: 400
+    mapHeight: 300
     maxConfidence: 0.99
     framesToConsiderStatic: 60
     framesToConsiderDynamic: 20
@@ -1098,6 +1104,7 @@ MonoBehaviour:
     minLookAhead: 3
     epsilon: 0.05
     douglasEpsilon: 0.1
+    stepAngle: 5
     drawPoints: 0
     drawLines: 1
     drawCircles: 0

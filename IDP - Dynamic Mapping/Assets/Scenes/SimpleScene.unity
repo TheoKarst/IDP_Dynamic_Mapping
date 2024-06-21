@@ -3097,6 +3097,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   robot: {fileID: 3012714565942262461}
+  showMatchGridMap: 0
   centerX: 0
   centerY: 0
   width: 70
@@ -3123,14 +3124,8 @@ MonoBehaviour:
     LineMaxEndpointMatchDistance: 1
     LineMaxMatchDistance: 2
     CircleMaxMatchDistance: 0.5
-    WipeTriangleExtent: 0.1
-    WipeShapeExtent: 0.1
-    WipeTriangleInsideAngleMargin: 1
-    MinCircleLineDistance: 0.5
-    stepRadius: 0.1
-    minLookAhead: 3
+    alpha: 15
     epsilon: 0.05
-    douglasEpsilon: 0.1
     drawPoints: 0
     drawLines: 1
     drawCircles: 0

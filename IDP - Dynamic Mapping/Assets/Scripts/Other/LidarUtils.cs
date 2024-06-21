@@ -20,6 +20,42 @@ public class LidarUtils {
         return DouglasPeuckerIndices(points, epsilon, true);
     }
 
+    // Return the corners with an angle greater than "minAngleDegrees":
+    public static List<int> ExtractConvexCorners(AugmentedObservation[] observations, float minAngleDegrees) {
+        List<int> corners = new List<int>();
+
+        int count = observations.Length;
+
+        // Use the same naming convention as the paper "Corner Detection for Room Mapping of Fire Fighting RobotManager":
+        for (int i = 0; i < count; i++) {
+            AugmentedObservation curr = observations[i];
+
+            if (curr.outOfRange)
+                continue;
+
+            AugmentedObservation prev = observations[(i + count - 1) % count];
+            AugmentedObservation next = observations[(i + 1) % count];
+
+            float b = prev.r, c = curr.r, e = next.r;
+
+            // Detect if the current observation is a corner using cosine law:
+            float a = Mathf.Sqrt(b * b + c * c - 2 * b * c * Mathf.Cos(curr.theta - prev.theta));
+            float d = Mathf.Sqrt(c * c + e * e - 2 * c * e * Mathf.Cos(next.theta - curr.theta));
+
+            float angleB = Mathf.Acos((a * a + c * c - b * b) / (2 * a * c));
+            float angleE = Mathf.Acos((d * d + c * c - e * e) / (2 * d * c));
+
+            // Angle in degrees of the corner:
+            float theta = Mathf.Rad2Deg * (angleB + angleE);
+
+            // Keep only the convex corners:
+            if (theta >= minAngleDegrees)
+                corners.Add(i);
+        }
+
+        return corners;
+    }
+
     // From a subset of observations, return the corners with an angle greater than "minAngleDegrees":
     public static List<int> ExtractConvexCorners(AugmentedObservation[] observations, int[] indices, float minAngleDegrees) {
         List<int> corners = new List<int>();
@@ -89,7 +125,7 @@ public class LidarUtils {
     // points represent a loop, and we thus perform a further check to see if we need
     // to keep the first and last point of the curve (that are otherwise always kept
     // by Douglas Peucker algorithm):
-    private static int[] DouglasPeuckerIndices(Vector2[] points, float epsilon, bool loop) {
+    public static int[] DouglasPeuckerIndices(Vector2[] points, float epsilon, bool loop) {
         int[] indices = new int[points.Length];
         for (int i = 0; i < indices.Length; i++) indices[i] = i;
 
@@ -121,7 +157,7 @@ public class LidarUtils {
         return indices;
     }
 
-    private static int[] DouglasPeuckerIndices(Vector2[] points, int[] indices, int start, int end, float epsilon) {
+    public static int[] DouglasPeuckerIndices(Vector2[] points, int[] indices, int start, int end, float epsilon) {
         Vector2 startPoint = points[indices[start]];
         Vector2 endPoint = points[indices[end]];
 
