@@ -1,7 +1,7 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
-public class Test : MonoBehaviour
+public class LandmarkMatchingTest : MonoBehaviour
 {
     // Matrix builder used as a shortcut for vector and matrix creation:
     private static MatrixBuilder<double> M = Matrix<double>.Build;
