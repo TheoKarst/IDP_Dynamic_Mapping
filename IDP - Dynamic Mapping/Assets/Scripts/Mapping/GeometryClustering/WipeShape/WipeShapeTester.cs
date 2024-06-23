@@ -1,6 +1,4 @@
-using MathNet.Numerics.Distributions;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
@@ -28,6 +26,8 @@ public class WipeShapeTester : MonoBehaviour {
     public float alphaAngle = 0;
     [Min(0)]
     public float epsilon = 0.01f;
+    [Min(0)]
+    public float clampDistance = 10;
 
     private Vector2[] positions;
     private Vector2[] wipeShape;
@@ -66,7 +66,7 @@ public class WipeShapeTester : MonoBehaviour {
             this.positions = positions;
 
             if (subsample) {
-                int[] subset = WipeShapeUtils.AlphaFilter(observations, alphaAngle * Mathf.Deg2Rad);
+                int[] subset = WipeShapeUtils.AlphaFilter(observations, alphaAngle * Mathf.Deg2Rad, clampDistance);
                 
                 if (douglasPeucker)
                     subset = LidarUtils.DouglasPeuckerIndices(positions, subset, 0, subset.Length - 1, epsilon);

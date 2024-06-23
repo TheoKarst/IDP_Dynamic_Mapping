@@ -211,7 +211,7 @@ public class GeometryClustering {
 
     private WipeShape BuildWipeShape3(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, AugmentedObservation[] observations) {
         // Apply alpha filter to the shape:
-        int[] indices = WipeShapeUtils.AlphaFilter(observations, parameters.alpha * Mathf.Deg2Rad);
+        int[] indices = WipeShapeUtils.AlphaFilter(observations, parameters.alpha * Mathf.Deg2Rad, parameters.clampDistance);
 
         Vector2[] points = new Vector2[indices.Length];
         for(int i = 0; i < indices.Length; i++) {
@@ -260,7 +260,9 @@ public class GeometryClustering {
 
                 // Else, if the current line is long enough to be extracted, then extract it, and add the current
                 // point in a new line:
-                else if (lineBuilder.PointsCount() >= 3 && lineBuilder.Length() >= parameters.LineMinLength) {
+                else if (lineBuilder.PointsCount() >= parameters.LineMinPoints 
+                    && lineBuilder.Length() >= parameters.LineMinLength) {
+
                     extractedLines.Add(lineBuilder.Build());
                     lineBuilder = new LineBuilder(currentPoint);
                     continue;
@@ -282,8 +284,7 @@ public class GeometryClustering {
 
             // Otherwise, extract the current circle and add the current point in a new line:
             else {
-                // A circle cluster should at least contain 2 points:
-                if (circleBuilder.PointsCount() >= 2) {
+                if (circleBuilder.PointsCount() >= parameters.CircleMinPoints) {
                     extractedCircles.Add(circleBuilder.Build());
                 }
 
@@ -293,10 +294,15 @@ public class GeometryClustering {
         }
 
         // Finally, extract the current line or current circle if necessary:
-        if (lineBuilder != null && lineBuilder.PointsCount() >= 3 && lineBuilder.Length() >= parameters.LineMinLength) {
+        if (lineBuilder != null 
+            && lineBuilder.PointsCount() >= parameters.LineMinPoints 
+            && lineBuilder.Length() >= parameters.LineMinLength) {
+
             extractedLines.Add(lineBuilder.Build());
         }
-        else if(circleBuilder != null && circleBuilder.PointsCount() >= 2) {
+        else if(circleBuilder != null 
+            && circleBuilder.PointsCount() >= parameters.CircleMinPoints) {
+
             extractedCircles.Add(circleBuilder.Build());
         }
 
@@ -381,6 +387,8 @@ public class GeometryClustering {
 
     // Update the lines using a wipe shape instead of wipe triangles:
     private void UpdateModelLines(List<Line> currentLines, WipeShape wipeShape) {
+        // bool DEBUG_NEW_LINE = false;
+
         List<Line> newLines = new List<Line>();
 
         // Drawing: Reset the color of the model lines to red:
@@ -401,13 +409,13 @@ public class GeometryClustering {
             float minDistance = -1;
 
             Profiler.BeginSample("Lines matching");
-            // string logMsg = "Line " + i + ": [" + line.LogParams() + "]\n";
+            string logMsg = "Line " + i + ": [" + line.LogParams() + "]\n";
             // foreach (Line matchCandidate in modelLines) {
             foreach(Line matchCandidate in gridMap.FindNeighbors(line)) {
-                // logMsg += line.LogMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, parameters.LineMaxEndpointMatchDistance);
-                // logMsg += "\t[" + matchCandidate.LogParams() + "=>"
-                //    + Utils.ScientificNotation(line.ComputeNormDistance(matchCandidate)) + "]\t";
-                // logMsg += "[" + Utils.ScientificNotation(line.ComputeCenterDistance(matchCandidate)) + "]";
+                logMsg += "[model: " + matchCandidate.LogParams() + "]\t";
+                logMsg += line.LogMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, parameters.LineMaxEndpointMatchDistance) + "\t";
+                logMsg += line.LogNormDistance(matchCandidate) + "\t";
+                logMsg += "[" + Utils.ScientificNotation(line.ComputeCenterDistance(matchCandidate)) + "]";
 
                 // First test: compare the angle difference and endpoints distance between the two lines:
                 if (line.IsMatchCandidate(matchCandidate, LineMaxMatchAngleRadians, parameters.LineMaxEndpointMatchDistance)) {
@@ -424,11 +432,11 @@ public class GeometryClustering {
                         if (bestMatch == null || centerDistance < minDistance) {
                             bestMatch = matchCandidate;
                             minDistance = centerDistance;
-                            // logMsg += ": Possible match !";
+                            logMsg += ": Possible match !";
                         }
                     }
                 }
-                // logMsg += "\n";
+                logMsg += "\n";
             }
             Profiler.EndSample();
 
@@ -444,10 +452,10 @@ public class GeometryClustering {
             else {
                 line.lineColor = Color.green;       // Green color for new lines
                 newLines.Add(line);
-                Debug.Log("New line (" + (++newLineCount) + ") !");
-                // logMsg += "=> New line !";
+                Debug.Log("New line (" + (++newLineCount) + "):\n" + logMsg);
+                // DEBUG_NEW_LINE = true;
             }
-            // Debug.Log(logMsg);
+
             Profiler.EndSample();
         }
 
@@ -456,6 +464,9 @@ public class GeometryClustering {
             line.AddValidParts(newLines, parameters.LineMinLength);
 
         modelLines = newLines;
+
+        // if(DEBUG_NEW_LINE)
+        //     Debug.Break();
     }
 
     /*

@@ -21,6 +21,19 @@ public class Utils {
         return num;
     }
 
+    // For lines, the difference between their orientation is always
+    // in the range [-PI/2; PI/2]:
+    public static float SubstractLineAngleRadians(float a, float b) {
+        float num = Mathf.Repeat(a - b, Mathf.PI);
+        if (num > Mathf.PI/2) {
+            num -= Mathf.PI;
+        }
+
+        return num;
+    }
+
+
+
     public static string ScientificNotation(float value) {
         return ScientificNotation(value, PRINT_DIGITS);
     }

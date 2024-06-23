@@ -1,0 +1,5 @@
+# TODO LIST:
+- For the alpha filtering, when building Wipe Shapes, correct the way camping is implemented
+- When fetching model lines from the grid map in the geometry clustering algorithm, make sure to use a set instead of 
+    a list, to remove doubles
+- Implement the dynamic Kalman Filter !

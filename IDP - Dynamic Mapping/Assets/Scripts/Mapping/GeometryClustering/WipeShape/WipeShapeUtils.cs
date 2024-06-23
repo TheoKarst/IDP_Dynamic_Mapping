@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -85,14 +84,14 @@ public class WipeShapeUtils {
         );
     }
 
-    public static int[] AlphaFilter(AugmentedObservation[] observations, float alpha) {
+    public static int[] AlphaFilter(AugmentedObservation[] observations, float alpha, float clamp) {
         // For each observation, if we have to remove it:
         bool[] remove = new bool[observations.Length];
 
         // First compute the local position of each observation:
         Vector2[] positions = new Vector2[observations.Length];
         for(int i = 0; i < observations.Length; i++) {
-            float r = observations[i].r;
+            float r = Mathf.Min(observations[i].r, clamp);
             float theta = observations[i].theta;
 
             positions[i] = new Vector2(r * Mathf.Cos(theta), r * Mathf.Sin(theta));

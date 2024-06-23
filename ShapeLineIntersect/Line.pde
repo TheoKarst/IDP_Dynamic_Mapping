@@ -32,8 +32,8 @@ public class Line {
     ellipse(start.x, -start.y, 5, 5);
   }
   
-  public boolean IsLeftOfLine(PVector point) {
-    return n.dot(PVector.sub(point, start, new PVector())) >= 0;
+  public float DistanceOf(PVector point) {
+    return n.dot(PVector.sub(point, start, new PVector()));
   }
   
   public float IntersectDistance(PVector A, PVector B) {

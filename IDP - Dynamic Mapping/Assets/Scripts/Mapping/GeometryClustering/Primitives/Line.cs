@@ -62,25 +62,25 @@ public class Line : Primitive {
         Handles.DrawBezier(p1, p2, p1, p2, lineColor, null, 4);
     }
 
-    // Return if the other line (supposed to be part of the current world model) is a good candidate
+    // Return if the given line (supposed to be part of the current world model) is a good candidate
     // to be matched with this line. If this is the case, we will have to check the norm distance
     // between the lines as x next step:
-    public bool IsMatchCandidate(Line other, float maxAngleDistance, float maxEndpointDistance) {
+    public bool IsMatchCandidate(Line modelLine, float maxAngleDistance, float maxEndpointDistance) {
         Profiler.BeginSample("Is Match Candidate");
 
         // If the angular difference between both lines is too big, the lines cannot match:
-        if (Utils.DeltaAngleRadians(theta, other.theta) > maxAngleDistance) {
+        if (Mathf.PingPong(Mathf.Abs(theta - modelLine.theta), Mathf.PI/2) > maxAngleDistance) {
             Profiler.EndSample();
             return false;
         }
 
         // If the distance of the endpoints of this line to the 
-        if (other.DistanceFrom(beginPoint) > maxEndpointDistance) {
+        if (modelLine.DistanceFrom(beginPoint) > maxEndpointDistance) {
             Profiler.EndSample();
             return false;
         }
 
-        if (other.DistanceFrom(endPoint) > maxEndpointDistance) {
+        if (modelLine.DistanceFrom(endPoint) > maxEndpointDistance) {
             Profiler.EndSample();
             return false;
         }
@@ -91,12 +91,30 @@ public class Line : Primitive {
         return true;
     }
 
-    public string LogMatchCandidate(Line other, float maxAngleDistance, float maxEndpointDistance) {
-        string d1 = Utils.ScientificNotation(Mathf.Rad2Deg * Utils.DeltaAngleRadians(theta, other.theta));
-        string d2 = Utils.ScientificNotation(other.DistanceFrom(beginPoint));
-        string d3 = Utils.ScientificNotation(other.DistanceFrom(endPoint));
+    public string LogMatchCandidate(Line modelLine, float maxAngleDistance, float maxEndpointDistance) {
+        float deltaAngle = Mathf.PingPong(Mathf.Abs(theta - modelLine.theta), Mathf.PI / 2);
+        string d1 = Utils.ScientificNotation(Mathf.Rad2Deg * deltaAngle);
+        string d2 = Utils.ScientificNotation(modelLine.DistanceFrom(beginPoint));
+        string d3 = Utils.ScientificNotation(modelLine.DistanceFrom(endPoint));
 
-        return "[MC: " + d1 + "°, " + d2 + ", " + d3 + "=>" + IsMatchCandidate(other, maxAngleDistance, maxEndpointDistance) + "]";
+        return "[MC: " + d1 + "°, " + d2 + ", " + d3 + "=>" + IsMatchCandidate(modelLine, maxAngleDistance, maxEndpointDistance) + "]";
+    }
+
+    public string LogNormDistance(Line other) {
+        // Perform some renamings to match the paper description:
+        Matrix<double> Cl = this.covariance;
+        Matrix<double> Cm = other.covariance;
+
+        // We have to be cautious when substracting angles, to keep the result between -PI/2 and PI/2,
+        // but X = Xl - Xm:
+        Vector<double> X = V.DenseOfArray(new double[]{
+            rho - other.rho,
+            Utils.SubstractLineAngleRadians(theta, other.theta)
+        });
+
+        float result = (float)(X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
+
+        return "[Cl: " + Cl + "; Cm: " + Cm + "; X: " + X + " => result: " + result + "]";
     }
 
     public string LogParams() {
@@ -118,8 +136,8 @@ public class Line : Primitive {
         return point.x * Mathf.Cos(theta) + point.y * Mathf.Sin(theta) - rho;
     }
 
-    public bool IsLeftOfLine(Vector2 point) {
-        return Vector2.Dot(Vector2.Perpendicular(endPoint - beginPoint), point - beginPoint) >= 0;
+    public float DistanceOf(Vector2 point) {
+        return Vector2.Dot(Vector2.Perpendicular(endPoint - beginPoint), point - beginPoint);
     }
 
     // Compute the Mahalanobis distance between this line and the given one:
@@ -134,7 +152,7 @@ public class Line : Primitive {
         // but X = Xl - Xm:
         Vector<double> X = V.DenseOfArray(new double[]{
             rho - other.rho,
-            Utils.SubstractAngleRadians(theta, other.theta) 
+            Utils.SubstractLineAngleRadians(theta, other.theta) 
         });
 
         float result = (float) (X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
@@ -144,9 +162,9 @@ public class Line : Primitive {
     }
 
     // Compute the distance between the centers of the two lines, along this line:
-    public float ComputeCenterDistance(Line other) {
+    public float ComputeCenterDistance(Line modelLine) {
         Vector2 thisCenter = (beginPoint + endPoint) / 2;
-        Vector2 otherCenter = (other.beginPoint + other.endPoint) / 2;
+        Vector2 otherCenter = (modelLine.beginPoint + modelLine.endPoint) / 2;
 
         // Unit vector along the line:
         Vector2 u = new Vector2(-Mathf.Sin(theta), Mathf.Cos(theta));
@@ -211,6 +229,7 @@ public class Line : Primitive {
         UpdateValidity(other.beginPoint, other.endPoint);
     }
 
+    /*
     public WipeTriangle BuildWipeTriangle(Vector2 sensorPosition, float triangleExtent, float insideAngleMargin) {
         // Build the triangle ABC, defined in counter-clockwise order:
         Vector2 A = sensorPosition, B = beginPoint, C = endPoint;
@@ -252,6 +271,7 @@ public class Line : Primitive {
             newB + u * triangleExtent,
             newC + v * triangleExtent);
     }
+    */
 
     // Return the length of the line, using its endpoints
     public float Length() {
@@ -305,7 +325,7 @@ public class Line : Primitive {
         // We have to be cautious when substracting angles, to keep the result between -PI/2 and PI/2:
         return V.DenseOfArray(new double[]{
             a.rho - b.rho,
-            Utils.SubstractAngleRadians(a.theta, b.theta)
+            Utils.SubstractLineAngleRadians(a.theta, b.theta)
         });
     }
 
@@ -344,8 +364,10 @@ public class Line : Primitive {
                 dest.Add(this);
                 // Debug.Log(logMsg += "Keep line");
             }
-            // else
-            //    Debug.Log(logMsg += "Delete line");
+            // else {
+            //     Debug.LogWarning("Deleting line: [" + beginPoint + "; " + endPoint + "]\n"
+            //         + "Line validity: " + lineValidity);
+            // }
             return;
         }
 
@@ -353,6 +375,7 @@ public class Line : Primitive {
         Vector2 center = new Vector2(rho * costheta, rho * sintheta);
         Vector2 u = new Vector2(-sintheta, costheta);
 
+        // bool DEBUG_DELETE_LINE = true;
         // logMsg += "Split line: ";
         foreach ((float min, float max) validZone in lineValidity.GetTrueZones()) {
             Vector2 p1 = lineValidityBegin + validZone.min * (lineValidityEnd - lineValidityBegin);
@@ -364,9 +387,15 @@ public class Line : Primitive {
             if (Mathf.Abs(proj2 - proj1) >= minLineLength) {
                 dest.Add(new Line(this, center + proj1 * u, center + proj2 * u));
                 // logMsg += "[" + validZone.min + "; " + validZone.max + "]; ";
+                // DEBUG_DELETE_LINE = false;
             }
         }
-        // Debug.Log(logMsg);
+
+        /*if(DEBUG_DELETE_LINE) {
+            Debug.LogWarning(logMsg + " => DELETE !");
+        }
+        else
+            Debug.Log(logMsg);*/
     }
 
     /////////////////////////////////////////////////////////////////////////////////////
