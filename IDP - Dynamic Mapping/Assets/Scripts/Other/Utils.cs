@@ -7,11 +7,12 @@ public class Utils {
     // Computes the shortest difference between two given angles in radians.
     // The result is thus always in the range [0; PI]:
     public static float DeltaAngleRadians(float a, float b) {
-        return Mathf.Abs(SubstractAngleRadians(a, b));
+        return Mathf.PingPong(Mathf.Abs(a - b), Mathf.PI);
     }
 
-    // Compute the difference between the two given angles in radians, and
-    // keep the result in the range[-PI; PI]:
+    // Compute the shortest (in absolute value) difference between
+    // the two given angles in radians.
+    // The result is thus always in the range[-PI; PI]:
     public static float SubstractAngleRadians(float a, float b) {
         float num = Mathf.Repeat(a - b, 2 * Mathf.PI);
         if (num > Mathf.PI) {
@@ -21,8 +22,15 @@ public class Utils {
         return num;
     }
 
-    // For lines, the difference between their orientation is always
-    // in the range [-PI/2; PI/2]:
+    // Compute the shortest angle between two lines with the given angle.
+    // The result is thus always in the range [0; PI/2]:
+    public static float LineDeltaAngleRadians(float a, float b) {
+        return Mathf.PingPong(Mathf.Abs(a - b), Mathf.PI / 2);
+    }
+
+    // Compute the shortest (in absolute value) difference between
+    // two lines with the given angle.
+    // The result is thus always in the range [-PI/2; PI/2]:
     public static float SubstractLineAngleRadians(float a, float b) {
         float num = Mathf.Repeat(a - b, Mathf.PI);
         if (num > Mathf.PI/2) {
@@ -31,8 +39,6 @@ public class Utils {
 
         return num;
     }
-
-
 
     public static string ScientificNotation(float value) {
         return ScientificNotation(value, PRINT_DIGITS);

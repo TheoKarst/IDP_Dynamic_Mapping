@@ -14,21 +14,23 @@ void setup() {
   textSize(32);
   
   shape = new Shape(new PVector(width/2, -height/2));
-  shape.AddPoint(new PVector(width/2 + 300, -height/2 + 300));
-  shape.AddPoint(new PVector(width/2 + 200, -height/2 + 300));
-  shape.AddPoint(new PVector(width/2 + 100, -height/2 + 300));
-  shape.AddPoint(new PVector(width/2 + 000, -height/2 + 300));
-  shape.AddPoint(new PVector(width/2 - 100, -height/2 + 300));
-  shape.AddPoint(new PVector(width/2 - 200, -height/2 + 300));
+  //shape.AddPoint(new PVector(width/2 + 300, -height/2 + 300));
+  //shape.AddPoint(new PVector(width/2 + 200, -height/2 + 300));
+  //shape.AddPoint(new PVector(width/2 + 100, -height/2 + 300));
+  //shape.AddPoint(new PVector(width/2 + 000, -height/2 + 300));
+  //shape.AddPoint(new PVector(width/2 - 100, -height/2 + 300));
+  //shape.AddPoint(new PVector(width/2 - 200, -height/2 + 300));
   
-  shape.AddPoint(new PVector(width/2 - 300, -height/2 + 300));
+  //shape.AddPoint(new PVector(width/2 - 300, -height/2 + 300));
   
-  shape.AddPoint(new PVector(width/2 - 300, -height/2 + 200));
-  shape.AddPoint(new PVector(width/2 - 300, -height/2 + 100));
-  shape.AddPoint(new PVector(width/2 - 300, -height/2 + 000));
-  shape.AddPoint(new PVector(width/2 - 300, -height/2 - 100));
-  shape.AddPoint(new PVector(width/2 - 300, -height/2 - 200));
-  shape.AddPoint(new PVector(width/2 - 300, -height/2 - 300));  
+  //shape.AddPoint(new PVector(width/2 - 300, -height/2 + 200));
+  //shape.AddPoint(new PVector(width/2 - 300, -height/2 + 100));
+  //shape.AddPoint(new PVector(width/2 - 300, -height/2 + 000));
+  //shape.AddPoint(new PVector(width/2 - 300, -height/2 - 100));
+  //shape.AddPoint(new PVector(width/2 - 300, -height/2 - 200));
+  //shape.AddPoint(new PVector(width/2 - 300, -height/2 - 300));
+  
+  testBoolAxis();
 }
 
 void draw() {
@@ -148,5 +150,76 @@ int nearestPoint(Shape shape) {
   }
   
   return minDistance < 50*50 ? nearestPoint : -1;
+}
+
+void testBoolAxis() {
+  InfiniteBoolAxis axis = new InfiniteBoolAxis(false);
+  
+  assert axis.GetValue(100) == false;
+  assert axis.GetValue(-100) == false;
+  assert axis.splits.size() == 0;
+  println("TEST: Init OK");
+  
+  axis.SetValue(-50, 50, false);
+  
+  assert axis.GetValue(-100) == false;
+  assert axis.GetValue(100) == false;
+  assert axis.GetValue(0) == false;
+  assert axis.splits.size() == 0;
+  println("TEST: Set default OK");
+  
+  axis.SetValue(10, 10, true);
+  assert axis.splits.size() == 0;
+  println("TEST: Zero range OK");
+  
+  axis.SetValue(-50, 50, true);
+  
+  assert axis.GetValue(-100) == false;
+  assert axis.GetValue(100) == false;
+  assert axis.GetValue(0) == true;
+  assert axis.splits.size() == 2;
+  println("TEST: Set opposite OK");
+  
+  axis.SetValue(-100, 100, false);
+  
+  assert axis.splits.size() == 0;
+  assert axis.GetValue(0) == false;
+  println("TEST: Remove range OK");
+  
+  axis.SetValue(-50, 0, true);
+  axis.SetValue(0, 50, true);
+  
+  assert axis.splits.size() == 2;
+  assert axis.GetValue(0) == true;
+  assert axis.GetValue(-25) == true;
+  assert axis.GetValue(-100) == false;
+  assert axis.GetValue(100) == false;
+  assert axis.GetValue(25) == true;
+  println("TEST: Ranges contact OK");
+  
+  axis.SetValue(0, 100, false);
+  
+  assert axis.splits.size() == 2;
+  assert axis.GetValue(-100) == false;
+  assert axis.GetValue(-25) == true;
+  assert axis.GetValue(25) == false;
+  assert axis.GetValue(75) == false;
+  println("TEST: Ranges overlap OK");
+  
+  axis.SetValue(10, 20, true);
+  
+  assert axis.splits.size() == 4;
+  assert axis.GetValue(15) == true;
+  println("TEST: Ranges included OK");
+  
+  for(int i = 0; i < 1000; i++) {
+    float min = random(-100, 100);
+    float max = random(-100, 100);
+    axis.SetValue(min, max, random(1) < 0.5f);
+    
+    assert axis.splits.size() % 2 == 0;
+  }
+  println("TEST: Size modulo 2 OK");
+  
 }
   
