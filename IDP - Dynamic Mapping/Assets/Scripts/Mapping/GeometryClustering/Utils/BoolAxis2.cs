@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 public class BoolAxis2 {
     private bool defaultValue;
@@ -44,5 +45,19 @@ public class BoolAxis2 {
 
         // Update the splits:
         splits = newSplits;
+    }
+
+    public void Reset(bool defaultValue, List<float> changes) {
+        this.defaultValue = defaultValue;
+        this.splits = changes;
+    }
+
+    public struct Struct {
+        public int index;
+        public float value;
+    }
+
+    public ReadOnlyCollection<float> GetSplits() {
+        return splits.AsReadOnly();
     }
 }

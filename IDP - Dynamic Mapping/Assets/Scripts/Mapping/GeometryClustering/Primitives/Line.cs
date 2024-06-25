@@ -109,7 +109,7 @@ public class Line : Primitive {
         // but X = Xl - Xm:
         Vector<double> X = V.DenseOfArray(new double[]{
             rho - other.rho,
-            Utils.SubstractLineAngleRadians(theta, other.theta)
+            Utils.LineSubstractAngleRadians(theta, other.theta)
         });
 
         float result = (float)(X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
@@ -152,7 +152,7 @@ public class Line : Primitive {
         // but X = Xl - Xm:
         Vector<double> X = V.DenseOfArray(new double[]{
             rho - other.rho,
-            Utils.SubstractLineAngleRadians(theta, other.theta) 
+            Utils.LineSubstractAngleRadians(theta, other.theta) 
         });
 
         float result = (float) (X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
@@ -325,7 +325,7 @@ public class Line : Primitive {
         // We have to be cautious when substracting angles, to keep the result between -PI/2 and PI/2:
         return V.DenseOfArray(new double[]{
             a.rho - b.rho,
-            Utils.SubstractLineAngleRadians(a.theta, b.theta)
+            Utils.LineSubstractAngleRadians(a.theta, b.theta)
         });
     }
 
