@@ -2909,7 +2909,7 @@ MonoBehaviour:
     drawPoints: 1
     drawLines: 1
     drawCircles: 0
-    drawCurrentLines: 0
+    drawCurrentLines: 1
     drawWipeShape: 1
 --- !u!114 &2084421433
 MonoBehaviour:

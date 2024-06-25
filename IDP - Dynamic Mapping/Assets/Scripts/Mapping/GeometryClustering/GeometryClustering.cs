@@ -555,7 +555,7 @@ public class GeometryClustering {
                 newLines.Add(currentLine);
             }
 
-            Debug.Log(logMsg);
+            // Debug.Log(logMsg);
         }
 
         // Keep only the valid parts of the lines from the model:

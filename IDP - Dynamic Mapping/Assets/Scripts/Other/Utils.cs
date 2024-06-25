@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class Utils {
@@ -81,6 +82,17 @@ public class Utils {
         for (int i = 0; i < array.Length; i++) {
             result += array[i];
             if (i + 1 < array.Length) result += "; ";
+        }
+
+        return result;
+    }
+
+    public static string ToString(List<float> array) {
+        string result = "[";
+
+        for (int i = 0; i < array.Count; i++) {
+            result += array[i];
+            if (i + 1 < array.Count) result += "; ";
         }
 
         return result;

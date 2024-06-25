@@ -1,6 +1,7 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 
@@ -37,12 +38,13 @@ public class DynamicLine : Primitive {
     // observations from the LIDAR:
     private BoolAxis2 lineValidity = new BoolAxis2(false);
 
-    // Position of the beginPoint, and unit vector from the beginPoint to the endPoint
-    // of the line, when we called ResetLineValidity() for the last time:
-    private Vector2 lineValidityBegin, lineValidityUnit;
+    // Save the state of the line when we called ResetLineValidity() for the last time:
+    private Vector2 lineValidityBegin;      // beginPoint of the line
+    private Vector2 lineValidityDelta;      // endPoint - beginPoint
+    private Vector2 lineValidityU;          // lineValidityDelta / lineValidityDelta.magSq
 
     // The minimum and maximum projection values of all the lines matched to this one,
-    // along the lineValidityUnit:
+    // along lineValidityU:
     private float lineValidityMinP, lineValidityMaxP;
 
     // To which line in the model this line is matched. This is used to have a speed estimate of all
@@ -266,23 +268,10 @@ public class DynamicLine : Primitive {
     // belong to the current observation of the environment) to update the position
     // estimate, covariance matrix and endpoints of this line:
     public void UpdateLineUsingMatch(DynamicLine observation, float validityMargin) {
-        float TEST_THETA = state.theta;
-        string prevState = this.ToString();
-        
         // First, update the state of this line from the observation, using
         // Kalman Filter:
         UpdateState(observation.state.rho, observation.state.theta, 
-            observation.covariance.SubMatrix(0, 2, 0, 2));
-
-        if (Utils.LineDeltaAngleRadians(TEST_THETA, state.theta) * Mathf.Rad2Deg > 10) {
-            Debug.LogError(
-                "Theta changed from: " + (Mathf.Rad2Deg * TEST_THETA) 
-                + "° to " + (Mathf.Rad2Deg * state.theta) + "°"
-                + "Model (before): " + prevState
-                + "Match: " + observation
-                + "Model (after): " + this);
-        }
-            
+            observation.covariance.SubMatrix(0, 2, 0, 2));            
 
         // Then, since the observation is by definition valid, use it to
         // update which sections of this line are valid:
@@ -298,10 +287,11 @@ public class DynamicLine : Primitive {
     //      representing when we change from valid to invalid (or the opposite)
     public void ResetLineValidity(bool startValid, List<float> changes) {
         // Save the current position of the line:
-        lineValidityUnit = new Vector2(-Mathf.Sin(state.theta), Mathf.Cos(state.theta));
         lineValidityBegin = beginPoint;
+        lineValidityDelta = endPoint - beginPoint;
+        lineValidityU = lineValidityDelta / lineValidityDelta.sqrMagnitude;
 
-        // Reset the minimum and maximum projection along the line:
+        // Reset the minimum and maximum projection along the lineValidityU:
         lineValidityMinP = 0;
         lineValidityMaxP = 1;
 
@@ -324,9 +314,9 @@ public class DynamicLine : Primitive {
         // Project the match along the initial line, in order to update which
         // sections of the line are valid:
 
-        float pBegin = Vector2.Dot(matchBegin - lineValidityBegin, lineValidityUnit);
-        float pEnd = Vector2.Dot(matchEnd - lineValidityBegin, lineValidityUnit);
-
+        float pBegin = Vector2.Dot(matchBegin - lineValidityBegin, lineValidityU);
+        float pEnd = Vector2.Dot(matchEnd - lineValidityBegin, lineValidityU);
+        
         // Make sure pBegin <= pEnd:
         if (pBegin > pEnd)
             (pBegin, pEnd) = (pEnd, pBegin);
@@ -349,8 +339,8 @@ public class DynamicLine : Primitive {
             float max = Mathf.Min(changes[1], lineValidityMaxP);
 
             if(max - min >= minLineLength) {
-                beginPoint = lineValidityBegin + min * lineValidityUnit;
-                endPoint = lineValidityBegin + max * lineValidityUnit;
+                beginPoint = lineValidityBegin + min * lineValidityDelta;
+                endPoint = lineValidityBegin + max * lineValidityDelta;
                 dest.Add(this);
             }
             return;
@@ -362,8 +352,8 @@ public class DynamicLine : Primitive {
             float max = Mathf.Min(changes[i+1], lineValidityMaxP);
 
             if(max - min >= minLineLength) {
-                Vector2 begin = lineValidityBegin + min * lineValidityUnit;
-                Vector2 end = lineValidityBegin + max * lineValidityUnit;
+                Vector2 begin = lineValidityBegin + min * lineValidityDelta;
+                Vector2 end = lineValidityBegin + max * lineValidityDelta;
                 dest.Add(new DynamicLine(this, begin, end));
             }
         }
