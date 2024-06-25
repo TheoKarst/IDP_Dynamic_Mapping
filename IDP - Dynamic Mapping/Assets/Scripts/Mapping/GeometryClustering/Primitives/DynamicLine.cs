@@ -158,6 +158,9 @@ public class DynamicLine : Primitive {
         // Compute the updated state covariance:
         // covariance = covariance - K * H * covariance:
         covariance -= K * covariance.SubMatrix(0, 2, 0, covariance.ColumnCount);
+
+        // Check if the new state is still well defined:
+        CheckState();
     }
 
     // Return if the given line (supposed to be part of the current world model) is a good candidate
@@ -171,10 +174,10 @@ public class DynamicLine : Primitive {
 
         // If the orthogonal distance of the endpoints of this line
         // from the model line are too big, the lines cannot match:
-        if (modelLine.DistanceOf(beginPoint) > maxOrthogonalDistance)
+        if (modelLine.AbsDistanceOf(beginPoint) > maxOrthogonalDistance)
             return false;
 
-        if (modelLine.DistanceOf(endPoint) > maxOrthogonalDistance)
+        if (modelLine.AbsDistanceOf(endPoint) > maxOrthogonalDistance)
             return false;
 
         // Finally, we check the minimum distance between the lines endpoints, along the model line:
@@ -315,13 +318,19 @@ public class DynamicLine : Primitive {
         }
     }
 
-    // Orthogonal distance of the point from the line:
-    public float DistanceOf(Vector2 point) {
+    /// <summary>
+    /// Return the orthogonal distance of the point from the line
+    /// </summary>
+    public float AbsDistanceOf(Vector2 point) {
         return Mathf.Abs(SignedDistanceOf(point));
     }
 
-    // Orthogonal distance of the point from the ligne, counted negative if the point is on the same
-    // side as the origin, and positive if the point is on the other side:
+    /// <summary>
+    /// Orthogonal distance of the point from the line, counted negative if the point is on the same
+    /// side as the origin, and positive if the point is on the other side.
+    /// If the forward direction is the vector from beginPoint to endPoint, the result will be positive
+    /// if the given point is on the right of the line, and negative if the point is on the left
+    /// </summary>
     public float SignedDistanceOf(Vector2 point) {
         return point.x * Mathf.Cos(state.theta) + point.y * Mathf.Sin(state.theta) - state.rho;
     }
@@ -329,7 +338,7 @@ public class DynamicLine : Primitive {
     // Check the state of the line, and make sure that we keep the following properties:
     // * state.rho >= 0
     // * 0 <= state.theta < 2*PI
-    // * theta(beginPoint) <= theta(endPoint)
+    // * The triangle (origin, beginPoint, endPoint) is counter-clockwise
     private void CheckState() {
         // If rho < 0, rotate the line to make r >= 0 again:
         if(state.rho < 0) {
@@ -343,9 +352,52 @@ public class DynamicLine : Primitive {
         // This case probably never happens:
         if(state.theta == 2*Mathf.PI)
             state.theta = 0;
+
+        // Make sure beginPoint and endPoint are in the expected order:
+        if(Vector2.Dot(Vector2.Perpendicular(beginPoint), endPoint) < 0)
+            (beginPoint, endPoint) = (endPoint, beginPoint);
     }
 
     public Vector2 VelocityOfPoint(float x, float y) {
-        throw new System.NotImplementedException();
+        // Perform some renamings for simplification:
+        float rho = modelLine.state.rho;
+        float theta = modelLine.state.theta;
+        float dRho = modelLine.state.dRho;
+        float dTheta = modelLine.state.dTheta;
+
+        // Express the given point in the referential of the model line:
+        float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
+        Vector2 MP = new Vector2(x - rho * costheta, y - rho * sintheta);
+
+        // Unit vectors orthogonal to the line, and along the line:
+        Vector2 x1 = new Vector2(costheta, sintheta);       // Orthogonal
+        Vector2 y1 = new Vector2(-sintheta, costheta);      // Along
+        
+        // MP = a.x1 + b.y1:
+        float a = Vector2.Dot(MP, x1);
+        float b = Vector2.Dot(MP, y1);
+
+        // Compute the derivative of the point in the referential of the line:
+        float der_along_x1 = dRho - b * dTheta;
+        float der_along_y1 = (rho + a) * dTheta;
+
+        // Express the result in the base reference:
+        return new Vector2(
+            der_along_x1 * costheta - der_along_y1 * sintheta,
+            der_along_x1 * sintheta + der_along_y1 * costheta);
+    }
+
+    public float IntersectDistance(Vector2 A, Vector2 B) {
+        Vector2 AB = B - A;
+        Vector2 CD = endPoint - beginPoint;
+
+        float den = CD.x * AB.y - CD.y * AB.x;
+
+        if (den == 0)
+            return -1;
+
+        Vector2 AC = beginPoint - A;
+
+        return (AC.y * AB.x - AC.x * AB.y) / den;
     }
 }

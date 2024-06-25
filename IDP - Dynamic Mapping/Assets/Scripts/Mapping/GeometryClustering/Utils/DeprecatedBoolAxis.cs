@@ -5,12 +5,12 @@ using System.Collections.Generic;
 // To to so, the axis is split in zones, starting with startValue (between rangeMin and split[0]),
 // then not(startValue) (between split[0] and split[1]), etc...
 // The state of the zones are thus changed for each split
-public class BoolAxis {
+public class DeprecatedBoolAxis {
     private bool startValue;
     private float rangeMin, rangeMax;
     private List<float> splits = new List<float>();
 
-    public BoolAxis(float min, float max, bool value) {
+    public DeprecatedBoolAxis(float min, float max, bool value) {
         this.rangeMin = min;
         this.rangeMax = max;
         this.startValue = value;

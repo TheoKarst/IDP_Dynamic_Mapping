@@ -4,7 +4,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Profiling;
 
-public class Line : Primitive {
+public class DeprecatedLine : Primitive {
     // Vector builder used as a shortcut for vector creation:
     private static VectorBuilder<double> V = Vector<double>.Build;
 
@@ -26,11 +26,11 @@ public class Line : Primitive {
     private Vector2 lineValidityBegin, lineValidityEnd, lineValidityU;
 
     // Copy constructor:
-    public Line(Line line) : this(line, line.beginPoint, line.endPoint) {}
+    public DeprecatedLine(DeprecatedLine line) : this(line, line.beginPoint, line.endPoint) {}
 
     // Create a line with updated endpoints (the parameters and line covariance
     // will stay the same, no matter the endpoints):
-    public Line(Line other, Vector2 beginPoint, Vector2 endPoint) {
+    public DeprecatedLine(DeprecatedLine other, Vector2 beginPoint, Vector2 endPoint) {
         lineColor = other.lineColor;
 
         rho = other.rho;
@@ -44,7 +44,7 @@ public class Line : Primitive {
         this.endPoint = endPoint;
     }
 
-    public Line(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint) {
+    public DeprecatedLine(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint) {
         this.rho = rho;
         this.theta = Mathf.Repeat(theta, 2*Mathf.PI);
         
@@ -65,7 +65,7 @@ public class Line : Primitive {
     // Return if the given line (supposed to be part of the current world model) is a good candidate
     // to be matched with this line. If this is the case, we will have to check the norm distance
     // between the lines as x next step:
-    public bool IsMatchCandidate(Line modelLine, float maxAngleDistance, float maxEndpointDistance) {
+    public bool IsMatchCandidate(DeprecatedLine modelLine, float maxAngleDistance, float maxEndpointDistance) {
         Profiler.BeginSample("Is Match Candidate");
 
         // If the angular difference between both lines is too big, the lines cannot match:
@@ -91,7 +91,7 @@ public class Line : Primitive {
         return true;
     }
 
-    public string LogMatchCandidate(Line modelLine, float maxAngleDistance, float maxEndpointDistance) {
+    public string LogMatchCandidate(DeprecatedLine modelLine, float maxAngleDistance, float maxEndpointDistance) {
         float deltaAngle = Mathf.PingPong(Mathf.Abs(theta - modelLine.theta), Mathf.PI / 2);
         string d1 = Utils.ScientificNotation(Mathf.Rad2Deg * deltaAngle);
         string d2 = Utils.ScientificNotation(modelLine.DistanceFrom(beginPoint));
@@ -100,7 +100,7 @@ public class Line : Primitive {
         return "[MC: " + d1 + "°, " + d2 + ", " + d3 + "=>" + IsMatchCandidate(modelLine, maxAngleDistance, maxEndpointDistance) + "]";
     }
 
-    public string LogNormDistance(Line other) {
+    public string LogNormDistance(DeprecatedLine other) {
         // Perform some renamings to match the paper description:
         Matrix<double> Cl = this.covariance;
         Matrix<double> Cm = other.covariance;
@@ -141,7 +141,7 @@ public class Line : Primitive {
     }
 
     // Compute the Mahalanobis distance between this line and the given one:
-    public float ComputeNormDistance(Line other) {
+    public float ComputeNormDistance(DeprecatedLine other) {
         Profiler.BeginSample("Compute Norm Distance");
 
         // Perform some renamings to match the paper description:
@@ -162,7 +162,7 @@ public class Line : Primitive {
     }
 
     // Compute the distance between the centers of the two lines, along this line:
-    public float ComputeCenterDistance(Line modelLine) {
+    public float ComputeCenterDistance(DeprecatedLine modelLine) {
         Vector2 thisCenter = (beginPoint + endPoint) / 2;
         Vector2 otherCenter = (modelLine.beginPoint + modelLine.endPoint) / 2;
 
@@ -176,7 +176,7 @@ public class Line : Primitive {
     // Supposing that this line belongs to the current model of the environment, use the given 
     // line (that is supposed to be matched with this one) to update the position estimate,
     // covariance matrix and endpoints of this line:
-    public void UpdateLineUsingMatching(Line other) {
+    public void UpdateLineUsingMatching(DeprecatedLine other) {
         // Perform some renamings to match the paper description:
         Vector<double> Xl = V.DenseOfArray(new double[] {other.rho, other.theta});
         Matrix<double> Cm = this.covariance;
@@ -229,50 +229,6 @@ public class Line : Primitive {
         UpdateValidity(other.beginPoint, other.endPoint);
     }
 
-    /*
-    public WipeTriangle BuildWipeTriangle(Vector2 sensorPosition, float triangleExtent, float insideAngleMargin) {
-        // Build the triangle ABC, defined in counter-clockwise order:
-        Vector2 A = sensorPosition, B = beginPoint, C = endPoint;
-        Vector2 AB = B - sensorPosition;
-        Vector2 AC = C - sensorPosition;
-
-        // Get the angle between AB and AC with the horizontal line:
-        float angleAB = Mathf.Atan2(AB.y, AB.x);
-        float angleAC = Mathf.Atan2(AC.y, AC.x);
-
-        float deltaAngle = Utils.SubstractAngleRadians(angleAC, angleAB);
-
-        // If the angle is negative, reorder the points to make it positive:
-        if(deltaAngle < 0) {
-            (B, C) = (C, B);
-            deltaAngle = -deltaAngle;
-        }
-
-        // When building the triangle ABC, we will substract two times insideAngleMargin to the angle BAC.
-        // Thus, is the initial angle is too small, there is no need to build a triangle:
-        if (deltaAngle < 3 * insideAngleMargin)
-            return null;
-
-        // Rotate the segment AB in counter-clockwise order, and AC in clockwise order:
-        float costheta = Mathf.Cos(insideAngleMargin), sintheta = Mathf.Sin(insideAngleMargin);
-        AB = new Vector2(AB.x * costheta - AB.y * sintheta, AB.x * sintheta + AB.y * costheta);
-        AC = new Vector2(AC.x * costheta + AC.y * sintheta, -AC.x * sintheta + AC.y * costheta);
-
-        (bool intersectB, Vector2 newB) = LineIntersect(A, A + AB, B, C);
-        (bool intersectC, Vector2 newC) = LineIntersect(A, A + AC, B, C);
-
-        if (!intersectB || !intersectC)
-            Debug.LogError("Unexpected bug: The intersection between two lines is wrong...");
-
-        Vector2 u = (newB - A).normalized, v = (newC - A).normalized;
-
-        return new WipeTriangle(
-            A,
-            newB + u * triangleExtent,
-            newC + v * triangleExtent);
-    }
-    */
-
     // Return the length of the line, using its endpoints
     public float Length() {
         return Vector2.Distance(beginPoint, endPoint);
@@ -321,7 +277,7 @@ public class Line : Primitive {
         return (rho, theta);
     }
 
-    private static Vector<double> SubstractStates(Line a, Line b) {
+    private static Vector<double> SubstractStates(DeprecatedLine a, DeprecatedLine b) {
         // We have to be cautious when substracting angles, to keep the result between -PI/2 and PI/2:
         return V.DenseOfArray(new double[]{
             a.rho - b.rho,
@@ -356,7 +312,7 @@ public class Line : Primitive {
         // Debug.Log("Update validity: [" + pBegin + ", " + pEnd + "]");
     }
 
-    public void AddValidParts(List<Line> dest, float minLineLength) {
+    public void AddValidParts(List<DeprecatedLine> dest, float minLineLength) {
         // string logMsg = "Line validity: " + lineValidity + " => ";
         
         if (lineValidity.IsConstant()) {
@@ -385,7 +341,7 @@ public class Line : Primitive {
             float proj2 = Vector2.Dot(p2 - center, u);
 
             if (Mathf.Abs(proj2 - proj1) >= minLineLength) {
-                dest.Add(new Line(this, center + proj1 * u, center + proj2 * u));
+                dest.Add(new DeprecatedLine(this, center + proj1 * u, center + proj2 * u));
                 // logMsg += "[" + validZone.min + "; " + validZone.max + "]; ";
                 // DEBUG_DELETE_LINE = false;
             }

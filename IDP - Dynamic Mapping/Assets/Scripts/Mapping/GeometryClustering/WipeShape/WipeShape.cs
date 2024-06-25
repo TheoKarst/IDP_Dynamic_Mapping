@@ -6,37 +6,10 @@ public class WipeShape {
     private Vector2[] points;
     private float[] angles;
 
-    public WipeShape(Vector2 center, Vector2[] points) {
+    public WipeShape(Vector2 center, Vector2[] points, float[] angles) {
         this.center = center;
         this.points = points;
-
-        this.angles = new float[points.Length];
-        angles[0] = Mathf.Atan2(points[0].y - center.y,
-                                      points[0].x - center.x);
-        string logMsg = "[" + angles[0] * Mathf.Rad2Deg;
-
-        for (int i = 1; i < points.Length; i++) {
-            float pointAngle = Mathf.Atan2(points[i].y - center.y, 
-                                           points[i].x - center.x);
-
-            float step = Mathf.Repeat(pointAngle - angles[i-1], 2 * Mathf.PI);
-            if(step >= Mathf.PI)
-                Debug.LogError("Assertion error while building the wipe shape");
-
-            angles[i] = angles[i-1] + step;
-            logMsg += "; " + angles[i] * Mathf.Rad2Deg;
-        }
-        if(angles[angles.Length - 1] - angles[0] > 2 * Mathf.PI)
-            Debug.LogError("Angles: " + logMsg + "]; First point: " + points[0] + ", Last: " + points[points.Length-1]);
-
-        /*
-        string log = "";
-        for (int i = 1; i < points.Count; i++) {
-            log += Mathf.Rad2Deg * points[i].angle + "; ";
-            if (points[i - 1].angle >= points[i].angle)
-                Debug.LogError("Invalid points for the wipe shape !");
-        }
-        Debug.Log("Wipe shape angles: [" + log + "]");*/
+        this.angles = angles;
     }
 
     public void DrawGizmos(float height) {
@@ -54,8 +27,8 @@ public class WipeShape {
     // For each line that was given, find the zones of the lines that are valid or invalid.
     // Only the validity zones of the line are updated, not the line shape.
     // These zones will be used later to update the lines, and remove the invalid parts
-    public void UpdateLines(List<Line> modelLines) {
-        foreach(Line line in modelLines)
+    public void UpdateLines(List<DynamicLine> modelLines) {
+        foreach(DynamicLine line in modelLines)
             UpdateLineValidity(line);
     }
 
@@ -66,97 +39,7 @@ public class WipeShape {
             UpdateCircleValidity(circle);
     }
 
-    /*private void UpdateLineValidity(Line line) {
-        if (points.Length < 3) {
-            Debug.LogError("Wipe Shape has less than 3 points !");
-            return;
-        }
-
-        // All the indices are modulo n:
-        int n = points.Length;
-
-        int startPoint, endPoint, direction, count;
-
-        // Compute if we have to check the intersections between the edges of the shape and the line in clockwise or anticlockwise order:
-        if (line.IsLeftOfLine(center)) {
-            direction = 1;
-            startPoint = FindSection(line.beginPoint) - 1;
-            endPoint = FindSection(line.endPoint);
-            if (startPoint < 0) startPoint += n;
-            count = endPoint - startPoint;
-        }
-        else {
-            direction = -1;
-            startPoint = FindSection(line.beginPoint);
-            endPoint = FindSection(line.endPoint) - 1;
-            if (endPoint < 0) endPoint += n;
-            count = startPoint - endPoint;
-        }
-
-        // We have startPoint in [0; n[ and endPoint in [0; n[. Thus count is in ]-n; n[. We just have to keep count in [0; n[:
-        if (count < 0) count += n;
-
-        int index = startPoint;
-        Vector2 current = points[index];
-        bool isLeft = line.IsLeftOfLine(current);
-
-        // If the start point of the line is outside the shape:
-        bool startPointOutside = true;
-
-        List<float> intersections = new List<float>();
-        for (int i = 0; i < count; i++) {
-            index += direction;
-            if (index < 0) index += n;
-            else if (index >= n) index -= n;
-            Vector2 next = points[index];
-            bool nextIsLeft = line.IsLeftOfLine(next);
-
-            // Compute startPointOutside:
-            if (i == 0) {
-                // Rotate (next - current) to point outside the shape:
-                Vector2 normal = direction * Vector2.Perpendicular(current - next);
-
-                // Compute the dot product between n and (line.beginPoint - current). If the dot product is greater than 0, the point is outside the shape:
-                startPointOutside = Vector2.Dot(line.beginPoint - current, normal) >= 0;
-
-                if(!startPointOutside) {
-                   Debug.Log("Point: " + line.beginPoint + " is in the shape (Section: " + startPoint + ") . Normal of (" + current + "; " + next + "): " + normal + "; Line direction: " + direction);
-                }
-            }
-
-            // There may be an intersection only if current and next are on different sides of the line:
-            if (nextIsLeft != isLeft)  {
-                // Compute the distance between the intersection and the begin point of the line.
-                // The returned distance should be between 0 (intersection == beginPoint)
-                // and 1 (intersection == endPoint):
-                float distance = line.IntersectDistance(current, next);
-                if (distance >= 0 && distance <= 1)
-                    intersections.Add(distance);
-            }
-
-            current = next;
-            isLeft = nextIsLeft;
-        }
-
-        if(intersections.Count != 0 && intersections[0] == 0) {
-            Debug.LogWarning("Unexpected, line: [" + line.beginPoint + "; " + line.endPoint + "]\n"
-                + "Begin point: Section " + startPoint + "\n"
-                + "End point: Section " + endPoint + "\n"
-                + "Direction: " + direction);
-        }
-
-        else if(!startPointOutside && intersections.Count == 0) {
-            Debug.Log("The line: [" + line.beginPoint + "; " + line.endPoint + "] is completely in the shape.\n"
-                + "Begin point: Section " + startPoint + "\n"
-                + "End point: Section " + endPoint + "\n"
-                + "Direction: " + direction);
-        }
-
-        line.UpdateValidity(intersections, startPointOutside);
-    }
-*/
-
-    public void UpdateLineValidity(Line line) {
+    public void UpdateLineValidity(DynamicLine line) {
         if (points.Length < 3) {
             Debug.LogError("Wipe Shape has less than 3 points !");
             return;
@@ -167,17 +50,9 @@ public class WipeShape {
 
         int startSection, endSection, direction, count;
 
-        // Compute if we have to check the intersections between the edges of the shape and the line in clockwise or counter-clockwise order:
-        if (line.DistanceOf(center) >= 0) {
-            // Turn counter-clockwise:
-            direction = 1;
-
-            startSection = FindSectionLower(line.beginPoint);
-            endSection = FindSectionUpper(line.endPoint);
-            if (startSection < 0) startSection += n;
-            count = endSection - startSection;
-        }
-        else {
+        // Compute if we have to check the intersections between the edges of the
+        // shape and the line in clockwise or counter-clockwise order:
+        if (line.SignedDistanceOf(center) >= 0) {
             // Turn clockwise:
             direction = -1;
 
@@ -186,13 +61,22 @@ public class WipeShape {
             if (endSection < 0) endSection += n;
             count = startSection - endSection;
         }
+        else {
+            // Turn counter-clockwise:
+            direction = 1;
+
+            startSection = FindSectionLower(line.beginPoint);
+            endSection = FindSectionUpper(line.endPoint);
+            if (startSection < 0) startSection += n;
+            count = endSection - startSection;
+        }
 
         // We have startPoint in [0; n[ and endPoint in [0; n[. Thus count is in ]-n; n[. We just have to keep count in ]0; n]:
         if (count <= 0) count += n;
 
         int index = startSection;
         Vector2 current = points[index];
-        bool isLeft = line.DistanceOf(current) >= 0;
+        bool isRight = line.SignedDistanceOf(current) >= 0;
 
         // If the start point of the line is outside the shape, and if the current
         // side of the points of the shape compared to the line is known or not.
@@ -206,12 +90,13 @@ public class WipeShape {
             index += direction;
             if (index < 0) index += n;
             else if (index >= n) index -= n;
+
             Vector2 next = points[index];
-            float nextLineDistance = line.DistanceOf(next);
+            float nextLineDistance = line.SignedDistanceOf(next);
 
             // Here we manage the situation where the point is exactly on the line.
             // In this case, we keep the same state as before:
-            bool nextIsLeft = nextLineDistance > 0 ? true : nextLineDistance < 0 ? false : isLeft;
+            bool nextIsRight = nextLineDistance == 0 ? isRight : nextLineDistance > 0;
 
             // Compute startPointOutside:
             if (i == 0) {
@@ -230,7 +115,7 @@ public class WipeShape {
             }
 
             // There may be an intersection only if current and next are on different sides of the line:
-            if (nextIsLeft != isLeft && !currentSideUnknown) {
+            if (nextIsRight != isRight && !currentSideUnknown) {
                 // Compute the distance between the intersection and the begin point of the line.
                 // The returned distance should be between 0 (intersection == beginPoint)
                 // and 1 (intersection == endPoint):
@@ -239,17 +124,23 @@ public class WipeShape {
                     intersections.Add(distance);
             }
 
-            // If the side of the next point is now clear (i.e. not on the line), we can update the value
-            // of startPointOutside and currentSideUnknown:
+            // If all the previous points were exactly on the line, but not the next point,
+            // we can update the value of startPointOutside and currentSideUnknown:
             if (currentSideUnknown && nextLineDistance != 0) {
-                startPointOutside = direction == 1 && nextLineDistance > 0 || direction == -1 && nextLineDistance < 0;
+                // If direction == -1, we know the center of the shape is on the right of the
+                // line, and if nextLineDistance > 0, we know that the next point is also on
+                // the right of the line. In this situation, the line is going outside of the
+                // shape, so startPointOutside = true.
+                // This is also the case if direction == 1 and nextLineDistance < 0:
+                startPointOutside = direction == -1 && nextLineDistance > 0 
+                    || direction == 1 && nextLineDistance < 0;
                 currentSideUnknown = false;
             }
             current = next;
-            isLeft = nextIsLeft;
+            isRight = nextIsRight;
         }
 
-        line.UpdateValidity(intersections, startPointOutside);
+        line.ResetLineValidity(startPointOutside, intersections);
     }
 
     private void UpdateCircleValidity(Circle circle) {
