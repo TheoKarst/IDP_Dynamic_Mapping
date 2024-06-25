@@ -13,7 +13,7 @@ public class GridMap {
 
     private float cellSize;
 
-    private List<Line>[] cells;
+    private List<DynamicLine>[] cells;
 
     public GridMap(int width, int height, float cellSize) 
         : this(width, height, 0, 0, cellSize) {}
@@ -27,10 +27,10 @@ public class GridMap {
 
         this.cellSize = cellSize;
 
-        cells = new List<Line>[width * height];
+        cells = new List<DynamicLine>[width * height];
     }
 
-    public void RegisterLine(Line line) {
+    public void RegisterLine(DynamicLine line) {
         // Compute the position of the endpoints of the line in the grid:
         float x0 = (line.beginPoint.x - cornerX) / cellSize;
         float y0 = (cornerY - line.beginPoint.y) / cellSize;
@@ -45,8 +45,8 @@ public class GridMap {
             RegisterLine(line, cell.x, cell.y);
     }
 
-    public List<Line> FindNeighbors(Line line) {
-        List<Line> neighbors = new List<Line>();
+    public List<DynamicLine> FindNeighbors(DynamicLine line) {
+        List<DynamicLine> neighbors = new List<DynamicLine>();
 
         // Compute the position of the endpoints of the line in the grid:
         float x0 = (line.beginPoint.x - cornerX) / cellSize;
@@ -59,7 +59,7 @@ public class GridMap {
 
         List<(int, int)> cells = FindContactCells(x0, y0, x1, y1);
         foreach ((int x, int y) cell in cells) {
-            List<Line> cellLines = this[cell.x, cell.y];
+            List<DynamicLine> cellLines = this[cell.x, cell.y];
 
             if(cellLines != null)
                 neighbors.AddRange(cellLines);
@@ -119,9 +119,9 @@ public class GridMap {
         return result;
     }
 
-    private void RegisterLine(Line line, int cellX, int cellY) {
+    private void RegisterLine(DynamicLine line, int cellX, int cellY) {
         if (this[cellX, cellY] == null)
-            this[cellX, cellY] = new List<Line> { line };
+            this[cellX, cellY] = new List<DynamicLine> { line };
         
         else
             this[cellX, cellY].Add(line);
@@ -132,7 +132,7 @@ public class GridMap {
             cells[i] = null;
     }
 
-    private List<Line> this[int x, int y] {
+    private List<DynamicLine> this[int x, int y] {
         get => cells[width * y + x];
         set => cells[width * y + x] = value;
     }

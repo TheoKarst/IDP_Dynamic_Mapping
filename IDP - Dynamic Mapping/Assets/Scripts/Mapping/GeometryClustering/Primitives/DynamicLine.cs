@@ -15,6 +15,13 @@ public class DynamicLine : Primitive {
         public float theta;         // Angle of the line
         public float dRho;          // Derivative of rho
         public float dTheta;        // Derivative of theta
+
+        public LineState(float rho, float theta) {
+            this.rho = rho;
+            this.theta = theta;
+            this.dRho = 0;
+            this.dTheta = 0;
+        }
     }
 
     public Color lineColor = Color.red;
@@ -43,7 +50,25 @@ public class DynamicLine : Primitive {
     // lines are matched with model lines, for which the velocity was correctly computed.
     // For each line already in the model, modelLine = this:
     private DynamicLine modelLine;
-    
+
+    public DynamicLine(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint) {
+        this.state = new LineState(rho, theta);
+
+        // When building a new line, we cannot estimate the error on dRho and dTheta.
+        // Thus, we initialise this part of the covariance matrix with zeros. The matrix
+        // will be updated later with the Kalman Filter when we get more data about this line
+        this.covariance = M.DenseOfArray(new double[,] {
+            { covariance[0,0], covariance[0,1], 0, 0 },
+            { covariance[1,0], covariance[1,1], 0, 0 },
+            {      0         ,      0         , 0, 0 },
+            {      0         ,      0         , 0, 0 },
+        });
+
+        this.beginPoint = beginPoint;
+        this.endPoint = endPoint;
+        this.modelLine = this;
+    }
+
     public DynamicLine(DynamicLine line, Vector2 beginPoint, Vector2 endPoint) {
         this.lineColor = line.lineColor;
         this.state = line.state;
@@ -163,9 +188,15 @@ public class DynamicLine : Primitive {
         CheckState();
     }
 
-    // Return if the given line (supposed to be part of the current world model) is a good candidate
-    // to be matched with this line. If this is the case, we will have to check the norm distance
-    // between the lines as x next step:
+    /// <summary>
+    /// Return if the given line (supposed to be part of the current world model) is a good candidate
+    /// to be matched with this line. If this is the case, we will have to check the norm distance
+    /// between the lines as a next step
+    /// </summary>
+    /// <param name="maxAngleDistance">Maximum angle (in radians) between the two lines</param>
+    /// <param name="maxOrthogonalDistance">Maximum orthogonal distance of this line endpoints to the given model line</param>
+    /// <param name="maxParallelDistance">Maximum distance of this line endpoints to the model line, along the model line</param>
+    /// <returns>If the given model line fulfils the previous critera</returns>
     public bool IsMatchCandidate(DynamicLine modelLine, float maxAngleDistance, float maxOrthogonalDistance, float maxParallelDistance) {
 
         // If the angular difference between both lines is too big, the lines cannot match:
@@ -228,10 +259,10 @@ public class DynamicLine : Primitive {
     // use the given line (that is supposed to be matched with this one, and to
     // belong to the current observation of the environment) to update the position
     // estimate, covariance matrix and endpoints of this line:
-    public void UpdateLineUsingMatch(DynamicLine observation, Matrix<double> R, float validityMargin) {
+    public void UpdateLineUsingMatch(DynamicLine observation, Matrix<double> lineObservationError, float validityMargin) {
         // First, update the state of this line from the observation, using
         // Kalman Filter:
-        UpdateState(observation.state.rho, observation.state.theta, R);
+        UpdateState(observation.state.rho, observation.state.theta, lineObservationError);
 
         // Then, since the observation is by definition valid, use it to
         // update which sections of this line are valid:

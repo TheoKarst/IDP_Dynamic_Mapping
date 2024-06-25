@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class WipeTriangle {
-    // The points defining the wipe triangle:
+    /*// The points defining the wipe triangle:
     private Vector2 p1, p2, p3;
 
     // Normals of the triangle (not normalized, since its not necessary):
@@ -202,5 +202,5 @@ public class WipeTriangle {
     // Rotate the segment AB of 90° in clockwise order:
     private Vector2 RotateClockwise(Vector2 A, Vector2 B) {
         return new Vector2(B.y - A.y, A.x - B.x);
-    }
+    }*/
 }

@@ -22,7 +22,7 @@ public class DeprecatedLine : Primitive {
 
     // Use a BoolAxis to represent which parts of the line are valid, according to the current
     // observations from the LIDAR:
-    private BoolAxis lineValidity = new BoolAxis(0, 1, true);
+    private DeprecatedBoolAxis lineValidity = new DeprecatedBoolAxis(0, 1, true);
     private Vector2 lineValidityBegin, lineValidityEnd, lineValidityU;
 
     // Copy constructor:

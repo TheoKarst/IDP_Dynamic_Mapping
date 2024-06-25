@@ -24,14 +24,6 @@ public class WipeShape {
         }
     }
 
-    // For each line that was given, find the zones of the lines that are valid or invalid.
-    // Only the validity zones of the line are updated, not the line shape.
-    // These zones will be used later to update the lines, and remove the invalid parts
-    public void UpdateLines(List<DynamicLine> modelLines) {
-        foreach(DynamicLine line in modelLines)
-            UpdateLineValidity(line);
-    }
-
     // For each circle that was given, the circle is considered as valid only if its
     // center is outside the WipeShape:
     public void UpdateCircles(List<Circle> modelCircles) {

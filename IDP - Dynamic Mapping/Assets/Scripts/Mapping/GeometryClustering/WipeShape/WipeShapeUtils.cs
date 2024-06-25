@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Assertions;
 
 public class WipeShapeUtils {
     public static List<int> HighPassSubsample(AugmentedObservation[] observations, float deltaAngle) {
@@ -163,6 +164,90 @@ public class WipeShapeUtils {
                 count++;
 
         // Return the indices of the remaining observations:
+        int[] result = new int[count];
+
+        int resultIndex = 0;
+        for (int i = 0; i < remove.Length; i++) {
+            if (!remove[i]) {
+                result[resultIndex] = i;
+                resultIndex++;
+            }
+        }
+
+        return result;
+    }
+
+    public static int[] AlphaFilter(Vector2[] points, float[] angles, float alpha) {
+        Assert.IsTrue(points.Length == angles.Length);
+
+        // Register each point that should be deleted:
+        bool[] remove = new bool[points.Length];
+
+        // For each point, remove all the points in the "alpha-cone" of this point:
+        for (int i = 0; i < points.Length; i++) {
+            if (remove[i])
+                continue;
+
+            // 1. Remove points in the cone in counter-clockwise order, between theta and theta + alpha:
+            int index = i;
+            float theta = angles[i];
+            float stopAngle = theta + alpha;
+
+            // cos(x + PI/2) = -sin(x); sin(x + PI/2) = cos(x)
+            Vector2 u = new Vector2(-Mathf.Sin(stopAngle), Mathf.Cos(stopAngle));
+
+            while (theta < stopAngle) {
+                index++;
+
+                // If we reached the last point, return to the first one:
+                if (index >= points.Length) {
+                    index = 0;
+                    stopAngle -= 2 * Mathf.PI;
+                }
+
+                theta = angles[index];
+                float dotU = Vector2.Dot(points[index] - points[i], u);
+
+                if (dotU <= 0)
+                    remove[index] = true;
+                else
+                    break;
+            }
+
+            // 2. Remove points in the cone in clockwise order, between theta and theta - alpha:
+            index = i;
+            theta = angles[i];
+            stopAngle = theta - alpha;
+
+            // cos(x - PI/2) = sin(x); sin(x - PI/2) = -cos(x)
+            u = new Vector2(Mathf.Sin(stopAngle), -Mathf.Cos(stopAngle));
+
+            while (theta > stopAngle) {
+                index--;
+
+                // If we reached the first point, return to the last one:
+                if (index <= 0) {
+                    index = points.Length - 1;
+                    stopAngle += 2 * Mathf.PI;
+                }
+
+                theta = angles[index];
+                float dotU = Vector2.Dot(points[index] - points[i], u);
+
+                if (dotU <= 0)
+                    remove[index] = true;
+                else
+                    break;
+            }
+        }
+
+        // Count the number of observations we still have:
+        int count = 0;
+        for (int i = 0; i < remove.Length; i++)
+            if (!remove[i])
+                count++;
+
+        // Return the indices of the remaining points:
         int[] result = new int[count];
 
         int resultIndex = 0;

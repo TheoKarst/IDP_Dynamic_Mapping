@@ -6,21 +6,20 @@ using UnityEngine.Profiling;
 public class GeometryClustering {
     private GeometryClusterParams parameters;
 
-    private float CriticalAlphaRadians;
-    private float LineMaxMatchAngleRadians;
-
     // Match to each observation (rho, theta) from the LIDAR a point in world space coordinate:
     private List<Point> currentPoints;
 
     // Current lines and circles used to represent the environment:
-    private List<Line> modelLines = new List<Line>();
+    private List<DynamicLine> modelLines = new List<DynamicLine>();
     private List<Circle> modelCircles = new List<Circle>();
 
     // For debugging: List of lines that were built during this frame:
-    private List<Line> debugCurrentLines = new List<Line>();
+    private List<DynamicLine> debugCurrentLines = new List<DynamicLine>();
 
     private GridMap gridMap;
     private WipeShape currentWipeShape;
+
+    private float lastTimeUpdate = -1;
 
     // TEST:
     private int newLineCount = 0;
@@ -28,18 +27,18 @@ public class GeometryClustering {
     public GeometryClustering(GeometryClusterParams parameters, GridMap gridMap) {
         this.parameters = parameters;
         this.gridMap = gridMap;
-
-        CriticalAlphaRadians = Mathf.Deg2Rad * parameters.CriticalAlpha;
-        LineMaxMatchAngleRadians = Mathf.Deg2Rad * parameters.LineMaxMatchAngle;
     }
 
-    public void UpdateModel(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
+    public void UpdateModel(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations, float currentTime) {
+        float deltaTime = lastTimeUpdate == -1 ? 0 : currentTime - lastTimeUpdate;
+        lastTimeUpdate = currentTime;
+
         Vector2[] positions;
 
         // Clear the previous grid map, and add in it the current model lines:
         Profiler.BeginSample("Grid Map Update");
         gridMap.Clear();
-        foreach(Line line in modelLines)
+        foreach(DynamicLine line in modelLines)
             gridMap.RegisterLine(line);
         Profiler.EndSample();
 
@@ -55,7 +54,7 @@ public class GeometryClustering {
         Profiler.EndSample();
 
         // Then use the points to perform lines and circles extraction:
-        List<Line> lines; List<Circle> circles;
+        List<DynamicLine> lines; List<Circle> circles;
 
         Profiler.BeginSample("Cluster Extraction");
         (lines, circles) = ClusterExtraction(currentPoints);
@@ -64,8 +63,8 @@ public class GeometryClustering {
         // For debugging:
         if(parameters.drawCurrentLines) {
             debugCurrentLines.Clear();
-            foreach(Line line in lines) {
-                Line copy = new Line(line);
+            foreach(DynamicLine line in lines) {
+                DynamicLine copy = new DynamicLine(line, line.beginPoint, line.endPoint);
                 copy.lineColor = Color.yellow;
                 debugCurrentLines.Add(copy);
             }
@@ -73,7 +72,7 @@ public class GeometryClustering {
 
         Profiler.BeginSample("Update Model Lines");
         // List<WipeTriangle> triangles = UpdateModelLines(sensorPosition, lines);
-        UpdateModelLines(lines, currentWipeShape);
+        UpdateModelLines(lines, currentWipeShape, deltaTime);
         Profiler.EndSample();
 
         // Use the circles from the current frame to update the model circles:
@@ -92,7 +91,7 @@ public class GeometryClustering {
         const float height = 0.2f;
 
         if (drawCurrentLines && debugCurrentLines != null) {
-            foreach(Line line in debugCurrentLines)
+            foreach(DynamicLine line in debugCurrentLines)
                 line.DrawGizmos(height);
         }
 
@@ -102,7 +101,7 @@ public class GeometryClustering {
         }
 
         if (drawLines && modelLines != null) {
-            foreach (Line line in modelLines)
+            foreach (DynamicLine line in modelLines)
                 line.DrawGizmos(height);
         }
 
@@ -210,23 +209,40 @@ public class GeometryClustering {
     }*/
 
     private WipeShape BuildWipeShape3(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, AugmentedObservation[] observations) {
-        // Apply alpha filter to the shape:
-        int[] indices = WipeShapeUtils.AlphaFilter(observations, parameters.alpha * Mathf.Deg2Rad, parameters.clampDistance);
+        
+        // Compute the world space position of all the given observations:
+        Vector2[] positions = new Vector2[observations.Length];
+        float[] angles = new float[observations.Length];
+        for (int i = 0; i < positions.Length; i++) {
+            Observation observation = observations[i].ToObservation();
 
-        Vector2[] points = new Vector2[indices.Length];
-        for(int i = 0; i < indices.Length; i++) {
-            points[i] = model.ComputeObservationPositionEstimate(vehicleState, observations[indices[i]].ToObservation());
+            // Clamp the observation:
+            if(observation.r > parameters.clampDistance)
+                observation.r = parameters.clampDistance;
+
+            positions[i] = model.ComputeObservationPositionEstimate(vehicleState, observation);
+            angles[i] = observation.theta;
         }
 
-        // Apply Douglas Peucker algorithm to the remaining points:
-        points = LidarUtils.DouglasPeucker(points, parameters.epsilon);
+        // Apply alpha filter to the shape:
+        int[] indices = WipeShapeUtils.AlphaFilter(positions, angles, parameters.alpha * Mathf.Deg2Rad);
 
-        return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), points);
+        // Apply Douglas Peucker algorithm to the remaining points:
+        indices = LidarUtils.DouglasPeuckerIndices(positions, indices, 0, indices.Length-1, parameters.epsilon);
+
+        Vector2[] filteredPoints = new Vector2[indices.Length];
+        float[] filteredAngles = new float[indices.Length];
+        for(int i = 0; i < indices.Length; i++) {
+            filteredPoints[i] = positions[indices[i]];
+            filteredAngles[i] = angles[indices[i]];
+        }
+
+        return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), filteredPoints, filteredAngles);
     }
 
     // Cluster extraction (lines and circles):
-    private (List<Line>, List<Circle>) ClusterExtraction(List<Point> points) {
-        List<Line> extractedLines = new List<Line>();
+    private (List<DynamicLine>, List<Circle>) ClusterExtraction(List<Point> points) {
+        List<DynamicLine> extractedLines = new List<DynamicLine>();
         List<Circle> extractedCircles = new List<Circle>();
 
         // We first try to match the first point with a line, then with a circle.
@@ -250,7 +266,7 @@ public class GeometryClustering {
                 // Try to match the current point with the current line:
                 bool condition1 = Point.Dist(previousPoint, currentPoint) <= parameters.PointCriticalDistance;
                 bool condition2 = lineBuilder.PointsCount() < 3 || lineBuilder.DistanceFrom(currentPoint) <= parameters.LineCriticalDistance;
-                bool condition3 = Point.AngularDifference(previousPoint, currentPoint) <= CriticalAlphaRadians;
+                bool condition3 = Point.AngularDifference(previousPoint, currentPoint) <= parameters.CriticalAlphaRadians;
                 
                 // If the three conditions are met, we can add the point to the line:
                 if (condition1 && condition2 && condition3) {
@@ -386,7 +402,7 @@ public class GeometryClustering {
     }*/
 
     // Update the lines using a wipe shape instead of wipe triangles:
-    private void UpdateModelLines(List<Line> currentLines, WipeShape wipeShape) {
+    /*private void UpdateModelLines(List<Line> currentLines, WipeShape wipeShape) {
         // bool DEBUG_NEW_LINE = false;
 
         List<Line> newLines = new List<Line>();
@@ -467,6 +483,64 @@ public class GeometryClustering {
 
         // if(DEBUG_NEW_LINE)
         //     Debug.Break();
+    }*/
+
+    private void UpdateModelLines(List<DynamicLine> currentLines, WipeShape wipeShape, float deltaTime) {
+        List<DynamicLine> newLines = new List<DynamicLine>();
+
+        foreach (DynamicLine line in modelLines) {
+            // Reset the color of the lines from the model:
+            line.lineColor = Color.red;
+
+            // Predict the new state of the lines, knowing the elapsed time since the last update:
+            line.PredictState(deltaTime, parameters.LineProcessNoiseError);
+
+            // Finally, find which sections of the line are valid or not, using the wipe shape:
+            wipeShape.UpdateLineValidity(line);
+        }
+
+        // Try to match the current lines with the lines in the model:
+        for (int i = 0; i < currentLines.Count; i++) {
+            DynamicLine currentLine = currentLines[i];
+
+            bool matchFound = false;
+            foreach (DynamicLine modelLine in gridMap.FindNeighbors(currentLine)) {
+
+                // First test: check if the line from the model is a good match candidate:
+                if (currentLine.IsMatchCandidate(modelLine,
+                    parameters.LineMaxMatchAngleRadians,
+                    parameters.LineMaxMatchOrthogonalDistance,
+                    parameters.LineMaxMatchParallelDistance)) {
+
+                    // Second test: Check the Mahalanobis distance between the two lines:
+                    if (currentLine.NormDistanceFromModel(modelLine) < 5) {
+
+                        // As soon as there is a match, use this line to update the model line:
+                        modelLine.lineColor = Color.blue;   // Blue color for matched lines
+                        modelLine.UpdateLineUsingMatch(currentLine, 
+                            parameters.LineObservationError, 
+                            parameters.LineValidityExtent);
+
+                        matchFound = true;
+                        break;
+                    }
+                }
+            }
+
+            // If no match was found, we just add this line to the model:
+            if(!matchFound) {
+                currentLine.lineColor = Color.green;    // Green color for new lines
+                newLines.Add(currentLine);
+                Debug.Log("New line ! Count: " + (++newLineCount));
+            }
+        }
+
+        // Keep only the valid parts of the lines from the model:
+        foreach (DynamicLine line in modelLines)
+            line.AddValidParts(newLines, parameters.LineMinLength);
+
+        // Replace the previous lines with the updated ones:
+        modelLines = newLines;
     }
 
     /*

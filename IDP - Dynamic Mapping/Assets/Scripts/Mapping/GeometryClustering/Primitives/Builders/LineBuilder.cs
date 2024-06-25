@@ -85,7 +85,7 @@ public class LineBuilder {
         return new CircleBuilder(points);
     }
 
-    public Line Build() {
+    public DynamicLine Build() {
         // Compute the endpoints and covariance matrix of the line:
         if (!upToDateEndpoints) 
             UpdateEndpoints();
@@ -93,7 +93,7 @@ public class LineBuilder {
         Matrix<double> covariance = ComputeCovariance();
 
         // Build the line:
-        Line line = new Line(rho, theta, covariance, beginPoint, endPoint);
+        DynamicLine line = new DynamicLine(rho, theta, covariance, beginPoint, endPoint);
 
         // Match all the points to the built line:
         foreach (Point point in points) point.MatchToPrimitive(line);
@@ -105,16 +105,15 @@ public class LineBuilder {
     // in the line builder, along the line defined by the parameters (rho, theta):
     private void UpdateEndpoints() {
         float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
-        
-        // "Center" of the infinite line:
-        Vector2 center = new Vector2(rho * costheta, rho * sintheta);
-
         // Unit vector along the line:
         Vector2 u = new Vector2(-sintheta, costheta);        
 
         // Compute the projection of the first point and last point of the line:
-        float pFirst = Vector2.Dot(u, points[0].position - center);
-        float pLast = Vector2.Dot(u, points[points.Count-1].position - center);
+        float pFirst = Vector2.Dot(u, points[0].position);
+        float pLast = Vector2.Dot(u, points[points.Count-1].position);
+
+        // "Center" of the infinite line:
+        Vector2 center = new Vector2(rho * costheta, rho * sintheta);
 
         beginPoint = center + pFirst * u;
         endPoint = center + pLast * u;

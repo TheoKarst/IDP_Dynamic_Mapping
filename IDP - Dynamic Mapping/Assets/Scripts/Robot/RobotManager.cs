@@ -59,7 +59,7 @@ public class RobotManager : MonoBehaviour {
                 geometryClustering.UpdateModel(
                     sensorPose, model,
                     data.vehicleState, data.vehicleStateCovariance,
-                    data.observations[i]);
+                    data.observations[i], Time.time);
                 Profiler.EndSample();
             }
 
