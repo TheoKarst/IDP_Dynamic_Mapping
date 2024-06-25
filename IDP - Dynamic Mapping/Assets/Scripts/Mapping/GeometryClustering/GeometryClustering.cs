@@ -95,7 +95,7 @@ public class GeometryClustering {
                 line.DrawGizmos(height);
         }
 
-        if (drawPoints && currentPoints != null && currentPoints[0] != null) {
+        if (drawPoints && currentPoints != null && currentPoints.Count > 0 && currentPoints[0] != null) {
             foreach (Point point in currentPoints)
                 point.DrawGizmos(height);
         }
@@ -208,6 +208,7 @@ public class GeometryClustering {
         return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), filtered);
     }*/
 
+    /*
     private WipeShape BuildWipeShape3(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, AugmentedObservation[] observations) {
         
         // Compute the world space position of all the given observations:
@@ -238,6 +239,21 @@ public class GeometryClustering {
         }
 
         return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), filteredPoints, filteredAngles);
+    }*/
+
+    private WipeShape BuildWipeShape3(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, AugmentedObservation[] observations) {
+        // Apply alpha filter to the shape:
+        int[] indices = WipeShapeUtils.AlphaFilter(observations, parameters.alpha * Mathf.Deg2Rad, parameters.clampDistance);
+
+        Vector2[] points = new Vector2[indices.Length];
+        for (int i = 0; i < indices.Length; i++) {
+            points[i] = model.ComputeObservationPositionEstimate(vehicleState, observations[indices[i]].ToObservation());
+        }
+
+        // Apply Douglas Peucker algorithm to the remaining points:
+        points = LidarUtils.DouglasPeucker(points, parameters.epsilon);
+
+        return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), points);
     }
 
     // Cluster extraction (lines and circles):
@@ -502,9 +518,16 @@ public class GeometryClustering {
         // Try to match the current lines with the lines in the model:
         for (int i = 0; i < currentLines.Count; i++) {
             DynamicLine currentLine = currentLines[i];
+            string logMsg = currentLine.ToString() + ":\n";
 
             bool matchFound = false;
             foreach (DynamicLine modelLine in gridMap.FindNeighbors(currentLine)) {
+                logMsg += modelLine.ToString() +
+                    ", Match candidate: " + currentLine.IsMatchCandidate(modelLine,
+                        parameters.LineMaxMatchAngleRadians,
+                        parameters.LineMaxMatchOrthogonalDistance,
+                        parameters.LineMaxMatchParallelDistance) +
+                    ", Norm Distance: " + currentLine.NormDistanceFromModel(modelLine) + "\n";
 
                 // First test: check if the line from the model is a good match candidate:
                 if (currentLine.IsMatchCandidate(modelLine,
@@ -531,8 +554,9 @@ public class GeometryClustering {
             if(!matchFound) {
                 currentLine.lineColor = Color.green;    // Green color for new lines
                 newLines.Add(currentLine);
-                Debug.Log("New line ! Count: " + (++newLineCount));
             }
+
+            Debug.Log(logMsg);
         }
 
         // Keep only the valid parts of the lines from the model:

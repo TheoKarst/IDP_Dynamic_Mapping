@@ -12,6 +12,40 @@ public class WipeShape {
         this.angles = angles;
     }
 
+    // OLD VERSION:
+    public WipeShape(Vector2 center, Vector2[] points) {
+        this.center = center;
+        this.points = points;
+
+        this.angles = new float[points.Length];
+        angles[0] = Mathf.Atan2(points[0].y - center.y,
+                                      points[0].x - center.x);
+        string logMsg = "[" + angles[0] * Mathf.Rad2Deg;
+
+        for (int i = 1; i < points.Length; i++) {
+            float pointAngle = Mathf.Atan2(points[i].y - center.y,
+                                           points[i].x - center.x);
+
+            float step = Mathf.Repeat(pointAngle - angles[i - 1], 2 * Mathf.PI);
+            if (step >= Mathf.PI)
+                Debug.LogError("Assertion error while building the wipe shape");
+
+            angles[i] = angles[i - 1] + step;
+            logMsg += "; " + angles[i] * Mathf.Rad2Deg;
+        }
+        if (angles[angles.Length - 1] - angles[0] > 2 * Mathf.PI)
+            Debug.LogError("Angles: " + logMsg + "]; First point: " + points[0] + ", Last: " + points[points.Length - 1]);
+
+        /*
+        string log = "";
+        for (int i = 1; i < points.Count; i++) {
+            log += Mathf.Rad2Deg * points[i].angle + "; ";
+            if (points[i - 1].angle >= points[i].angle)
+                Debug.LogError("Invalid points for the wipe shape !");
+        }
+        Debug.Log("Wipe shape angles: [" + log + "]");*/
+    }
+
     public void DrawGizmos(float height) {
         if (points.Length == 0)
             return;

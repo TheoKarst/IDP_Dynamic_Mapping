@@ -1,6 +1,7 @@
 ﻿// Class used to project lines into a grid, in order to compute faster
 // line matching:
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Assertions;
 
@@ -37,16 +38,18 @@ public class GridMap {
         float x1 = (line.endPoint.x - cornerX) / cellSize;
         float y1 = (cornerY - line.endPoint.y) / cellSize;
 
-        Assert.IsTrue(BelongsToGrid(x0, y0) && BelongsToGrid(x1, y1),
-            "The given line is outside of the bounds of the grid !");
+        if(!BelongsToGrid(x0, y0) || !BelongsToGrid(x1, y1)) {
+            Debug.LogError("The given line is outside of the bounds of the grid !");
+            return;
+        }
 
         List<(int, int)> cells = FindContactCells(x0, y0, x1, y1);
         foreach((int x, int y) cell in cells)
             RegisterLine(line, cell.x, cell.y);
     }
 
-    public List<DynamicLine> FindNeighbors(DynamicLine line) {
-        List<DynamicLine> neighbors = new List<DynamicLine>();
+    public HashSet<DynamicLine> FindNeighbors(DynamicLine line) {
+        HashSet<DynamicLine> neighbors = new HashSet<DynamicLine>();
 
         // Compute the position of the endpoints of the line in the grid:
         float x0 = (line.beginPoint.x - cornerX) / cellSize;

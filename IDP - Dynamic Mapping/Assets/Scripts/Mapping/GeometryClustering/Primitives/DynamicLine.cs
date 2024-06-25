@@ -149,15 +149,22 @@ public class DynamicLine : Primitive {
         covariance[3, 1] = p31;
         // covariance[3, 2] = p32;
         covariance[3, 3] += Q[3, 3];
+
+        // We also need to update the endpoints of the line. To do so, we
+        // simply project them on the new line:
+        beginPoint = Project(beginPoint);
+        endPoint = Project(endPoint);
+
+        // Check if the new state is well defined:
+        CheckState();
     }
 
     // Use the given observation to update the line state.
     // R is the observation noise error (2x2 diagonal matrix)
     private void UpdateState(float observationRho, float observationTheta, Matrix<double> R) {
-        // Compute the innovation (WARNING WITH innovationTheta !):
         Vector<double> innovation = V.DenseOfArray(new double[] {
             observationRho - state.rho,
-            observationTheta - state.theta,
+            Utils.LineSubstractAngleRadians(observationTheta, state.theta)
         });
 
         // Compute the innovation covariance:
@@ -179,6 +186,8 @@ public class DynamicLine : Primitive {
         Vector<double> deltaState = K * innovation;
         state.rho += (float) deltaState[0];
         state.theta += (float) deltaState[1];
+        state.dRho += (float) deltaState[2];
+        state.dTheta += (float) deltaState[3];
 
         // Compute the updated state covariance:
         // covariance = covariance - K * H * covariance:
@@ -260,9 +269,22 @@ public class DynamicLine : Primitive {
     // belong to the current observation of the environment) to update the position
     // estimate, covariance matrix and endpoints of this line:
     public void UpdateLineUsingMatch(DynamicLine observation, Matrix<double> lineObservationError, float validityMargin) {
+        float TEST_THETA = state.theta;
+        string prevState = this.ToString();
+        
         // First, update the state of this line from the observation, using
         // Kalman Filter:
         UpdateState(observation.state.rho, observation.state.theta, lineObservationError);
+
+        if (Utils.LineDeltaAngleRadians(TEST_THETA, state.theta) * Mathf.Rad2Deg > 10) {
+            Debug.LogError(
+                "Theta changed from: " + (Mathf.Rad2Deg * TEST_THETA) 
+                + "° to " + (Mathf.Rad2Deg * state.theta) + "°"
+                + "Model (before): " + prevState
+                + "Match: " + observation
+                + "Model (after): " + this);
+        }
+            
 
         // Then, since the observation is by definition valid, use it to
         // update which sections of this line are valid:
@@ -366,6 +388,21 @@ public class DynamicLine : Primitive {
         return point.x * Mathf.Cos(state.theta) + point.y * Mathf.Sin(state.theta) - state.rho;
     }
 
+    /// <summary>
+    /// Compute the orthonal projection of the given point on the line
+    /// </summary>
+    private Vector2 Project(Vector2 point) {
+        float costheta = Mathf.Cos(state.theta), sintheta = Mathf.Sin(state.theta);
+
+        // Unit vector along the line:
+        Vector2 u = new Vector2(-sintheta, costheta);
+
+        // "Center" of the infinite line:
+        Vector2 center = new Vector2(state.rho * costheta, state.rho * sintheta);
+
+        return center + Vector2.Dot(point, u) * u;
+    }
+
     // Check the state of the line, and make sure that we keep the following properties:
     // * state.rho >= 0
     // * 0 <= state.theta < 2*PI
@@ -430,5 +467,23 @@ public class DynamicLine : Primitive {
         Vector2 AC = beginPoint - A;
 
         return (AC.y * AB.x - AC.x * AB.y) / den;
+    }
+
+    public override string ToString() {
+        float print_rho = Utils.Round(state.rho, 2);
+        float print_theta = Utils.Round(Mathf.Rad2Deg * state.theta, 2);
+        string print_d_rho = Utils.ScientificNotation(state.dRho);
+        string print_d_theta = Utils.ScientificNotation(Mathf.Rad2Deg * state.dTheta);
+
+        float print_cov_rho = Utils.Round(Mathf.Sqrt((float)covariance[0, 0]), 2);
+        float print_cov_theta = Utils.Round(Mathf.Rad2Deg * Mathf.Sqrt((float)covariance[1, 1]), 2);
+        string print_cov_d_rho = Utils.ScientificNotation(Mathf.Sqrt((float)covariance[2, 2]));
+        string print_cov_d_theta = Utils.ScientificNotation(Mathf.Rad2Deg * Mathf.Sqrt((float)covariance[3, 3]));
+
+        return "Dynamic Line: [" + beginPoint + "; " + endPoint + "]: " +
+            "rho=" + print_rho + " ±" + print_cov_rho +
+            "; theta=" + print_theta + "° ±" + print_cov_theta +
+            "; dRho=" + print_d_rho + " ±" + print_cov_d_rho +
+            "; dTheta=" + print_d_theta + "°/s ±" + print_cov_d_theta;
     }
 }

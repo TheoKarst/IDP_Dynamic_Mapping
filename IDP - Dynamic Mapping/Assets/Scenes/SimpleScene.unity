@@ -320,7 +320,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &254651331
 Transform:
   m_ObjectHideFlags: 0
@@ -2895,16 +2895,23 @@ MonoBehaviour:
     LineMinPoints: 6
     CircleMinPoints: 6
     LineMaxMatchAngle: 40
-    LineMaxEndpointMatchDistance: 1
-    LineMaxMatchDistance: 3
+    LineMaxMatchOrthogonalDistance: 0.1
+    LineMaxMatchParallelDistance: 0.2
     CircleMaxMatchDistance: 0.5
+    LineValidityExtent: 0.1
+    LineProcessNoiseRho: 0.1
+    LineProcessNoiseTheta: 5
+    LineProcessNoiseDerRho: 1
+    LineProcessNoiseDerTheta: 50
+    LineObservationErrorRho: 0.1
+    LineObservationErrorTheta: 5
     alpha: 20
     epsilon: 0
     clampDistance: 10
-    drawPoints: 0
+    drawPoints: 1
     drawLines: 1
     drawCircles: 0
-    drawCurrentLines: 1
+    drawCurrentLines: 0
     drawWipeShape: 1
 --- !u!114 &2084421433
 MonoBehaviour:
@@ -3487,9 +3494,16 @@ MonoBehaviour:
     LineMinPoints: 6
     CircleMinPoints: 6
     LineMaxMatchAngle: 40
-    LineMaxEndpointMatchDistance: 1
-    LineMaxMatchDistance: 3
+    LineMaxMatchOrthogonalDistance: 0.1
+    LineMaxMatchParallelDistance: 0.2
     CircleMaxMatchDistance: 0.5
+    LineValidityExtent: 0.1
+    LineProcessNoiseRho: 0.1
+    LineProcessNoiseTheta: 5
+    LineProcessNoiseDerRho: 1
+    LineProcessNoiseDerTheta: 50
+    LineObservationErrorRho: 0.1
+    LineObservationErrorTheta: 5
     alpha: 20
     epsilon: 0
     clampDistance: 10
