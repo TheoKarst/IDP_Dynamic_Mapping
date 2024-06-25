@@ -57,9 +57,6 @@ public class GeometryClusterParams {
     public float LineProcessNoiseDerRho = 1;
     public float LineProcessNoiseDerTheta = 50;
 
-    public float LineObservationErrorRho = 0.1f;
-    public float LineObservationErrorTheta = 5;
-
 
     // Deprecated:
     // [Header("Geometry removing")]
@@ -96,13 +93,11 @@ public class GeometryClusterParams {
     public bool drawWipeShape = true;
 
     private Matrix<double> _LineProcessNoiseError;
-    private Matrix<double> _LineObservationError;
 
     // Values computed from the previous parameters:
     public float CriticalAlphaRadians { get => Mathf.Deg2Rad * CriticalAlpha; }
     public float LineMaxMatchAngleRadians { get => Mathf.Deg2Rad * LineMaxMatchAngle; }
 
-    public Matrix<double> LineObservationError { get => ComputeLineObservationError(); }
     public Matrix<double> LineProcessNoiseError { get => ComputeLineProcessNoiseError(); }
 
     private Matrix<double> ComputeLineProcessNoiseError() {
@@ -121,19 +116,5 @@ public class GeometryClusterParams {
         }
 
         return _LineProcessNoiseError;
-    }
-
-    private Matrix<double> ComputeLineObservationError() {
-        if(_LineObservationError == null) {
-            float eRho = LineObservationErrorRho;
-            float eTheta = Mathf.Deg2Rad * LineObservationErrorTheta;
-
-            _LineObservationError = Matrix<double>.Build.Diagonal(new double[] {
-                eRho * eRho,
-                eTheta * eTheta 
-            });
-        }
-
-        return _LineObservationError;
     }
 }

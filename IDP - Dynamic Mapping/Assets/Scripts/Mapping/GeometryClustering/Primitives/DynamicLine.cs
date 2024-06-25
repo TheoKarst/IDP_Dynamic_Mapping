@@ -159,9 +159,8 @@ public class DynamicLine : Primitive {
         CheckState();
     }
 
-    // Use the given observation to update the line state.
-    // R is the observation noise error (2x2 diagonal matrix)
-    private void UpdateState(float observationRho, float observationTheta, Matrix<double> R) {
+    // Use the given observation to update the line state:
+    private void UpdateState(float observationRho, float observationTheta, Matrix<double> observationCovariance) {
         Vector<double> innovation = V.DenseOfArray(new double[] {
             observationRho - state.rho,
             Utils.LineSubstractAngleRadians(observationTheta, state.theta)
@@ -171,12 +170,10 @@ public class DynamicLine : Primitive {
         // S = H.dot(covariance.dot(H.T)) + R
         //
         // With:
-        // H = [[1 0 0 0],
+        // H = [[1 0 0 0],      R = observationCovariance
         //      [0 1 0 0]]
 
-        Matrix<double> S = M.DenseOfArray(new double[,] { 
-            { covariance[0,0] + R[0,0], covariance[0,1] }, 
-            { covariance[1,0], covariance[1,1] + R[1,1] } });
+        Matrix<double> S = covariance.SubMatrix(0, 2, 0, 2) + observationCovariance;
 
         // Compute the optimal Kalman Gain:
         // K = covariance.dot(H.T).dot(inverse(S))
@@ -268,13 +265,14 @@ public class DynamicLine : Primitive {
     // use the given line (that is supposed to be matched with this one, and to
     // belong to the current observation of the environment) to update the position
     // estimate, covariance matrix and endpoints of this line:
-    public void UpdateLineUsingMatch(DynamicLine observation, Matrix<double> lineObservationError, float validityMargin) {
+    public void UpdateLineUsingMatch(DynamicLine observation, float validityMargin) {
         float TEST_THETA = state.theta;
         string prevState = this.ToString();
         
         // First, update the state of this line from the observation, using
         // Kalman Filter:
-        UpdateState(observation.state.rho, observation.state.theta, lineObservationError);
+        UpdateState(observation.state.rho, observation.state.theta, 
+            observation.covariance.SubMatrix(0, 2, 0, 2));
 
         if (Utils.LineDeltaAngleRadians(TEST_THETA, state.theta) * Mathf.Rad2Deg > 10) {
             Debug.LogError(

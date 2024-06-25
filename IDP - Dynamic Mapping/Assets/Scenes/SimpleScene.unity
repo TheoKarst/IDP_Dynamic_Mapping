@@ -2900,11 +2900,9 @@ MonoBehaviour:
     CircleMaxMatchDistance: 0.5
     LineValidityExtent: 0.1
     LineProcessNoiseRho: 0.1
-    LineProcessNoiseTheta: 5
+    LineProcessNoiseTheta: 1
     LineProcessNoiseDerRho: 1
     LineProcessNoiseDerTheta: 50
-    LineObservationErrorRho: 0.1
-    LineObservationErrorTheta: 5
     alpha: 20
     epsilon: 0
     clampDistance: 10
@@ -3502,8 +3500,6 @@ MonoBehaviour:
     LineProcessNoiseTheta: 5
     LineProcessNoiseDerRho: 1
     LineProcessNoiseDerTheta: 50
-    LineObservationErrorRho: 0.1
-    LineObservationErrorTheta: 5
     alpha: 20
     epsilon: 0
     clampDistance: 10

@@ -540,8 +540,7 @@ public class GeometryClustering {
 
                         // As soon as there is a match, use this line to update the model line:
                         modelLine.lineColor = Color.blue;   // Blue color for matched lines
-                        modelLine.UpdateLineUsingMatch(currentLine, 
-                            parameters.LineObservationError, 
+                        modelLine.UpdateLineUsingMatch(currentLine,
                             parameters.LineValidityExtent);
 
                         matchFound = true;
