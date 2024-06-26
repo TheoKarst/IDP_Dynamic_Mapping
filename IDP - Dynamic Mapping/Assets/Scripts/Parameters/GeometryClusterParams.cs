@@ -52,6 +52,10 @@ public class GeometryClusterParams {
 
     /***********************************************************************************************/
     [Header("Dynamic Lines")]
+    [Tooltip("If this is true, the static Kalman Filter is used to update the lines."
+        + "Otherwise, we use a dynamic Kalman Filter (taking into account the lines speed)")]
+    public bool StaticLines = false;
+
     public float LineProcessNoiseRho = 0.1f;
     public float LineProcessNoiseTheta = 5;
     public float LineProcessNoiseDerRho = 1;

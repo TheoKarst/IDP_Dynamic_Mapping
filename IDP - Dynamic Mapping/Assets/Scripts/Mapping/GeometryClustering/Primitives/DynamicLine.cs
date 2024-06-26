@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Unity.VisualScripting;
 using UnityEditor;
+using UnityEditor.VersionControl;
 using UnityEngine;
 
 public class DynamicLine : Primitive {
@@ -308,6 +309,9 @@ public class DynamicLine : Primitive {
 
         // The line is set to invalid by default, and this state changes for each point in the list:
         lineValidity.Reset(false, changes);
+
+        Debug.Log("Reset line validity: (rho=" + state.rho + ", theta=" + state.theta + ")"
+            + "[" + beginPoint + "; " + endPoint + "], validity: " + Utils.ToString(changes));
     }
 
     private void UpdateLineValidity(Vector2 matchBegin, Vector2 matchEnd, float margin) {
@@ -327,6 +331,10 @@ public class DynamicLine : Primitive {
 
         // The line should be valid between pBegin-margin and pBegin+margin:
         lineValidity.SetValue(pBegin-margin, pEnd+margin, true);
+
+        Debug.Log("Update line validity: (rho=" + state.rho + ", theta=" + state.theta + ")"
+            + "[" + beginPoint + "; " + endPoint + "], " +
+            "validity: [" + (pBegin-margin) + "; " + (pEnd+margin) + "]");
     }
 
     // Add to the list the parts of this line that are valid:
@@ -400,6 +408,9 @@ public class DynamicLine : Primitive {
         if(state.rho < 0) {
             state.theta += Mathf.PI;
             state.rho = -state.rho;
+
+            // Make sure to also update the speed to match this new representation !
+            state.dRho = -state.dRho;
         }
 
         // Make sure theta is between 0 and 2*PI:

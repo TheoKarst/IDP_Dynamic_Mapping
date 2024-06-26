@@ -509,7 +509,8 @@ public class GeometryClustering {
             line.lineColor = Color.red;
 
             // Predict the new state of the lines, knowing the elapsed time since the last update:
-            line.PredictState(deltaTime, parameters.LineProcessNoiseError);
+            if(!parameters.StaticLines)
+                line.PredictState(deltaTime, parameters.LineProcessNoiseError);
 
             // Finally, find which sections of the line are valid or not, using the wipe shape:
             wipeShape.UpdateLineValidity(line);
@@ -518,44 +519,41 @@ public class GeometryClustering {
         // Try to match the current lines with the lines in the model:
         for (int i = 0; i < currentLines.Count; i++) {
             DynamicLine currentLine = currentLines[i];
-            string logMsg = currentLine.ToString() + ":\n";
 
-            bool matchFound = false;
+            // The best match we found in the model, as well as the
+            // norm distance between this line and the one in the model:
+            DynamicLine bestMatch = null;
+            float minNormDistance = -1;
+
             foreach (DynamicLine modelLine in gridMap.FindNeighbors(currentLine)) {
-                logMsg += modelLine.ToString() +
-                    ", Match candidate: " + currentLine.IsMatchCandidate(modelLine,
-                        parameters.LineMaxMatchAngleRadians,
-                        parameters.LineMaxMatchOrthogonalDistance,
-                        parameters.LineMaxMatchParallelDistance) +
-                    ", Norm Distance: " + currentLine.NormDistanceFromModel(modelLine) + "\n";
-
                 // First test: check if the line from the model is a good match candidate:
                 if (currentLine.IsMatchCandidate(modelLine,
                     parameters.LineMaxMatchAngleRadians,
                     parameters.LineMaxMatchOrthogonalDistance,
                     parameters.LineMaxMatchParallelDistance)) {
 
-                    // Second test: Check the Mahalanobis distance between the two lines:
-                    if (currentLine.NormDistanceFromModel(modelLine) < 5) {
+                    // Second test: Compute the Mahalanobis distance between the two lines:
+                    float normDistance = currentLine.NormDistanceFromModel(modelLine);
 
-                        // As soon as there is a match, use this line to update the model line:
-                        modelLine.lineColor = Color.blue;   // Blue color for matched lines
-                        modelLine.UpdateLineUsingMatch(currentLine,
-                            parameters.LineValidityExtent);
-
-                        matchFound = true;
-                        break;
+                    if(bestMatch == null || normDistance < minNormDistance) {
+                        bestMatch = modelLine;
+                        minNormDistance = normDistance;
                     }
                 }
             }
 
-            // If no match was found, we just add this line to the model:
-            if(!matchFound) {
+            // If a match was found and is near enough, use the current line to
+            // update the matched line in the model:
+            if(bestMatch != null && minNormDistance < 5) {
+                bestMatch.lineColor = Color.blue;       // Blue color for matched lines
+                bestMatch.UpdateLineUsingMatch(currentLine, parameters.LineValidityExtent);
+            }
+
+            // Otherwise, we just add this new line to the model:
+            else {
                 currentLine.lineColor = Color.green;    // Green color for new lines
                 newLines.Add(currentLine);
             }
-
-            // Debug.Log(logMsg);
         }
 
         // Keep only the valid parts of the lines from the model:
