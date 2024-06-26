@@ -1,9 +1,7 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using Unity.VisualScripting;
 using UnityEditor;
-using UnityEditor.VersionControl;
 using UnityEngine;
 
 public class DynamicLine : Primitive {
@@ -54,6 +52,16 @@ public class DynamicLine : Primitive {
     // For each line already in the model, modelLine = this:
     private DynamicLine modelLine;
 
+
+    // For debugging:
+    private int _id;
+    private int _matchCount = 0;        // Number of times this line was matched with an observation
+    private static int _instantiatedLines = 0;
+
+    public int id { get => _id; }
+    public int matchCount { get => _matchCount; }
+    public static int instantiatedLines {  get => _instantiatedLines; }
+
     public DynamicLine(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint) {
         this.state = new LineState(rho, theta);
 
@@ -70,6 +78,9 @@ public class DynamicLine : Primitive {
         this.beginPoint = beginPoint;
         this.endPoint = endPoint;
         this.modelLine = this;
+
+        // Debug:
+        _id = _instantiatedLines++;
     }
 
     public DynamicLine(DynamicLine line, Vector2 beginPoint, Vector2 endPoint) {
@@ -79,6 +90,9 @@ public class DynamicLine : Primitive {
         this.beginPoint = beginPoint;
         this.endPoint = endPoint;
         this.modelLine = line.modelLine;
+
+        // Debug:
+        _id = _instantiatedLines++;
     }
 
     public void DrawGizmos(float height) {
@@ -280,6 +294,8 @@ public class DynamicLine : Primitive {
 
         // Finally, match the observation with this line (supposed to be part of the model):
         observation.modelLine = this;
+
+        _matchCount++;
     }
 
     // Set which parts of the line are valid or invalid, according to the current observations.
@@ -467,6 +483,10 @@ public class DynamicLine : Primitive {
 
         return (AC.y * AB.x - AC.x * AB.y) / den;
     }
+
+    // Used for log purposes:
+    public LineState GetState() { return state; }
+    public Matrix<double> GetCovariance() { return covariance; }
 
     public override string ToString() {
         float print_rho = Utils.Round(state.rho, 2);

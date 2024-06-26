@@ -1,5 +1,6 @@
 using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -22,11 +23,22 @@ public class GeometryClustering {
     private float lastTimeUpdate = -1;
 
     // TEST:
+    private const int MAX_LOG_LINES = 10;
+    private StreamWriter lineLogFile;
+    private Dictionary<int, int> mapModelIdToColumns = new Dictionary<int, int>();
+    private int logLine = 0;
     private int newLineCount = 0;
 
     public GeometryClustering(GeometryClusterParams parameters, GridMap gridMap) {
         this.parameters = parameters;
         this.gridMap = gridMap;
+
+        lineLogFile = File.CreateText("./Assets/Data/logs/lines_data.csv");
+        lineLogFile.Write("Iteration;");
+        for (int i = 0; i < MAX_LOG_LINES; i++)
+            lineLogFile.Write("matchCount;rho (m);theta (°);dRho (m/s);dTheta(°/s);"
+                + "eRho (m);eTheta (°);eDRho (m/s);eDTheta (°/s);");
+        lineLogFile.WriteLine();
     }
 
     public void UpdateModel(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations, float currentTime) {
@@ -562,6 +574,55 @@ public class GeometryClustering {
 
         // Replace the previous lines with the updated ones:
         modelLines = newLines;
+
+        // Debug:
+        LogModelLines();
+    }
+
+    public void LogModelLines() {
+        if(modelLines.Count == 0)
+            return;
+
+        float[] lineData = new float[9 * MAX_LOG_LINES];
+
+        foreach (DynamicLine line in modelLines) {
+            int index;
+            if (mapModelIdToColumns.ContainsKey(line.id)) {
+                index = mapModelIdToColumns[line.id];
+            }
+            else if (mapModelIdToColumns.Count < MAX_LOG_LINES) {
+                index = 9 * mapModelIdToColumns.Count;
+                mapModelIdToColumns.Add(line.id, index);
+            }
+            else
+                continue;
+
+            DynamicLine.LineState state = line.GetState();
+            Matrix<double> covariance = line.GetCovariance();
+            float eRho    = Mathf.Sqrt((float)covariance[0, 0]);
+            float eTheta  = Mathf.Sqrt((float)covariance[1, 1]);
+            float eDRho   = Mathf.Sqrt((float)covariance[2, 2]);
+            float eDTheta = Mathf.Sqrt((float)covariance[3, 3]);
+
+            lineData[index + 0] = line.matchCount;
+            lineData[index + 1] = state.rho;
+            lineData[index + 2] = state.theta * Mathf.Rad2Deg;
+            lineData[index + 3] = state.dRho;
+            lineData[index + 4] = state.dTheta * Mathf.Rad2Deg;
+            lineData[index + 5] = eRho;
+            lineData[index + 6] = eTheta * Mathf.Rad2Deg;
+            lineData[index + 7] = eDRho;
+            lineData[index + 8] = eDTheta * Mathf.Rad2Deg;
+        }
+
+        lineLogFile.Write(logLine + ";");
+        for (int i = 0; i < lineData.Length; i++)
+            lineLogFile.Write(lineData[i] + ";");
+
+        lineLogFile.WriteLine();
+        lineLogFile.Flush();
+
+        logLine++;
     }
 
     /*
