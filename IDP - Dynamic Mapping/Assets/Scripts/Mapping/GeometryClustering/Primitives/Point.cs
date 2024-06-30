@@ -19,16 +19,19 @@ public class Point {
         this.matchingPrimitive = null;
     }
 
-    public void DrawGizmos(float height) {
+    public void DrawGizmos(float height, bool drawError) {
         // Center of the point in Unity 3D world space:
         Vector3 center = Utils.To3D(position, height);
 
-        // Draw a sphere at the position of the point:
         Gizmos.color = Color.yellow;
-        Gizmos.DrawSphere(center, 0.01f);
 
         // Draw a cube at the position of the point, representing its eror estimate:
-        // Gizmos.DrawCube(center, new Vector3(Mathf.Sqrt((float) Cp[0, 0]), 0, Mathf.Sqrt((float) Cp[1, 1])));
+        if (drawError)
+            Gizmos.DrawCube(center, new Vector3(Mathf.Sqrt((float)Cp[0, 0]), 0, Mathf.Sqrt((float)Cp[1, 1])));
+
+        // Draw a small sphere at the position of the point:
+        else
+            Gizmos.DrawSphere(center, 0.01f);
 
         // If the point is matched with a primitive, draw a line, representing the speed
         // estimate of the point:

@@ -1,15 +1,30 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Assertions;
 
 public class WipeShape {
+    // Center of the shape, which is supposed to be a radial set (any line from the center to a
+    // point in the following list lies in the shape):
     private Vector2 center;
+
+    // World space position of the points of the shape:
     private Vector2[] points;
+
+    // World space angles of the points of the shape from the origin.
+    // The list is supposed to be sorted, with angles[last] - angles[first] < 2*PI:
     private float[] angles;
 
     public WipeShape(Vector2 center, Vector2[] points, float[] angles) {
         this.center = center;
         this.points = points;
         this.angles = angles;
+
+        for (int i = 1; i < angles.Length; i++)
+            Assert.IsTrue(angles[i - 1] < angles[i], "Angles order error !");
+
+        if (angles[angles.Length - 1] - angles[0] > 2 * Mathf.PI)
+            Debug.LogError("Angles > 2*PI: " + Utils.ToString(angles, Mathf.Rad2Deg) + "]; First point: " + points[0] + ", Last: " + points[points.Length - 1]);
+
     }
 
     // OLD VERSION:
@@ -70,6 +85,8 @@ public class WipeShape {
             Debug.LogError("Wipe Shape has less than 3 points !");
             return;
         }
+
+        Assert.IsTrue(Vector2.Dot(Vector2.Perpendicular(line.beginPoint), line.endPoint) >= 0, "Wrongly defined line !");
 
         // All the indices are modulo n:
         int n = points.Length;
@@ -164,6 +181,16 @@ public class WipeShape {
             }
             current = next;
             isRight = nextIsRight;
+        }
+
+        if(intersections.Count == 0) {
+            Debug.Log("No intersections between line [" + line + "] and wipe shape. "
+                + "Start section: " + startSection
+                + ", End section: " + endSection
+                + ", Direction: " + direction
+                + ", Count: " + count
+                + ", Start outside: " + startPointOutside
+                + (currentSideUnknown ? " (unknown)" : " (known)"));
         }
 
         line.ResetLineValidity(startPointOutside, intersections);

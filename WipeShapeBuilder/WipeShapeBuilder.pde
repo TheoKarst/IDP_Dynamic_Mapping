@@ -13,7 +13,7 @@ void setup() {
   lidarCenter = new PVector(1800, 100);
   observations = LoadObservations("lidar_data.csv", 1, 30, HALF_PI);
   
-  // benchmarks();
+  benchmarks();
 }
 
 void draw() {

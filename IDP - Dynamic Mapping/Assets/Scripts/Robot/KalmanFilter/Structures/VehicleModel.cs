@@ -199,6 +199,10 @@ public class VehicleModel {
         for(int i = 0; i < observations.Length; i++) {
             AugmentedObservation observation = observations[i];
 
+            // If the observation is out of range, ignore it:
+            if (observation.outOfRange)
+                continue;
+
             float cosphi_theta = Mathf.Cos(phi + observation.theta + lidarPose.angle);
             float sinphi_theta = Mathf.Sin(phi + observation.theta + lidarPose.angle);
 
@@ -210,12 +214,6 @@ public class VehicleModel {
                 sensorX + r_cosphi_theta,
                 sensorY + r_sinphi_theta 
             });
-
-            // If the observation was out of range, no need to compute Cp:
-            if(observation.outOfRange) {
-                Cps[i] = null;
-                continue;
-            }
 
             // 2. Compute the Jacobian of f relatively to the vehicle state:
             F[0, 2] = F02_tmp - r_sinphi_theta;

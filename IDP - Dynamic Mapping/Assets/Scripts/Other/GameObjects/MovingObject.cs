@@ -3,7 +3,7 @@ using UnityEngine;
 public class MovingObject : MonoBehaviour
 {
     public Transform[] transforms;
-    public float speed = 1f;
+    public float moveDuration = 1f;
     public float waitDuration = 1f;
 
     private Vector3 lastPosition;
@@ -13,7 +13,6 @@ public class MovingObject : MonoBehaviour
     private Quaternion targetRotation;
 
     private float startTime;
-    private float duration;
     private int targetIndex = 0;
 
     // Start is called before the first frame update
@@ -25,7 +24,6 @@ public class MovingObject : MonoBehaviour
         targetRotation = transforms[targetIndex].rotation;
 
         startTime = Time.time;
-        duration = (targetPosition - lastPosition).magnitude / speed;
     }
 
     // Update is called once per frame
@@ -33,11 +31,11 @@ public class MovingObject : MonoBehaviour
     {
         float t = Time.time - startTime;
 
-        if(t <= duration) {
-            gameObject.transform.position = Vector3.Lerp(lastPosition, targetPosition, t / duration);
-            gameObject.transform.rotation = Quaternion.Lerp(lastRotation, targetRotation, t / duration);
+        if(t <= moveDuration) {
+            gameObject.transform.position = Vector3.Lerp(lastPosition, targetPosition, t / moveDuration);
+            gameObject.transform.rotation = Quaternion.Lerp(lastRotation, targetRotation, t / moveDuration);
         }
-        else if(t > duration + waitDuration) {
+        else if(t > moveDuration + waitDuration) {
 
             // Go to next target:
             targetIndex = (targetIndex + 1) % transforms.Length;
@@ -48,7 +46,6 @@ public class MovingObject : MonoBehaviour
             targetRotation = transforms[targetIndex].rotation;
 
             startTime = Time.time;
-            duration = (targetPosition - lastPosition).magnitude / speed;
         }
         else {
             gameObject.transform.position = targetPosition;

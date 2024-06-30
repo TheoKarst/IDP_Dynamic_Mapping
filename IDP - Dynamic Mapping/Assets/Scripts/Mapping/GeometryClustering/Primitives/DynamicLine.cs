@@ -1,6 +1,7 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
 using UnityEditor;
 using UnityEngine;
 
@@ -52,17 +53,21 @@ public class DynamicLine : Primitive {
     // For each line already in the model, modelLine = this:
     private DynamicLine modelLine;
 
+    // If the line is considered as static:
+    private bool isStatic = false;
+    private int lastMatchDynamic = 0;   // Match count the last time the line was considered as dynamic
+    private int _matchCount = 0;        // Number of times this line was matched with an observation
+
 
     // For debugging:
     private int _id;
-    private int _matchCount = 0;        // Number of times this line was matched with an observation
     private static int _instantiatedLines = 0;
 
     public int id { get => _id; }
     public int matchCount { get => _matchCount; }
     public static int instantiatedLines {  get => _instantiatedLines; }
 
-    public DynamicLine(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint) {
+    public DynamicLine(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint, Matrix<double> Q) {
         this.state = new LineState(rho, theta);
 
         // When building a new line, we cannot estimate the error on dRho and dTheta.
@@ -73,11 +78,13 @@ public class DynamicLine : Primitive {
             { covariance[1,0], covariance[1,1], 0, 0 },
             {      0         ,      0         , 0, 0 },
             {      0         ,      0         , 0, 0 },
-        });
+        }) + Q;
 
         this.beginPoint = beginPoint;
         this.endPoint = endPoint;
         this.modelLine = this;
+
+        CheckState();
 
         // Debug:
         _id = _instantiatedLines++;
@@ -90,12 +97,20 @@ public class DynamicLine : Primitive {
         this.beginPoint = beginPoint;
         this.endPoint = endPoint;
         this.modelLine = line.modelLine;
+        this._matchCount = line.matchCount;
+        this.lastMatchDynamic = line.lastMatchDynamic;
+        this.isStatic = line.isStatic;
+
+        CheckState();
 
         // Debug:
         _id = _instantiatedLines++;
     }
 
     public void DrawGizmos(float height) {
+        if (isStatic)
+            lineColor = Color.black;
+
         Vector3 p1 = Utils.To3D(beginPoint, height);
         Vector3 p2 = Utils.To3D(endPoint, height);
         Handles.DrawBezier(p1, p2, p1, p2, lineColor, null, 4);
@@ -104,11 +119,20 @@ public class DynamicLine : Primitive {
     // From the previous line estimate and the elapsed time since the last update,
     // predict where the line should be now.
     // Q is the process noise error (4x4 diagonal mtrix)
-    public void PredictState(float deltaTime, Matrix<double> Q) {
+    public void PredictState(float deltaTime, Matrix<double> Q, float friction) {
+        // If the line is static, there is nothing to do:
+        if (isStatic)
+            return;
+
+        // The factor by which the velocity is multiplied with at each frame:
+        float a = 1 - friction;
+
         // For the state prediction, we assume the line speed stayed the same,
         // and we use Euler integration step to update rho and theta:
         state.rho += deltaTime * state.dRho;
         state.theta += deltaTime * state.dTheta;
+        state.dRho = a * state.dRho;
+        state.dTheta = a * state.dTheta;
 
         // Then we compute the prediction for the line covariance matrix:
         // covariance = F.dot(covariance.dot(F.T)) + Q
@@ -116,35 +140,36 @@ public class DynamicLine : Primitive {
         // With:
         // F = [[1 0 deltaTime     0    ],
         //      [0 1     0     deltaTime],
-        //      [0 0     1         0    ],
-        //      [0 0     0         1    ]]
+        //      [0 0     a         0    ],
+        //      [0 0     0         a    ]]
 
         // Renamings for simplicity:
         float h = deltaTime;
         float h2 = h * h;
+        float a2 = a * a;
         Matrix<double> P = covariance;
 
         // First, we compute: P = F.dot(P.dot(F.T)).
         // The computation is hardcoded for efficiency, as F mostly contains zeros:
         double p00 = P[0, 0] + h * (P[2, 0] + P[0, 2]) + h2 * P[2, 2];
         double p01 = P[0, 1] + h * (P[2, 1] + P[0, 3]) + h2 * P[2, 3];
-        double p02 = P[0, 2] + h * P[2, 2];
-        double p03 = P[0, 3] + h * P[2, 3];
-
         double p10 = P[1, 0] + h * (P[3, 0] + P[1, 2]) + h2 * P[3, 2];
         double p11 = P[1, 1] + h * (P[3, 1] + P[1, 3]) + h2 * P[3, 3];
-        double p12 = P[1, 2] + h * P[3, 2];
-        double p13 = P[1, 3] + h * P[3, 3];
 
-        double p20 = P[2, 0] + h * P[2, 2];
-        double p21 = P[2, 1] + h * P[2, 3];
-        // double p22 = P[2, 2];
-        // double p23 = P[2, 3];
+        double p02 = a * (P[0, 2] + h * P[2, 2]);
+        double p03 = a * (P[0, 3] + h * P[2, 3]);
+        double p12 = a * (P[1, 2] + h * P[3, 2]);
+        double p13 = a * (P[1, 3] + h * P[3, 3]);
 
-        double p30 = P[3, 0] + h * P[3, 2];
-        double p31 = P[3, 1] + h * P[3, 3];
-        // double p32 = P[3, 2];
-        // double p33 = P[3, 3];
+        double p20 = a * (P[2, 0] + h * P[2, 2]);
+        double p21 = a * (P[2, 1] + h * P[2, 3]);
+        double p30 = a * (P[3, 0] + h * P[3, 2]);
+        double p31 = a * (P[3, 1] + h * P[3, 3]);
+
+        double p22 = a2 * P[2, 2];
+        double p23 = a2 * P[2, 3];
+        double p32 = a2 * P[3, 2];
+        double p33 = a2 * P[3, 3];
 
         // Then, we compute covariance = P + Q, where Q is a diagonal matrix:
         covariance[0, 0] = p00 + Q[0, 0];
@@ -159,20 +184,20 @@ public class DynamicLine : Primitive {
 
         covariance[2, 0] = p20;
         covariance[2, 1] = p21;
-        covariance[2, 2] += Q[2, 2];
-        // covariance[2, 3] = p23;
+        covariance[2, 2] = p22 + 0.1 * Mathf.Abs(state.dRho);   // + Q[2, 2];
+        covariance[2, 3] = p23;
 
         covariance[3, 0] = p30;
         covariance[3, 1] = p31;
-        // covariance[3, 2] = p32;
-        covariance[3, 3] += Q[3, 3];
+        covariance[3, 2] = p32;
+        covariance[3, 3] = p33 + 0.1 * Mathf.Abs(state.dTheta); // + Q[3, 3];
 
         // We also need to update the endpoints of the line. To do so, we
         // simply project them on the new line:
         beginPoint = Project(beginPoint);
         endPoint = Project(endPoint);
 
-        // Check if the new state is well defined:
+        // Ensures that the new state is well defined:
         CheckState();
     }
 
@@ -209,6 +234,26 @@ public class DynamicLine : Primitive {
 
         // Check if the new state is still well defined:
         CheckState();
+    }
+
+    private void CheckDynamicStatus(float staticMaxRhoDerivative, float staticMaxThetaDerivative, int minMatchesToConsiderStatic) {
+        // We check if the line is currently mooving:
+        bool isMooving = Mathf.Abs(state.dRho) > staticMaxRhoDerivative
+            || Mathf.Abs(state.dTheta) > staticMaxThetaDerivative;
+
+        // If we are currently mooving, save the current match count, and make sure the line
+        // is considered as dynamic:
+        if(isMooving) {
+            lastMatchDynamic = matchCount;
+            isStatic = false;
+        }
+
+        // Otherwise, if the line is not mooving for long enough, we can consider this line to be static:
+        else if(!isStatic && matchCount - lastMatchDynamic >= minMatchesToConsiderStatic) {
+            isStatic = true;
+            state.dRho = 0;
+            state.dTheta = 0;
+        }
     }
 
     /// <summary>
@@ -282,12 +327,18 @@ public class DynamicLine : Primitive {
     // use the given line (that is supposed to be matched with this one, and to
     // belong to the current observation of the environment) to update the position
     // estimate, covariance matrix and endpoints of this line:
-    public void UpdateLineUsingMatch(DynamicLine observation, float validityMargin) {
+    public void UpdateLineUsingMatch(DynamicLine observation, 
+        float validityMargin, float staticMaxRhoDerivative, 
+        float staticMaxThetaDerivative, int minMatchesToConsiderStatic) {
+
         // First, update the state of this line from the observation, using
         // Kalman Filter:
         UpdateState(observation.state.rho, observation.state.theta, 
-            observation.covariance.SubMatrix(0, 2, 0, 2));            
+            observation.covariance.SubMatrix(0, 2, 0, 2));
 
+        // Check if the line should now be treated as dynamic or static:
+        CheckDynamicStatus(staticMaxRhoDerivative, staticMaxThetaDerivative, minMatchesToConsiderStatic);
+        
         // Then, since the observation is by definition valid, use it to
         // update which sections of this line are valid:
         UpdateLineValidity(observation.beginPoint, observation.endPoint, validityMargin);
@@ -354,7 +405,12 @@ public class DynamicLine : Primitive {
     }
 
     // Add to the list the parts of this line that are valid:
-    public void AddValidParts(List<DynamicLine> dest, float minLineLength) {
+    public void AddValidParts(List<DynamicLine> dest, float minLineLength, float maxRhoErrorSq, float maxThetaErrorSq, int initialisationSteps) {
+        // If the error on the position estimate of the line is too high, then we have to remove it:
+        if (_matchCount > initialisationSteps && 
+            (covariance[0, 0] > maxRhoErrorSq || covariance[1, 1] > maxThetaErrorSq))
+            return;
+
         ReadOnlyCollection<float> changes = lineValidity.GetSplits();
 
         // If there is only one valid section, resize this line and add it to dest:
@@ -365,6 +421,11 @@ public class DynamicLine : Primitive {
             if(max - min >= minLineLength) {
                 beginPoint = lineValidityBegin + min * lineValidityDelta;
                 endPoint = lineValidityBegin + max * lineValidityDelta;
+
+                // Make sure beginPoint and endPoint are in the expected order:
+                if (Vector2.Dot(Vector2.Perpendicular(beginPoint), endPoint) < 0)
+                    (beginPoint, endPoint) = (endPoint, beginPoint);
+
                 dest.Add(this);
             }
             return;

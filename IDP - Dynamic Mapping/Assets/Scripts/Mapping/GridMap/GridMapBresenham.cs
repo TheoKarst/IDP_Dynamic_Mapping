@@ -90,20 +90,20 @@ public class GridMapBresenham : WorldModel {
     }
 
     // Update the static and dynamic maps using the current sensor position and observations:
-    public void UpdateMaps(Pose2D sensorPose, AugmentedObservation[] observations) {
+    public void UpdateMaps(Pose2D worldSensorPose, AugmentedObservation[] observations) {
 
         // Position of the sensor in the grids:
-        int x0 = Mathf.FloorToInt(sensorPose.x / cellSize) + mapWidth / 2;
-        int y0 = Mathf.FloorToInt(sensorPose.y / cellSize) + mapHeight / 2;
+        int x0 = Mathf.FloorToInt(worldSensorPose.x / cellSize) + mapWidth / 2;
+        int y0 = Mathf.FloorToInt(worldSensorPose.y / cellSize) + mapHeight / 2;
 
         // For each raycast, use Bresenham's algorithm to compute the intersection between the
         // raycast and the grids, and update the cells accordingly:
         foreach (AugmentedObservation observation in observations) {
-            float angle = sensorPose.angle + observation.theta;
+            float angle = worldSensorPose.angle + observation.theta;
 
             // Compute the position of the end of the ray, in world space:
-            float xWorld = sensorPose.x + Mathf.Cos(angle) * observation.r;
-            float yWorld = sensorPose.y + Mathf.Sin(angle) * observation.r;
+            float xWorld = worldSensorPose.x + Mathf.Cos(angle) * observation.r;
+            float yWorld = worldSensorPose.y + Mathf.Sin(angle) * observation.r;
 
             // Convert the world position into a cell position:
             int x1 = Mathf.FloorToInt(xWorld / cellSize) + mapWidth / 2;

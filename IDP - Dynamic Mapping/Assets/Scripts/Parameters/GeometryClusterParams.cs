@@ -56,10 +56,33 @@ public class GeometryClusterParams {
         + "Otherwise, we use a dynamic Kalman Filter (taking into account the lines speed)")]
     public bool StaticLines = false;
 
+    public bool LogLinesData = false;
+
+    [Tooltip("Number of matches to consider a line completely initialised")]
+    public int InitialisationSteps = 10;
+
+    public float MaxLinesRhoError = 1;
+    public float MaxLinesThetaError = 10;
+
+    [Tooltip("If a line is matched this amount of times, having a speed below the following thresholds, "
+        + "then we consider it to be static, and start to ignore the prediction step of the Kalman Filter")]
+    public int MinMatchesToConsiderStatic = 10;
+
+    [Tooltip("Maximum speed of a static line")]
+    public float StaticMaxRhoDerivative = 0.1f;
+
+    [Tooltip("Maximum rotation speed of a static line")]
+    public float StaticMaxThetaDerivative = 5;
+
+    [Range(0, 1)]
+    public float LinesFriction = 0.01f;
     public float LineProcessNoiseRho = 0.1f;
     public float LineProcessNoiseTheta = 5;
     public float LineProcessNoiseDerRho = 1;
     public float LineProcessNoiseDerTheta = 50;
+
+    [Header("Dynamic Circles")]
+    public float MinOrthogonalDistanceToLines = 1;
 
 
     // Deprecated:
@@ -91,6 +114,7 @@ public class GeometryClusterParams {
     [Header("Drawing")]
 
     public bool drawPoints = true;
+    public bool drawPointsError = false;
     public bool drawLines = true;
     public bool drawCircles = true;
     public bool drawCurrentLines = true;
@@ -101,11 +125,17 @@ public class GeometryClusterParams {
     // Values computed from the previous parameters:
     public float CriticalAlphaRadians { get => Mathf.Deg2Rad * CriticalAlpha; }
     public float LineMaxMatchAngleRadians { get => Mathf.Deg2Rad * LineMaxMatchAngle; }
+    public float MaxLineThetaErrorRadians { get => Mathf.Deg2Rad * MaxLinesThetaError; }
+    public float MaxLineErrorRhoSq { get => MaxLinesRhoError * MaxLinesRhoError; }
+    public float MaxLineErrorThetaSq { get => MaxLinesThetaError * MaxLinesThetaError 
+                                            * Mathf.Deg2Rad * Mathf.Deg2Rad; }
+    public float StaticMaxThetaDerivativeRadians { get => StaticMaxThetaDerivative * Mathf.Deg2Rad; }
+
 
     public Matrix<double> LineProcessNoiseError { get => ComputeLineProcessNoiseError(); }
 
     private Matrix<double> ComputeLineProcessNoiseError() {
-        if (_LineProcessNoiseError == null) {
+        // if (_LineProcessNoiseError == null) {
             float eRho = LineProcessNoiseRho;
             float eTheta = Mathf.Deg2Rad * LineProcessNoiseTheta;
             float eDerRho = LineProcessNoiseDerRho;
@@ -117,7 +147,7 @@ public class GeometryClusterParams {
                 eDerRho * eDerRho,
                 eDerTheta * eDerTheta
             });
-        }
+        // }
 
         return _LineProcessNoiseError;
     }

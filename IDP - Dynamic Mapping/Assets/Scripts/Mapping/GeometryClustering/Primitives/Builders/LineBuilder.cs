@@ -85,7 +85,7 @@ public class LineBuilder {
         return new CircleBuilder(points);
     }
 
-    public DynamicLine Build() {
+    public DynamicLine Build(Matrix<double> Q) {
         // Compute the endpoints and covariance matrix of the line:
         if (!upToDateEndpoints) 
             UpdateEndpoints();
@@ -93,7 +93,7 @@ public class LineBuilder {
         Matrix<double> covariance = ComputeCovariance();
 
         // Build the line:
-        DynamicLine line = new DynamicLine(rho, theta, covariance, beginPoint, endPoint);
+        DynamicLine line = new DynamicLine(rho, theta, covariance, beginPoint, endPoint, Q);
 
         // Match all the points to the built line:
         foreach (Point point in points) point.MatchToPrimitive(line);

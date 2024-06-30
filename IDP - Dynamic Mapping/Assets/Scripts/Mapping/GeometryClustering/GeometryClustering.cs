@@ -2,6 +2,7 @@ using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
+using UnityEngine.Assertions;
 using UnityEngine.Profiling;
 
 public class GeometryClustering {
@@ -25,7 +26,7 @@ public class GeometryClustering {
     // TEST:
     private const int MAX_LOG_LINES = 10;
     private StreamWriter lineLogFile;
-    private Dictionary<int, int> mapModelIdToColumns = new Dictionary<int, int>();
+    private Dictionary<int, int> mapModelIdToColumns;
     private int logLine = 0;
     private int newLineCount = 0;
 
@@ -33,19 +34,21 @@ public class GeometryClustering {
         this.parameters = parameters;
         this.gridMap = gridMap;
 
-        lineLogFile = File.CreateText("./Assets/Data/logs/lines_data.csv");
-        lineLogFile.Write("Iteration;");
-        for (int i = 0; i < MAX_LOG_LINES; i++)
-            lineLogFile.Write("matchCount;rho (m);theta (°);dRho (m/s);dTheta(°/s);"
-                + "eRho (m);eTheta (°);eDRho (m/s);eDTheta (°/s);");
-        lineLogFile.WriteLine();
+        if(parameters.LogLinesData) {
+            mapModelIdToColumns = new Dictionary<int, int>();
+
+            lineLogFile = File.CreateText("./Assets/Data/logs/lines_data.csv");
+            lineLogFile.Write("Iteration;");
+            for (int i = 0; i < MAX_LOG_LINES; i++)
+                lineLogFile.Write("matchCount;rho (m);theta (°);dRho (m/s);dTheta(°/s);"
+                    + "eRho (m);eTheta (°);eDRho (m/s);eDTheta (°/s);");
+            lineLogFile.WriteLine();
+        }
     }
 
-    public void UpdateModel(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations, float currentTime) {
+    public void UpdateModel(Pose2D worldSensorPose, VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations, float currentTime) {
         float deltaTime = lastTimeUpdate == -1 ? 0 : currentTime - lastTimeUpdate;
         lastTimeUpdate = currentTime;
-
-        Vector2[] positions;
 
         // Clear the previous grid map, and add in it the current model lines:
         Profiler.BeginSample("Grid Map Update");
@@ -56,13 +59,12 @@ public class GeometryClustering {
 
         // Get points from the LIDAR:
         Profiler.BeginSample("Compute points");
-        (positions, currentPoints) = ComputePoints(model, vehicleState, stateCovariance, observations);
+        currentPoints = ComputePoints(model, vehicleState, stateCovariance, observations);
         Profiler.EndSample();
 
         // Build the Wipe Shape:
         Profiler.BeginSample("Build Wipe Shape");
-        // currentWipeShape = BuildWipeShape(sensorPose, positions);
-        currentWipeShape = BuildWipeShape3(sensorPose, model, vehicleState, observations);
+        currentWipeShape = BuildWipeShape(worldSensorPose, model, vehicleState, observations);
         Profiler.EndSample();
 
         // Then use the points to perform lines and circles extraction:
@@ -109,7 +111,7 @@ public class GeometryClustering {
 
         if (drawPoints && currentPoints != null && currentPoints.Count > 0 && currentPoints[0] != null) {
             foreach (Point point in currentPoints)
-                point.DrawGizmos(height);
+                point.DrawGizmos(height, parameters.drawPointsError);
         }
 
         if (drawLines && modelLines != null) {
@@ -164,28 +166,23 @@ public class GeometryClustering {
 
     // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
     // to compute the estimated position of all the observations of the LIDAR in world space:
-    private static (Vector2[] positions, List<Point> points) ComputePoints(VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
-        Vector2[] positions = new Vector2[observations.Length];
+    private static List<Point> ComputePoints(VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
         List<Point> points = new List<Point>();
 
         (Vector<double>[] Xps, Matrix<double>[] Cps) 
             = model.ComputeObservationsPositionsEstimates(vehicleState, stateCovariance, observations, observations[0].lidarIndex);
 
-        for(int i = 0; i < positions.Length; i++) {
-            if (observations[i].outOfRange) {
-                positions[i] = new Vector2((float)Xps[i][0], (float)Xps[i][1]);
-            }
-            else {
+        for(int i = 0; i < observations.Length; i++) {
+            if (!observations[i].outOfRange) {
                 float x = (float)Xps[i][0];
                 float y = (float)Xps[i][1];
                 float theta = observations[i].theta;
 
-                positions[i] = new Vector2(x, y);
                 points.Add(new Point(x, y, theta, Cps[i]));
             }
         }
 
-        return (positions, points);
+        return points;
     }
 
     /*
@@ -253,7 +250,8 @@ public class GeometryClustering {
         return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), filteredPoints, filteredAngles);
     }*/
 
-    private WipeShape BuildWipeShape3(Pose2D sensorPose, VehicleModel model, VehicleState vehicleState, AugmentedObservation[] observations) {
+    /*
+    private WipeShape BuildWipeShapeOld(Pose2D worldSensorPose, VehicleModel model, VehicleState vehicleState, AugmentedObservation[] observations) {
         // Apply alpha filter to the shape:
         int[] indices = WipeShapeUtils.AlphaFilter(observations, parameters.alpha * Mathf.Deg2Rad, parameters.clampDistance);
 
@@ -265,7 +263,43 @@ public class GeometryClustering {
         // Apply Douglas Peucker algorithm to the remaining points:
         points = LidarUtils.DouglasPeucker(points, parameters.epsilon);
 
-        return new WipeShape(new Vector2(sensorPose.x, sensorPose.y), points);
+        return new WipeShape(new Vector2(worldSensorPose.x, worldSensorPose.y), points);
+    }*/
+
+    private WipeShape BuildWipeShape(Pose2D worldSensorPose, VehicleModel model, VehicleState vehicleState, AugmentedObservation[] observations) {
+        // 1. Compute the local position of the observations after clamping:
+        Vector2[] positions = new Vector2[observations.Length];
+        float[] angles = new float[observations.Length];
+        for (int i = 0; i < observations.Length; i++) {
+            float r = observations[i].r, theta = observations[i].theta;
+
+            if (r > parameters.clampDistance)
+                r = parameters.clampDistance;
+
+            positions[i] = new Vector2(r * Mathf.Cos(theta), r * Mathf.Sin(theta));
+            angles[i] = theta;
+        }
+
+        // 2. Apply alpha filter to the shape:
+        int[] indices = WipeShapeUtils.AlphaFilter(positions, angles, parameters.alpha * Mathf.Deg2Rad);
+
+        // 3. Apply Douglas Peucker algorithm to the remaining points:
+        indices = LidarUtils.DouglasPeuckerIndices(positions, indices, 0, indices.Length - 1, parameters.epsilon);
+
+        // 4. Finally, compute the world space position of the points subset:
+        Vector2[] positionsSubset = new Vector2[indices.Length];
+        float[] anglesSubset = new float[indices.Length];
+        for (int i = 0; i < indices.Length; i++) {
+            Observation observation = observations[indices[i]].ToObservation();
+
+            if(observation.r > parameters.clampDistance)
+                observation.r = parameters.clampDistance;
+
+            positionsSubset[i] = model.ComputeObservationPositionEstimate(vehicleState, observation);
+            anglesSubset[i] = worldSensorPose.angle + observation.theta;
+        }
+
+        return new WipeShape(new Vector2(worldSensorPose.x, worldSensorPose.y), positionsSubset, anglesSubset);
     }
 
     // Cluster extraction (lines and circles):
@@ -307,7 +341,7 @@ public class GeometryClustering {
                 else if (lineBuilder.PointsCount() >= parameters.LineMinPoints 
                     && lineBuilder.Length() >= parameters.LineMinLength) {
 
-                    extractedLines.Add(lineBuilder.Build());
+                    extractedLines.Add(lineBuilder.Build(parameters.LineProcessNoiseError));
                     lineBuilder = new LineBuilder(currentPoint);
                     continue;
                 }
@@ -342,7 +376,7 @@ public class GeometryClustering {
             && lineBuilder.PointsCount() >= parameters.LineMinPoints 
             && lineBuilder.Length() >= parameters.LineMinLength) {
 
-            extractedLines.Add(lineBuilder.Build());
+            extractedLines.Add(lineBuilder.Build(parameters.LineProcessNoiseError));
         }
         else if(circleBuilder != null 
             && circleBuilder.PointsCount() >= parameters.CircleMinPoints) {
@@ -522,7 +556,7 @@ public class GeometryClustering {
 
             // Predict the new state of the lines, knowing the elapsed time since the last update:
             if(!parameters.StaticLines)
-                line.PredictState(deltaTime, parameters.LineProcessNoiseError);
+                line.PredictState(deltaTime, parameters.LineProcessNoiseError, parameters.LinesFriction);
 
             // Finally, find which sections of the line are valid or not, using the wipe shape:
             wipeShape.UpdateLineValidity(line);
@@ -537,7 +571,16 @@ public class GeometryClustering {
             DynamicLine bestMatch = null;
             float minNormDistance = -1;
 
+            string logMsg = currentLine.ToString() + ":";
+
             foreach (DynamicLine modelLine in gridMap.FindNeighbors(currentLine)) {
+
+                logMsg += modelLine.ToString() + ", match candidate: " + currentLine.IsMatchCandidate(modelLine,
+                    parameters.LineMaxMatchAngleRadians,
+                    parameters.LineMaxMatchOrthogonalDistance,
+                    parameters.LineMaxMatchParallelDistance);
+                logMsg += ", norm distance: " + currentLine.NormDistanceFromModel(modelLine) + "\n";
+
                 // First test: check if the line from the model is a good match candidate:
                 if (currentLine.IsMatchCandidate(modelLine,
                     parameters.LineMaxMatchAngleRadians,
@@ -558,25 +601,39 @@ public class GeometryClustering {
             // update the matched line in the model:
             if(bestMatch != null && minNormDistance < 5) {
                 bestMatch.lineColor = Color.blue;       // Blue color for matched lines
-                bestMatch.UpdateLineUsingMatch(currentLine, parameters.LineValidityExtent);
+                bestMatch.UpdateLineUsingMatch(currentLine, 
+                    parameters.LineValidityExtent,
+                    parameters.StaticMaxRhoDerivative,
+                    parameters.StaticMaxThetaDerivativeRadians,
+                    parameters.MinMatchesToConsiderStatic);
             }
 
             // Otherwise, we just add this new line to the model:
             else {
                 currentLine.lineColor = Color.green;    // Green color for new lines
                 newLines.Add(currentLine);
+
+                Debug.Log("New line: " + logMsg);
             }
         }
 
         // Keep only the valid parts of the lines from the model:
-        foreach (DynamicLine line in modelLines)
-            line.AddValidParts(newLines, parameters.LineMinLength);
+        foreach (DynamicLine line in modelLines) {
+            line.AddValidParts(newLines,
+                parameters.LineMinLength,           // Minimum length of the lines we are allowed to keep
+                parameters.MaxLineErrorRhoSq,       // Maximum value for the variance of rho
+                parameters.MaxLineErrorThetaSq,     // Maximum value for the variance of theta
+                parameters.InitialisationSteps);    // Number of matches before checking the two above parameters
+        }
 
         // Replace the previous lines with the updated ones:
         modelLines = newLines;
 
+        Debug.Log("Lines count: " +  modelLines.Count);
+
         // Debug:
-        LogModelLines();
+        if(parameters.LogLinesData && lineLogFile != null)
+            LogModelLines();
     }
 
     public void LogModelLines() {
@@ -716,5 +773,18 @@ public class GeometryClustering {
                 newCircles.Add(circle);
 
         modelCircles = newCircles;
+    }
+
+    /// <summary>
+    /// Return if the given circle is far enough from the lines in the model, to be created.
+    /// For that, we use the grid map to find the neighboring lines
+    /// </summary>
+    private bool IsFarFromLines(Circle circle) {
+        foreach(DynamicLine line in gridMap.FindNeighbors(circle)) {
+            if (line.AbsDistanceOf(circle.position) < parameters.MinOrthogonalDistanceToLines)
+                return false;
+        }
+
+        return true;
     }
 }

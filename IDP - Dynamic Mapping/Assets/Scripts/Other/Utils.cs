@@ -76,11 +76,11 @@ public class Utils {
         return new Vector2(position.x, position.z);
     }
 
-    public static string ToString(float[] array) {
+    public static string ToString(float[] array, float scaleFactor) {
         string result = "[";
 
         for (int i = 0; i < array.Length; i++) {
-            result += array[i];
+            result += array[i] * scaleFactor;
             if (i + 1 < array.Length) result += "; ";
         }
 
