@@ -86,8 +86,6 @@ public class WipeShape {
             return;
         }
 
-        Assert.IsTrue(Vector2.Dot(Vector2.Perpendicular(line.beginPoint), line.endPoint) >= 0, "Wrongly defined line !");
-
         // All the indices are modulo n:
         int n = points.Length;
 
@@ -95,7 +93,7 @@ public class WipeShape {
 
         // Compute if we have to check the intersections between the edges of the
         // shape and the line in clockwise or counter-clockwise order:
-        if (line.SignedDistanceOf(center) >= 0) {
+        if (line.SideOfPoint(center) >= 0) {
             // Turn clockwise:
             direction = -1;
 
@@ -119,7 +117,7 @@ public class WipeShape {
 
         int index = startSection;
         Vector2 current = points[index];
-        bool isRight = line.SignedDistanceOf(current) >= 0;
+        bool isRight = line.SideOfPoint(current) >= 0;
 
         // If the start point of the line is outside the shape, and if the current
         // side of the points of the shape compared to the line is known or not.
@@ -128,6 +126,8 @@ public class WipeShape {
         bool startPointOutside = true;
         bool currentSideUnknown = true;
 
+        string logMsg = "";
+
         List<float> intersections = new List<float>();
         for (int i = 0; i < count; i++) {
             index += direction;
@@ -135,11 +135,14 @@ public class WipeShape {
             else if (index >= n) index -= n;
 
             Vector2 next = points[index];
-            float nextLineDistance = line.SignedDistanceOf(next);
-
+            int nextLineSide = line.SideOfPoint(next);
+            
             // Here we manage the situation where the point is exactly on the line.
             // In this case, we keep the same state as before:
-            bool nextIsRight = nextLineDistance == 0 ? isRight : nextLineDistance > 0;
+            bool nextIsRight = nextLineSide == 0 ? isRight : nextLineSide > 0;
+
+            logMsg += "Next line distance of point: " + next + " = " + Vector2.Dot(Vector2.Perpendicular(line.beginPoint - line.endPoint), next - line.beginPoint)
+                + " => Side: " + nextLineSide + "(NextIsRight: " + nextIsRight + ", IsRight: " + isRight + "\n";
 
             // Compute startPointOutside:
             if (i == 0) {
@@ -163,22 +166,32 @@ public class WipeShape {
                 // The returned distance should be between 0 (intersection == beginPoint)
                 // and 1 (intersection == endPoint):
                 float distance = line.IntersectDistance(current, next);
-                if (distance > 0 && distance < 1)
-                    intersections.Add(distance);
+                if (distance > 0 && distance < 1) {
+
+                    // The distance between two changes should be greater than 0.01:
+                    int last = intersections.Count - 1;
+                    if(last >= 0 && distance - intersections[last] < 0.01)
+                        intersections.RemoveAt(last);
+                    else
+                        intersections.Add(distance);
+
+                    logMsg += "Intersection at " + distance + ", with line [" + current + "; " + next + "]\n";
+                }
             }
 
             // If all the previous points were exactly on the line, but not the next point,
             // we can update the value of startPointOutside and currentSideUnknown:
-            if (currentSideUnknown && nextLineDistance != 0) {
+            if (currentSideUnknown && nextLineSide != 0) {
                 // If direction == -1, we know the center of the shape is on the right of the
                 // line, and if nextLineDistance > 0, we know that the next point is also on
                 // the right of the line. In this situation, the line is going outside of the
                 // shape, so startPointOutside = true.
                 // This is also the case if direction == 1 and nextLineDistance < 0:
-                startPointOutside = direction == -1 && nextLineDistance > 0 
-                    || direction == 1 && nextLineDistance < 0;
+                startPointOutside = direction == -1 && nextLineSide > 0 
+                    || direction == 1 && nextLineSide < 0;
                 currentSideUnknown = false;
             }
+
             current = next;
             isRight = nextIsRight;
         }
@@ -191,6 +204,24 @@ public class WipeShape {
                 + ", Count: " + count
                 + ", Start outside: " + startPointOutside
                 + (currentSideUnknown ? " (unknown)" : " (known)"));
+        }
+
+        // intersections should be a sorted list:
+        bool sorted = true;
+        for(int i = 1; i < intersections.Count; i++)
+            if (intersections[i] <= intersections[i-1])
+                sorted = false;
+
+        if(!sorted) {
+            Debug.LogError("The list of intersections is not sorted !"
+                + ", Line: " + line
+                + "\nStart section: " + startSection
+                + ", End section: " + endSection
+                + ", Direction: " + direction
+                + ", Count: " + count
+                + ", Start outside: " + startPointOutside
+                + (currentSideUnknown ? " (unknown)" : " (known)")
+                + ", Intersections:\n" + logMsg);
         }
 
         line.ResetLineValidity(startPointOutside, intersections);

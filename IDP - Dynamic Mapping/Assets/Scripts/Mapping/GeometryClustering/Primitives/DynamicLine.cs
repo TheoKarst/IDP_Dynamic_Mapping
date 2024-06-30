@@ -30,8 +30,7 @@ public class DynamicLine : Primitive {
     private LineState state;
     private Matrix<double> covariance;
 
-    // Endpoints of the line, sorted so that if we turn in counter-clockwise
-    // order around the origin, we will reach beginPoint first (see CheckState()):
+    // Endpoints of the line:
     public Vector2 beginPoint, endPoint;
 
     // Use a BoolAxis to represent which parts of the line are valid, according to the current
@@ -54,7 +53,7 @@ public class DynamicLine : Primitive {
     private DynamicLine modelLine;
 
     // If the line is considered as static:
-    private bool isStatic = false;
+    private bool _isStatic = false;
     private int lastMatchDynamic = 0;   // Match count the last time the line was considered as dynamic
     private int _matchCount = 0;        // Number of times this line was matched with an observation
 
@@ -66,6 +65,8 @@ public class DynamicLine : Primitive {
     public int id { get => _id; }
     public int matchCount { get => _matchCount; }
     public static int instantiatedLines {  get => _instantiatedLines; }
+
+    public bool isStatic { get => _isStatic; }
 
     public DynamicLine(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint, Matrix<double> Q) {
         this.state = new LineState(rho, theta);
@@ -99,7 +100,7 @@ public class DynamicLine : Primitive {
         this.modelLine = line.modelLine;
         this._matchCount = line.matchCount;
         this.lastMatchDynamic = line.lastMatchDynamic;
-        this.isStatic = line.isStatic;
+        this._isStatic = line._isStatic;
 
         CheckState();
 
@@ -108,12 +109,11 @@ public class DynamicLine : Primitive {
     }
 
     public void DrawGizmos(float height) {
-        if (isStatic)
-            lineColor = Color.black;
+        Color color = _isStatic ? Color.black : lineColor;
 
         Vector3 p1 = Utils.To3D(beginPoint, height);
         Vector3 p2 = Utils.To3D(endPoint, height);
-        Handles.DrawBezier(p1, p2, p1, p2, lineColor, null, 4);
+        Handles.DrawBezier(p1, p2, p1, p2, color, null, 4);
     }
 
     // From the previous line estimate and the elapsed time since the last update,
@@ -121,7 +121,7 @@ public class DynamicLine : Primitive {
     // Q is the process noise error (4x4 diagonal mtrix)
     public void PredictState(float deltaTime, Matrix<double> Q, float friction) {
         // If the line is static, there is nothing to do:
-        if (isStatic)
+        if (_isStatic)
             return;
 
         // The factor by which the velocity is multiplied with at each frame:
@@ -245,12 +245,12 @@ public class DynamicLine : Primitive {
         // is considered as dynamic:
         if(isMooving) {
             lastMatchDynamic = matchCount;
-            isStatic = false;
+            _isStatic = false;
         }
 
         // Otherwise, if the line is not mooving for long enough, we can consider this line to be static:
-        else if(!isStatic && matchCount - lastMatchDynamic >= minMatchesToConsiderStatic) {
-            isStatic = true;
+        else if(!_isStatic && matchCount - lastMatchDynamic >= minMatchesToConsiderStatic) {
+            _isStatic = true;
             state.dRho = 0;
             state.dTheta = 0;
         }
@@ -273,10 +273,10 @@ public class DynamicLine : Primitive {
 
         // If the orthogonal distance of the endpoints of this line
         // from the model line are too big, the lines cannot match:
-        if (modelLine.AbsDistanceOf(beginPoint) > maxOrthogonalDistance)
+        if (modelLine.DistanceOf(beginPoint) > maxOrthogonalDistance)
             return false;
 
-        if (modelLine.AbsDistanceOf(endPoint) > maxOrthogonalDistance)
+        if (modelLine.DistanceOf(endPoint) > maxOrthogonalDistance)
             return false;
 
         // Finally, we check the minimum distance between the lines endpoints, along the model line:
@@ -408,8 +408,11 @@ public class DynamicLine : Primitive {
     public void AddValidParts(List<DynamicLine> dest, float minLineLength, float maxRhoErrorSq, float maxThetaErrorSq, int initialisationSteps) {
         // If the error on the position estimate of the line is too high, then we have to remove it:
         if (_matchCount > initialisationSteps && 
-            (covariance[0, 0] > maxRhoErrorSq || covariance[1, 1] > maxThetaErrorSq))
+            (covariance[0, 0] > maxRhoErrorSq || covariance[1, 1] > maxThetaErrorSq)) {
+
+            Debug.LogWarning("Deleting line because of its error !");
             return;
+        }
 
         ReadOnlyCollection<float> changes = lineValidity.GetSplits();
 
@@ -421,10 +424,6 @@ public class DynamicLine : Primitive {
             if(max - min >= minLineLength) {
                 beginPoint = lineValidityBegin + min * lineValidityDelta;
                 endPoint = lineValidityBegin + max * lineValidityDelta;
-
-                // Make sure beginPoint and endPoint are in the expected order:
-                if (Vector2.Dot(Vector2.Perpendicular(beginPoint), endPoint) < 0)
-                    (beginPoint, endPoint) = (endPoint, beginPoint);
 
                 dest.Add(this);
             }
@@ -447,18 +446,22 @@ public class DynamicLine : Primitive {
     /// <summary>
     /// Return the orthogonal distance of the point from the line
     /// </summary>
-    public float AbsDistanceOf(Vector2 point) {
-        return Mathf.Abs(SignedDistanceOf(point));
+    public float DistanceOf(Vector2 point) {
+        return Mathf.Abs(point.x * Mathf.Cos(state.theta) + point.y * Mathf.Sin(state.theta) - state.rho);
     }
 
     /// <summary>
-    /// Orthogonal distance of the point from the line, counted negative if the point is on the same
-    /// side as the origin, and positive if the point is on the other side.
-    /// If the forward direction is the vector from beginPoint to endPoint, the result will be positive
-    /// if the given point is on the right of the line, and negative if the point is on the left
+    /// If the forward direction is the vector from beginPoint to endPoint:
+    /// <list type="bullet">
+    /// <item>Return -1 if the given point is on the left of the line</item>
+    /// <item>Return +1 if the given point is on the right of the line</item>
+    /// <item>Return 0 if the given point belongs to the line</item>
+    /// </list>
     /// </summary>
-    public float SignedDistanceOf(Vector2 point) {
-        return point.x * Mathf.Cos(state.theta) + point.y * Mathf.Sin(state.theta) - state.rho;
+    public int SideOfPoint(Vector2 point) {
+        float dot = Vector2.Dot(Vector2.Perpendicular(beginPoint - endPoint), point - beginPoint);
+
+        return dot == 0 ? 0 : dot > 0 ? 1 : -1;
     }
 
     /// <summary>
@@ -479,7 +482,6 @@ public class DynamicLine : Primitive {
     // Check the state of the line, and make sure that we keep the following properties:
     // * state.rho >= 0
     // * 0 <= state.theta < 2*PI
-    // * The triangle (origin, beginPoint, endPoint) is counter-clockwise
     private void CheckState() {
         // If rho < 0, rotate the line to make r >= 0 again:
         if(state.rho < 0) {
@@ -496,10 +498,6 @@ public class DynamicLine : Primitive {
         // This case probably never happens:
         if(state.theta == 2*Mathf.PI)
             state.theta = 0;
-
-        // Make sure beginPoint and endPoint are in the expected order:
-        if(Vector2.Dot(Vector2.Perpendicular(beginPoint), endPoint) < 0)
-            (beginPoint, endPoint) = (endPoint, beginPoint);
     }
 
     public Vector2 VelocityOfPoint(float x, float y) {

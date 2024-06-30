@@ -40,7 +40,8 @@ public class GeometryClustering {
             lineLogFile = File.CreateText("./Assets/Data/logs/lines_data.csv");
             lineLogFile.Write("Iteration;");
             for (int i = 0; i < MAX_LOG_LINES; i++)
-                lineLogFile.Write("matchCount;rho (m);theta (°);dRho (m/s);dTheta(°/s);"
+                lineLogFile.Write("matchCount;isStatic;"
+                    + "rho (m);theta (°);dRho (m/s);dTheta(°/s);"
                     + "eRho (m);eTheta (°);eDRho (m/s);eDTheta (°/s);");
             lineLogFile.WriteLine();
         }
@@ -637,10 +638,12 @@ public class GeometryClustering {
     }
 
     public void LogModelLines() {
+        const int DATA_COUNT = 10;
+
         if(modelLines.Count == 0)
             return;
 
-        float[] lineData = new float[9 * MAX_LOG_LINES];
+        float[] lineData = new float[DATA_COUNT * MAX_LOG_LINES];
 
         foreach (DynamicLine line in modelLines) {
             int index;
@@ -648,7 +651,7 @@ public class GeometryClustering {
                 index = mapModelIdToColumns[line.id];
             }
             else if (mapModelIdToColumns.Count < MAX_LOG_LINES) {
-                index = 9 * mapModelIdToColumns.Count;
+                index = DATA_COUNT * mapModelIdToColumns.Count;
                 mapModelIdToColumns.Add(line.id, index);
             }
             else
@@ -662,14 +665,15 @@ public class GeometryClustering {
             float eDTheta = Mathf.Sqrt((float)covariance[3, 3]);
 
             lineData[index + 0] = line.matchCount;
-            lineData[index + 1] = state.rho;
-            lineData[index + 2] = state.theta * Mathf.Rad2Deg;
-            lineData[index + 3] = state.dRho;
-            lineData[index + 4] = state.dTheta * Mathf.Rad2Deg;
-            lineData[index + 5] = eRho;
-            lineData[index + 6] = eTheta * Mathf.Rad2Deg;
-            lineData[index + 7] = eDRho;
-            lineData[index + 8] = eDTheta * Mathf.Rad2Deg;
+            lineData[index + 1] = line.isStatic ? 1 : 0;
+            lineData[index + 2] = state.rho;
+            lineData[index + 3] = state.theta * Mathf.Rad2Deg;
+            lineData[index + 4] = state.dRho;
+            lineData[index + 5] = state.dTheta * Mathf.Rad2Deg;
+            lineData[index + 6] = eRho;
+            lineData[index + 7] = eTheta * Mathf.Rad2Deg;
+            lineData[index + 8] = eDRho;
+            lineData[index + 9] = eDTheta * Mathf.Rad2Deg;
         }
 
         lineLogFile.Write(logLine + ";");
@@ -781,7 +785,7 @@ public class GeometryClustering {
     /// </summary>
     private bool IsFarFromLines(Circle circle) {
         foreach(DynamicLine line in gridMap.FindNeighbors(circle)) {
-            if (line.AbsDistanceOf(circle.position) < parameters.MinOrthogonalDistanceToLines)
+            if (line.DistanceOf(circle.position) < parameters.MinOrthogonalDistanceToLines)
                 return false;
         }
 

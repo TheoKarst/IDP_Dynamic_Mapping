@@ -461,7 +461,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &288674149
 Transform:
   m_ObjectHideFlags: 0
@@ -1535,7 +1535,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1087124916
 Transform:
   m_ObjectHideFlags: 0
@@ -1782,7 +1782,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1134264856
 Transform:
   m_ObjectHideFlags: 0
@@ -1869,6 +1869,37 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1134264855}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1139454893
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1139454894}
+  m_Layer: 0
+  m_Name: Begin Point
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &1139454894
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1139454893}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.2, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1208143271
 GameObject:
   m_ObjectHideFlags: 0
@@ -3049,7 +3080,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2000974656
 Transform:
   m_ObjectHideFlags: 0
@@ -3166,6 +3197,37 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1116923102}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2012227686
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2012227687}
+  m_Layer: 0
+  m_Name: End Point
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &2012227687
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2012227686}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.2, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2059547822
 GameObject:
@@ -3388,6 +3450,7 @@ MonoBehaviour:
     LineValidityExtent: 0.1
     StaticLines: 0
     LogLinesData: 0
+    InitialisationSteps: 10
     MaxLinesRhoError: 1
     MaxLinesThetaError: 10
     MinMatchesToConsiderStatic: 10
@@ -3402,11 +3465,12 @@ MonoBehaviour:
     alpha: 20
     epsilon: 0.2
     clampDistance: 20
-    drawPoints: 1
+    drawPoints: 0
+    drawPointsError: 0
     drawLines: 1
     drawCircles: 0
-    drawCurrentLines: 1
-    drawWipeShape: 1
+    drawCurrentLines: 0
+    drawWipeShape: 0
 --- !u!114 &2084421433
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3472,7 +3536,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2112790226
 Transform:
   m_ObjectHideFlags: 0
@@ -3994,6 +4058,7 @@ MonoBehaviour:
     LineValidityExtent: 0.1
     StaticLines: 0
     LogLinesData: 0
+    InitialisationSteps: 10
     MaxLinesRhoError: 1
     MaxLinesThetaError: 10
     MinMatchesToConsiderStatic: 10
@@ -4009,6 +4074,7 @@ MonoBehaviour:
     epsilon: 0
     clampDistance: 10
     drawPoints: 0
+    drawPointsError: 0
     drawLines: 1
     drawCircles: 0
     drawCurrentLines: 1
@@ -4063,3 +4129,5 @@ SceneRoots:
   - {fileID: 2084421434}
   - {fileID: 1071717507}
   - {fileID: 855607417}
+  - {fileID: 1139454894}
+  - {fileID: 2012227687}
