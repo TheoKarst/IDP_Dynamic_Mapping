@@ -91,6 +91,10 @@ public class Lidar {
         return observations;
     }
 
+    public LidarSetup GetSetup() {
+        return new LidarSetup(lidarIndex, lidar.name, GetLocalPose(), minRange, maxRange);
+    }
+
     public void DrawObservation(Observation observation, Color color) {
         float duration = 0.02f;
 

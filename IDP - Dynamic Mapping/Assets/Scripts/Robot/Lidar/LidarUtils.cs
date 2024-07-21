@@ -21,7 +21,7 @@ public class LidarUtils {
     }
 
     // Return the corners with an angle greater than "minAngleDegrees":
-    public static List<int> ExtractConvexCorners(Observation[] observations, float minRange, float maxRange, float minAngleDegrees) {
+    public static List<int> ExtractConvexCorners(Observation[] observations, float maxRange, float minAngleDegrees) {
         List<int> corners = new List<int>();
 
         int count = observations.Length;
@@ -30,7 +30,7 @@ public class LidarUtils {
         for (int i = 0; i < count; i++) {
             Observation curr = observations[i];
 
-            if (curr.r < minRange || curr.r > maxRange)
+            if (curr.r > maxRange)
                 continue;
 
             Observation prev = observations[(i + count - 1) % count];
@@ -57,7 +57,7 @@ public class LidarUtils {
     }
 
     // From a subset of observations, return the corners with an angle greater than "minAngleDegrees":
-    public static List<int> ExtractConvexCorners(Observation[] observations, float minRange, float maxRange, int[] indices, float minAngleDegrees) {
+    public static List<int> ExtractConvexCorners(Observation[] observations, float maxRange, int[] indices, float minAngleDegrees) {
         List<int> corners = new List<int>();
 
         int count = indices.Length;
@@ -66,7 +66,7 @@ public class LidarUtils {
         for (int i = 0; i < count; i++) {
             Observation curr = observations[indices[i]];
 
-            if (curr.r < minRange || curr.r > maxRange)
+            if (curr.r > maxRange)
                 continue;
 
             Observation prev = observations[indices[(i + count - 1) % count]];

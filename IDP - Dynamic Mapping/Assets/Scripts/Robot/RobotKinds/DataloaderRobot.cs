@@ -143,11 +143,16 @@ public class DataloaderRobot : Robot {
         });
 
         // Create a vehicle model:
-        Pose2D[] lidarPoses = new Pose2D[2];
-        lidarPoses[FRONT_LIDAR_INDEX] = GetLocalPose(frontLidar.transform.localPosition, frontLidar.transform.localRotation);
-        lidarPoses[REAR_LIDAR_INDEX] = GetLocalPose(rearLidar.transform.localPosition, rearLidar.transform.localRotation);
+        LidarSetup[] lidarSetups = new LidarSetup[2];
+        Pose2D frontPose = GetLocalPose(frontLidar.transform.localPosition, frontLidar.transform.localRotation);
+        lidarSetups[FRONT_LIDAR_INDEX] = new LidarSetup(
+            FRONT_LIDAR_INDEX, "Front Lidar", frontPose, lidarMinRange, lidarMaxRange);
+        
+        Pose2D rearPose = GetLocalPose(rearLidar.transform.localPosition, rearLidar.transform.localRotation);
+        lidarSetups[REAR_LIDAR_INDEX] = new LidarSetup(
+            REAR_LIDAR_INDEX, "Rear Lidar", rearPose, lidarMinRange, lidarMaxRange);
 
-        vehicleModel = new VehicleModel(lidarPoses, 0, processNoiseError, observationError);
+        vehicleModel = new VehicleModel(lidarSetups, 0, processNoiseError, observationError);
     }
 
     // Update is called once per frame

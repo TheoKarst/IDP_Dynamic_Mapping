@@ -49,10 +49,11 @@ public class RobotManager : MonoBehaviour {
 
             // Then, for each LIDAR in the current frame, use the LIDAR observations to update the world models:
             for(int i = 0; i < data.observations.Length; i++) {
+                float maxRange = model.GetLidarSetup(i).max_range;
                 Pose2D worldSensorPose = model.GetWorldSensorPose(data.vehicleState, i);
 
                 Profiler.BeginSample("Static/Dynamic maps update");
-                worldGridMap.UpdateMaps(worldSensorPose, data.observations[i]);
+                worldGridMap.UpdateMaps(worldSensorPose, data.observations[i], maxRange);
                 Profiler.EndSample();
 
                 Profiler.BeginSample("Geometry clustering update");

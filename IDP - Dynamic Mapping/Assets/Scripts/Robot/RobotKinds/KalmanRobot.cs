@@ -50,8 +50,8 @@ public class KalmanRobot : Robot {
         lidar = new Lidar(lidarObject, raycastCount, lidarMinRange, lidarMaxRange, 0);
 
         // Instantiate the model we are going to use for the robot:
-        Pose2D[] lidarPoses = new Pose2D[] { lidar.GetLocalPose() };
-        vehicleModel = new VehicleModel(lidarPoses, controllerParams.L, controllerParams.maxSpeed,
+        LidarSetup[] lidarSetups = new LidarSetup[] { lidar.GetSetup() };
+        vehicleModel = new VehicleModel(lidarSetups, controllerParams.L, controllerParams.maxSpeed,
             Mathf.Deg2Rad * controllerParams.maxSteering, waitBetweenUpdates);
 
         // Instantiate the script to move the robot with arrow keys:
@@ -78,6 +78,7 @@ public class KalmanRobot : Robot {
             Observation[][] observations = new Observation[][] {
                 lidar.ComputeObservations()
             };
+            float maxRange = lidar.GetSetup().max_range;
 
             // Get the current inputs of the robot:
             ModelInputs inputs = controller.GetModelInputs();
@@ -85,7 +86,7 @@ public class KalmanRobot : Robot {
             Profiler.BeginSample("Extract landmark candidates");
             // Get the observations from the LIDAR that are good landmarks candidates:
             int[] filteredObservations = LidarUtils.DouglasPeucker(observations[0], douglasPeuckerEpsilon);
-            List<int> landmarkCandidates = LidarUtils.ExtractConvexCorners(observations[0], filteredObservations, 220);
+            List<int> landmarkCandidates = LidarUtils.ExtractConvexCorners(observations[0], maxRange, filteredObservations, 220);
 
             // Use the static landmark candidates to update our state estimate. To find the static
             // landmarks, we need a state estimate. For that we can use the vehicle model and the

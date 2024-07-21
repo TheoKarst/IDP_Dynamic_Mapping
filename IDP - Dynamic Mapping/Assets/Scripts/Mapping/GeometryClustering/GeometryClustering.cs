@@ -169,11 +169,18 @@ public class GeometryClustering {
     private static List<Point> ComputePoints(VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, Observation[] observations) {
         List<Point> points = new List<Point>();
 
+        // All the observations are supposed to come from the same LIDAR:
+        int lidarIndex = observations[0].lidarIndex;
+
+        // Get the max range of the LIDAR, using the vehicle model:
+        float maxRange = model.GetLidarSetup(lidarIndex).max_range;
+
+        // Compute the position of all the observations that are not out of range:
         (Vector<double>[] Xps, Matrix<double>[] Cps) 
-            = model.ComputeObservationsPositionsEstimates(vehicleState, stateCovariance, observations, observations[0].lidarIndex);
+            = model.ComputeObservationsPositionsEstimates(vehicleState, stateCovariance, observations, maxRange, lidarIndex);
 
         for(int i = 0; i < observations.Length; i++) {
-            if (!observations[i].outOfRange) {
+            if (observations[i].r <= maxRange) {
                 float x = (float)Xps[i][0];
                 float y = (float)Xps[i][1];
                 float theta = observations[i].theta;

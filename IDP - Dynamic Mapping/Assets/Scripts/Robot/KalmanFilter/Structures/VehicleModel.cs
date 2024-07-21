@@ -15,22 +15,22 @@ public class VehicleModel {
     public readonly Matrix<double> ProcessNoiseError;
     public readonly Matrix<double> ObservationError;
 
-    // Local pose of the different LIDARs attached to the vehicle:
-    private Pose2D[] lidarPoses;
+    // Setup of the different LIDARs attached to the vehicle:
+    private LidarSetup[] lidarSetups;
 
     // Length of the vehicle:
     private float L;
 
-    public VehicleModel(Pose2D[] lidarPoses, float L, Matrix<double> processNoiseError, Matrix<double> observationError) {
-        this.lidarPoses = lidarPoses;
+    public VehicleModel(LidarSetup[] lidarSetups, float L, Matrix<double> processNoiseError, Matrix<double> observationError) {
+        this.lidarSetups = lidarSetups;
         this.L = L;
 
         this.ProcessNoiseError = processNoiseError;
         this.ObservationError = observationError;
     }
 
-    public VehicleModel(Pose2D[] lidarPoses, float L, float maxSpeed, float maxSteering, float deltaTime) {
-        this.lidarPoses = lidarPoses;
+    public VehicleModel(LidarSetup[] lidarSetups, float L, float maxSpeed, float maxSteering, float deltaTime) {
+        this.lidarSetups = lidarSetups;
         this.L = L;
 
         // Covariance of the error on the linear and angular position of the robot:
@@ -83,7 +83,7 @@ public class VehicleModel {
     // See equations (11) and (37) of Dissanayake's paper:
     public Observation PredictObservation(VehicleState stateEstimate, float pointX, float pointY, int lidarIndex) {
         // Get the local pose of the LIDAR whose observation we want to predict:
-        Pose2D lidarPose = lidarPoses[lidarIndex];
+        Pose2D lidarPose = lidarSetups[lidarIndex].local_pose;
 
         float cosphi = Mathf.Cos(stateEstimate.phi), sinphi = Mathf.Sin(stateEstimate.phi);
 
@@ -105,7 +105,7 @@ public class VehicleModel {
         VehicleState stateEstimate, Observation observation) {
 
         // Get the local pose of the LIDAR which made the observation:
-        Pose2D lidarPose = lidarPoses[observation.lidarIndex];
+        Pose2D lidarPose = lidarSetups[observation.lidarIndex].local_pose;
 
         // Perform renamings for simplification:
         float a = lidarPose.x, b = lidarPose.y;
@@ -127,7 +127,7 @@ public class VehicleModel {
         VehicleState stateEstimate, Matrix<double> stateCovariance, Observation observation) {
 
         // Get the local pose of the LIDAR which made the observation:
-        Pose2D lidarPose = lidarPoses[observation.lidarIndex];
+        Pose2D lidarPose = lidarSetups[observation.lidarIndex].local_pose;
 
         // Perform renamings for simplification:
         float a = lidarPose.x, b = lidarPose.y;
@@ -167,7 +167,7 @@ public class VehicleModel {
         VehicleState stateEstimate, Matrix<double> stateCovariance, Observation[] observations, float maxRange, int lidarIndex) {
 
         // Get the local pose of the LIDAR which made the observations:
-        Pose2D lidarPose = lidarPoses[lidarIndex];
+        Pose2D lidarPose = lidarSetups[lidarIndex].local_pose;
 
         // Arrays  to store the result:
         Vector<double>[] Xps = new Vector<double>[observations.Length];
@@ -237,7 +237,7 @@ public class VehicleModel {
     // state, and stack the result in dest matrix, at the given index:
     public void ComputeHi(VehicleState predictedState, Landmark landmark, int landmarkIndex, Matrix<double> dest, int index, int lidarIndex) {
         // Get the local pose of the LIDAR we want to use:
-        Pose2D lidarPose = lidarPoses[lidarIndex];
+        Pose2D lidarPose = lidarSetups[lidarIndex].local_pose;
         float a = lidarPose.x, b = lidarPose.y;
 
         float cosphi = Mathf.Cos(predictedState.phi), sinphi = Mathf.Sin(predictedState.phi);
@@ -278,7 +278,7 @@ public class VehicleModel {
     // From the vehicle state estimate, compute the world space pose of the LIDAR:
     public Pose2D GetWorldSensorPose(VehicleState stateEstimate, int lidarIndex) {
         // First, get the local pose of the LIDAR:
-        Pose2D localPose = lidarPoses[lidarIndex];
+        Pose2D localPose = lidarSetups[lidarIndex].local_pose;
 
         float cosphi = Mathf.Cos(stateEstimate.phi), sinphi = Mathf.Sin(stateEstimate.phi);
 
@@ -291,6 +291,10 @@ public class VehicleModel {
 
     // Update the local pose of a LIDAR on the vehicle (this is used by the DataloaderRobot):
     public void UpdateLidarPose(int lidarIndex, Pose2D newPose) {
-        lidarPoses[lidarIndex] = newPose;
+        lidarSetups[lidarIndex].local_pose = newPose;
+    }
+
+    public LidarSetup GetLidarSetup(int lidarIndex) {
+        return lidarSetups[lidarIndex];
     }
 }

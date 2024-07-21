@@ -15,7 +15,8 @@ public class RobotRecorder : MonoBehaviour {
     public GameObject[] lidarObjects;
 
     public int raycastCount = 500;
-    public float raycastDistance = 10;
+    public float lidarMinRange = 0;
+    public float lidarMaxRange = 10;
 
     public bool drawRays = true;
 
@@ -33,8 +34,8 @@ public class RobotRecorder : MonoBehaviour {
         LidarSetup[] lidarSetups = new LidarSetup[lidarObjects.Length];
 
         for (int i = 0; i < lidarObjects.Length; i++) {
-            lidars[i] = new Lidar(lidarObjects[i], raycastCount, raycastDistance, i);
-            lidarSetups[i] = new LidarSetup(i, lidarObjects[i].name, lidars[i].GetLocalPose(), 0, raycastDistance);
+            lidars[i] = new Lidar(lidarObjects[i], raycastCount, lidarMinRange, lidarMaxRange, i);
+            lidarSetups[i] = lidars[i].GetSetup();
         }
 
         // Instantiate the script to move the robot with arrow keys:
@@ -48,6 +49,7 @@ public class RobotRecorder : MonoBehaviour {
 
         // Create a directory to save the data:
         dataPath = WriterUtils.CreateDirectory(saveFolder, "RecordedData");
+        Debug.Log("Folder successfully created ! The recorded data will be saved here: " + dataPath);
 
         // Save the config file in this directory:
         WriterUtils.SaveConfig(setup, dataPath);

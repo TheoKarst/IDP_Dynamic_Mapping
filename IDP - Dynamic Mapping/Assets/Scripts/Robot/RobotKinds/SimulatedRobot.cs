@@ -36,8 +36,8 @@ public class SimulatedRobot : Robot {
         lidar = new Lidar(lidarObject, raycastCount, lidarMinRange, lidarMaxRange, 0);
 
         // Instantiate the model we are going to use for the robot:
-        Pose2D[] lidarPoses = new Pose2D[] { lidar.GetLocalPose() };
-        vehicleModel = new VehicleModel(lidarPoses, controllerParams.L, controllerParams.maxSpeed,
+        LidarSetup[] lidarSetups = new LidarSetup[] { lidar.GetSetup() };
+        vehicleModel = new VehicleModel(lidarSetups, controllerParams.L, controllerParams.maxSpeed,
             Mathf.Deg2Rad * controllerParams.maxSteering, waitBetweenUpdates);
 
         // Instantiate the script to move the robot with arrow keys:
