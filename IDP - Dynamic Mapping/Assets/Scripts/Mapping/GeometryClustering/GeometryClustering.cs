@@ -2,7 +2,6 @@ using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
-using UnityEngine.Assertions;
 using UnityEngine.Profiling;
 
 public class GeometryClustering {
@@ -47,7 +46,7 @@ public class GeometryClustering {
         }
     }
 
-    public void UpdateModel(Pose2D worldSensorPose, VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations, float currentTime) {
+    public void UpdateModel(Pose2D worldSensorPose, VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, Observation[] observations, float currentTime) {
         float deltaTime = lastTimeUpdate == -1 ? 0 : currentTime - lastTimeUpdate;
         lastTimeUpdate = currentTime;
 
@@ -100,32 +99,32 @@ public class GeometryClustering {
         //    + "; Circles: " + modelCircles.Count);
     }
 
-    public void DrawGizmos(bool drawCurrentLines, bool drawPoints, 
-        bool drawLines, bool drawCircles, bool drawWipeShape) {
-
+    public void DrawGizmos() {
         const float height = 0.2f;
 
-        if (drawCurrentLines && debugCurrentLines != null) {
+        if (parameters.drawCurrentLines && debugCurrentLines != null) {
             foreach(DynamicLine line in debugCurrentLines)
-                line.DrawGizmos(height);
+                line.DrawGizmos(height, false);
         }
 
-        if (drawPoints && currentPoints != null && currentPoints.Count > 0 && currentPoints[0] != null) {
+        if (parameters.drawPoints && currentPoints != null 
+            && currentPoints.Count > 0 && currentPoints[0] != null) {
+
             foreach (Point point in currentPoints)
                 point.DrawGizmos(height, parameters.drawPointsError);
         }
 
-        if (drawLines && modelLines != null) {
+        if (parameters.drawLines && modelLines != null) {
             foreach (DynamicLine line in modelLines)
-                line.DrawGizmos(height);
+                line.DrawGizmos(height, parameters.drawLinesError);
         }
 
-        if(drawCircles && modelCircles != null) {
+        if(parameters.drawCircles && modelCircles != null) {
             foreach (Circle circle in modelCircles)
                 circle.DrawGizmos(height);
         }
 
-        if(drawWipeShape && currentWipeShape != null) {
+        if(parameters.drawWipeShape && currentWipeShape != null) {
             currentWipeShape.DrawGizmos(height);
         }
     }
@@ -167,7 +166,7 @@ public class GeometryClustering {
 
     // Use the LIDAR observations and the vehicle state estimate from the Kalman Filter
     // to compute the estimated position of all the observations of the LIDAR in world space:
-    private static List<Point> ComputePoints(VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, AugmentedObservation[] observations) {
+    private static List<Point> ComputePoints(VehicleModel model, VehicleState vehicleState, Matrix<double> stateCovariance, Observation[] observations) {
         List<Point> points = new List<Point>();
 
         (Vector<double>[] Xps, Matrix<double>[] Cps) 
@@ -267,7 +266,7 @@ public class GeometryClustering {
         return new WipeShape(new Vector2(worldSensorPose.x, worldSensorPose.y), points);
     }*/
 
-    private WipeShape BuildWipeShape(Pose2D worldSensorPose, VehicleModel model, VehicleState vehicleState, AugmentedObservation[] observations) {
+    private WipeShape BuildWipeShape(Pose2D worldSensorPose, VehicleModel model, VehicleState vehicleState, Observation[] observations) {
         // 1. Compute the local position of the observations after clamping:
         Vector2[] positions = new Vector2[observations.Length];
         float[] angles = new float[observations.Length];
@@ -291,7 +290,7 @@ public class GeometryClustering {
         Vector2[] positionsSubset = new Vector2[indices.Length];
         float[] anglesSubset = new float[indices.Length];
         for (int i = 0; i < indices.Length; i++) {
-            Observation observation = observations[indices[i]].ToObservation();
+            Observation observation = observations[indices[i]];
 
             if(observation.r > parameters.clampDistance)
                 observation.r = parameters.clampDistance;

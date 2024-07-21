@@ -1,0 +1,223 @@
+void benchmarks() {
+    PVector[] points = generateRandomPoints(80000);
+    
+    // Create benchmarks for fast euclidian clustering:
+    int t;
+    t = millis(); createClusters(points, 0.1f); t = millis() - t;
+    println("Fast Euclidian clustering: " + t / 1000f + "s");
+    
+    t = millis(); createClusters(points, 5); t = millis() - t;
+    println("Fast Euclidian clustering: " + t / 1000f + "s");
+    
+    t = millis(); createClusters(points, 20); t = millis() - t;
+    println("Fast Euclidian clustering: " + t / 1000f + "s");
+    
+    
+    // Create benchmarks for my implementation:
+    t = millis(); myCreateClusters(points, 0.1f); t = millis() - t;
+    println("Personal clustering: " + t / 1000f + "s");
+    
+    t = millis(); myCreateClusters(points, 5); t = millis() - t;
+    println("Personal clustering: " + t / 1000f + "s");
+    
+    t = millis(); myCreateClusters(points, 20); t = millis() - t;
+    println("Personal clustering: " + t / 1000f + "s");
+}
+
+PVector[] generateRandomPoints(int count) {
+    PVector[] points = new PVector[count];
+    
+    for(int i = 0; i < count; i++) {
+      points[i] = new PVector(random(100), random(100));
+    }
+    
+    return points;
+}
+
+int[] myCreateLabels(PVector[] points, float dth) {
+    int labels[] = new int[points.length];
+    
+    int cluster = 1;
+    PVector tmp = new PVector();
+    ArrayList<Integer> neighbours = new ArrayList();
+    for(int i = 0; i < points.length; i++) {
+        // If the point has no label, create a new cluster for this point:
+        if(labels[i] == 0) {
+            neighbours.add(i);
+            labels[i] = cluster;
+        
+            while(!neighbours.isEmpty()) {
+                Integer current = neighbours.remove(neighbours.size()-1);
+                for(int j = 0; j < points.length; j++) {
+                    if(labels[j] == 0 && PVector.sub(points[current], points[j], tmp).mag() <= dth) {
+                        labels[j] = cluster;
+                        neighbours.add(j);
+                    }
+                }
+            }
+        
+        cluster++;
+        }
+    }
+    
+    return labels;
+}
+
+public int[] createClusters(PVector[] points, float dth) {
+    int[] labels = new int[points.length];
+    
+    int segLab = 1;
+    for(int i = 0; i < labels.length; i++) {
+      if(labels[i] == 0) {
+        ArrayList<Integer> PVV = findNeighbours(points[i], points, dth);
+        int minNonZeroLabel = findMinNonZeroLabel(PVV, labels);
+        
+        int minSegLab = minNonZeroLabel != -1 ? min(minNonZeroLabel, segLab) : segLab;
+        // print("MinNonZero: " + minNonZeroLabel + "; SegLab: " + segLab + "; MinSegLab: " + minSegLab + "; Neighbours of: " + i + ": "); printList(PVV);
+        
+        // Segment merge loop:
+        for(Integer j : PVV) {
+          int labelJ = labels[j];
+          
+          if(labelJ > minSegLab) {
+            for(int k = 0; k < points.length; k++) {
+              if(labels[k] == labelJ)
+                labels[k] = minSegLab;
+            }
+          }
+          
+          labels[j] = minSegLab;
+        }
+        
+        segLab++;
+      }
+      
+      // printList(labels);
+    }
+    
+    return labels;
+}
+  
+public ArrayList<Integer> findNeighbours(PVector point, PVector[] points, float dth) {
+    ArrayList<Integer> neighbours = new ArrayList<Integer>();
+    
+    PVector tmp = new PVector();
+    for(int i = 0; i < points.length; i++) {
+      if(PVector.sub(points[i], point, tmp).mag() <= dth)
+        neighbours.add(i);
+    }
+    
+    return neighbours;
+}
+
+// Return the points with the minimum label that is not zero. If all the points have a label of 0, return -1:
+public int findMinNonZeroLabel(ArrayList<Integer> points, int[] labels) {
+    int minNonZeroLabel = -1;
+    
+    for(Integer point : points) {
+      int label = labels[point];
+      
+      if(label != 0 && (minNonZeroLabel == -1 || label < minNonZeroLabel))
+        minNonZeroLabel = label;
+    }
+    
+    return minNonZeroLabel;
+}
+  
+void printList(int[] list) {
+    print("[");
+    for(int i = 0; i < list.length; i++) {
+      print(list[i]);
+      if(i+1 < list.length) print(", ");
+    }
+    println("]");
+}
+  
+void printList(ArrayList<Integer> list) {
+    print("[");
+    for(int i = 0; i < list.size(); i++) {
+      print(list.get(i));
+      if(i+1 < list.size()) print(", ");
+    }
+    println("]");
+}
+
+// Match previous clusters with the current ones:
+void matchClusters() {
+  ArrayList<Cluster> matches[] = new ArrayList[currentClusters.size()];
+  for(int i = 0; i < matches.length; i++) matches[i] = new ArrayList<Cluster>();
+  
+  for(Cluster previous : previousClusters) {
+    int match = -1;
+    float minDistance = -1;
+    
+    for(int i = 0; i < currentClusters.size(); i++) {
+      float distance = previous.distanceTo(currentClusters.get(i));
+      
+      if(match == -1 || distance < minDistance) {
+        match = i;
+        minDistance = distance;
+      }
+    }
+    
+    // Update speed estimate of previous:
+    // float dX = currentClusters.get(match).x - previous.x;
+    // float dY = currentClusters.get(match).y - previous.y;
+    
+    // previous.updateSpeedEstimate(dX, dY);
+    matches[match].add(previous);
+  }
+  
+  /*
+  for(int i = 0; i < matches.length; i++) {
+    if(matches[i].size() == 1) {
+      Cluster current = currentClusters.get(i);
+      Cluster previous = matches[i].get(0);
+      
+      // Filter position, orientation, dimensions, speed...
+      final float mem = 0.9f;
+      
+      current.x = mem * previous.x + (1-mem) * current.x;
+      current.y = mem * previous.y + (1-mem) * current.y;
+      current.clusterAngle = mem * previous.clusterAngle + (1-mem) * current.clusterAngle;
+      
+      current.clusterSizeX = mem * previous.clusterSizeX + (1-mem) * current.clusterSizeX;
+      current.clusterSizeY = mem * previous.clusterSizeY + (1-mem) * current.clusterSizeY;
+      
+      current.speedX = mem * previous.speedX + (1-mem) * current.speedX;
+      current.speedY = mem * previous.speedY + (1-mem) * current.speedY;
+    }
+  }*/
+  
+  ArrayList<Cluster> toRemove = new ArrayList<Cluster>();
+  
+  for(int i = 0; i < matches.length; i++) {  
+    float avgSpeedX = 0, avgSpeedY = 0;
+    
+    int totalSize = 0;
+    if(matches[i].size() != 0) {
+      for(Cluster cluster : matches[i]) {
+        avgSpeedX += cluster.speedX * cluster.clusterSize();
+        avgSpeedY += cluster.speedY * cluster.clusterSize();
+        totalSize += cluster.clusterSize();
+      }
+      avgSpeedX /= totalSize;
+      avgSpeedY /= totalSize;
+    }
+    
+    currentClusters.get(i).updateSpeedEstimate(avgSpeedX, avgSpeedY);
+    
+    if(matches[i].size() > 1) {
+      toRemove.add(currentClusters.get(i));
+      
+      for(Cluster cluster : matches[i]) {
+        cluster.updateSpeedEstimate(avgSpeedX, avgSpeedY);
+        cluster.clusterColor = color(currentClusters.get(i).clusterColor, 100);
+        currentClusters.add(cluster);
+      }
+    }
+  }
+  
+  for(Cluster c : toRemove)
+    currentClusters.remove(c);
+}

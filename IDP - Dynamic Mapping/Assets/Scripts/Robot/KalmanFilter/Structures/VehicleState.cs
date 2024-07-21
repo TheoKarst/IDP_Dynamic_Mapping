@@ -28,6 +28,10 @@ public struct VehicleState {
             state.phi - (float) other[2]);
     }
 
+    public Pose2D GetPose() {
+        return new Pose2D(x, y, phi);
+    }
+
     public override string ToString() {
         string print_x = Utils.ScientificNotation(x);
         string print_y = Utils.ScientificNotation(y);

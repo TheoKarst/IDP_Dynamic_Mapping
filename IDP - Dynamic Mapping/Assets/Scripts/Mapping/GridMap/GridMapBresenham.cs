@@ -76,8 +76,7 @@ public class GridMapBresenham : WorldModel {
             staticMap[i] = new float[mapHeight];
             dynamicMap[i] = new float[mapHeight];
 
-            for (int j = 0; j < mapHeight; j++)
-            {
+            for (int j = 0; j < mapHeight; j++) {
                 staticMap[i][j] = dynamicMap[i][j] = 0;
             }
         }
@@ -90,7 +89,7 @@ public class GridMapBresenham : WorldModel {
     }
 
     // Update the static and dynamic maps using the current sensor position and observations:
-    public void UpdateMaps(Pose2D worldSensorPose, AugmentedObservation[] observations) {
+    public void UpdateMaps(Pose2D worldSensorPose, Observation[] observations, float maxRange) {
 
         // Position of the sensor in the grids:
         int x0 = Mathf.FloorToInt(worldSensorPose.x / cellSize) + mapWidth / 2;
@@ -98,7 +97,7 @@ public class GridMapBresenham : WorldModel {
 
         // For each raycast, use Bresenham's algorithm to compute the intersection between the
         // raycast and the grids, and update the cells accordingly:
-        foreach (AugmentedObservation observation in observations) {
+        foreach (Observation observation in observations) {
             float angle = worldSensorPose.angle + observation.theta;
 
             // Compute the position of the end of the ray, in world space:
@@ -110,7 +109,7 @@ public class GridMapBresenham : WorldModel {
             int y1 = Mathf.FloorToInt(yWorld / cellSize) + mapHeight / 2;
 
             // Update the cells touched by the raycast:
-            Bresenham(x0, y0, x1, y1, !observation.outOfRange);
+            Bresenham(x0, y0, x1, y1, observation.r < maxRange);
         }
     }
 

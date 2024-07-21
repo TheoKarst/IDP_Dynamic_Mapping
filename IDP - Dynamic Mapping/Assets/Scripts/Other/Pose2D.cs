@@ -1,4 +1,5 @@
-﻿public struct Pose2D {
+﻿[System.Serializable]
+public struct Pose2D {
     public float x;
     public float y;
     public float angle;

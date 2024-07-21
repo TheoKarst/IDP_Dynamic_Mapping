@@ -116,6 +116,7 @@ public class GeometryClusterParams {
     public bool drawPoints = true;
     public bool drawPointsError = false;
     public bool drawLines = true;
+    public bool drawLinesError = false;
     public bool drawCircles = true;
     public bool drawCurrentLines = true;
     public bool drawWipeShape = true;
@@ -125,7 +126,6 @@ public class GeometryClusterParams {
     // Values computed from the previous parameters:
     public float CriticalAlphaRadians { get => Mathf.Deg2Rad * CriticalAlpha; }
     public float LineMaxMatchAngleRadians { get => Mathf.Deg2Rad * LineMaxMatchAngle; }
-    public float MaxLineThetaErrorRadians { get => Mathf.Deg2Rad * MaxLinesThetaError; }
     public float MaxLineErrorRhoSq { get => MaxLinesRhoError * MaxLinesRhoError; }
     public float MaxLineErrorThetaSq { get => MaxLinesThetaError * MaxLinesThetaError 
                                             * Mathf.Deg2Rad * Mathf.Deg2Rad; }

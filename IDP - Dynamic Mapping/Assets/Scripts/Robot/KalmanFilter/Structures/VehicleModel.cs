@@ -164,7 +164,7 @@ public class VehicleModel {
     // TESTING: Compute the observation position estimate for a list of observations.
     // The objective is to have a faster function:
     public (Vector<double>[], Matrix<double>[]) ComputeObservationsPositionsEstimates(
-        VehicleState stateEstimate, Matrix<double> stateCovariance, AugmentedObservation[] observations, int lidarIndex) {
+        VehicleState stateEstimate, Matrix<double> stateCovariance, Observation[] observations, float maxRange, int lidarIndex) {
 
         // Get the local pose of the LIDAR which made the observations:
         Pose2D lidarPose = lidarPoses[lidarIndex];
@@ -197,10 +197,10 @@ public class VehicleModel {
         
         // Now for each observation, compute Xp and Cp:
         for(int i = 0; i < observations.Length; i++) {
-            AugmentedObservation observation = observations[i];
+            Observation observation = observations[i];
 
             // If the observation is out of range, ignore it:
-            if (observation.outOfRange)
+            if (observation.r > maxRange)
                 continue;
 
             float cosphi_theta = Mathf.Cos(phi + observation.theta + lidarPose.angle);

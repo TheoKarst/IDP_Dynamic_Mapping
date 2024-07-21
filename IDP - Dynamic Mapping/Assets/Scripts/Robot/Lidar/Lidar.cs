@@ -11,30 +11,36 @@ public class Lidar {
     // Number of raycasts produced by the LIDAR:
     private int raycastCount;
 
-    // Maximum distance of the raycasts:
-    private float raycastDistance;
+    // Minimum valid range of the LIDAR (smaller ranges should be discarded):
+    private float minRange;
+
+    // Maximum valid range of the LIDAR (bigger ranges should be clamped):
+    private float maxRange;
 
     // List of observations made by the LIDAR:
-    private AugmentedObservation[] observations;
+    private Observation[] observations;
 
     // Used for drawing only:
     private Vector3 lastScanPosition, lastScanForward;  // Real position of the LIDAR during last scan
 
-    public Lidar(GameObject lidar, int raycastCount, float raycastDistance, int lidarIndex) {
+    public Lidar(GameObject lidar, int raycastCount, float minRange, float maxRange, int lidarIndex) {
         this.lidar = lidar;
         this.lidarIndex = lidarIndex;
         this.raycastCount = raycastCount;
-        this.raycastDistance = raycastDistance;
+        this.minRange = minRange;
+        this.maxRange = maxRange;
 
-        this.observations = new AugmentedObservation[raycastCount];
+        this.observations = new Observation[raycastCount];
     }
 
     public void DrawGizmos(bool drawRays) {
-        if (drawRays && observations != null && observations[0] != null) {
+        if (drawRays && observations != null) {
             Vector3 direction = lastScanForward;
 
-            foreach (AugmentedObservation observation in observations) {
-                Gizmos.color = observation.outOfRange ? Color.white : Color.red;
+            foreach (Observation observation in observations) {
+                Gizmos.color = observation.r < minRange || observation.r > maxRange ? 
+                    Color.white : Color.red;
+
                 Gizmos.DrawRay(lastScanPosition, direction * observation.r);
 
                 direction = Quaternion.AngleAxis(-360f / raycastCount, Vector3.up) * direction;
@@ -43,7 +49,7 @@ public class Lidar {
     }
 
     // Use raycasting to compute the observations made by the LIDAR:
-    public AugmentedObservation[] ComputeObservations() {
+    public Observation[] ComputeObservations() {
         // Save the current position and orientation of the LIDAR, to draw gizmos later:
         lastScanPosition = lidar.transform.position;
         lastScanForward = lidar.transform.TransformDirection(Vector3.forward);
@@ -54,11 +60,14 @@ public class Lidar {
 
         for (int i = 0; i < observations.Length; i++) {
             RaycastHit hit;
-            if (Physics.Raycast(lidar.transform.position, direction, out hit, raycastDistance)) {
-                observations[i] = new AugmentedObservation(hit.distance, observationAngle, lidarIndex, false);
+            if (Physics.Raycast(lidar.transform.position, direction, out hit)) {
+                observations[i] = new Observation(hit.distance, observationAngle, lidarIndex);
             }
             else {
-                observations[i] = new AugmentedObservation(raycastDistance, observationAngle, lidarIndex, true);
+                // If there was no hit, consider that there was a hit at 2*maxDistance, to represent
+                // +infinity. Observations with a range greater than maxRange are treated identically
+                // anyways:
+                observations[i] = new Observation(2*maxRange, observationAngle, lidarIndex);
             }
 
             // Rotate the direction of the raycast counterclockwise:
@@ -69,31 +78,6 @@ public class Lidar {
         return observations;
     }
 
-    /*
-    public WipeShape BuildWipeShape(RobotManager manager, VehicleState vehicleState, Vector2 sensorPosition, float extentMargin) {
-        
-        // Use the filteredCorners to build the WipeShape:
-        List<Point> shapePoints = new List<Point>(filteredCorners.Count);
-        foreach (int index in filteredCorners) {
-            ExtendedObservation observation = observations[index];
-
-            // Add a margin to the observation:
-            observation.r += extentMargin;
-
-            // Compute the world space position of the observation:
-            Vector<double> position = manager.ComputeObservationPositionEstimate(observation.ToObservation());
-            float x = (float)position[0], y = (float)position[1];
-
-            // Compute the world space angle of the observation:
-            float angle = vehicleState.phi + observation.theta;
-
-            // Build the point:
-            shapePoints.Add(new Point(x, y, angle));
-        }
-
-        return new WipeShape(sensorPosition, shapePoints);
-    }*/
-
     // Local pose of the LIDAR on the robot:
     public Pose2D GetLocalPose() {
         float x = lidar.transform.localPosition.z;
@@ -103,7 +87,7 @@ public class Lidar {
         return new Pose2D(x, y, angle);
     }
 
-    public AugmentedObservation[] GetObservations() {
+    public Observation[] GetObservations() {
         return observations;
     }
 

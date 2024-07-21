@@ -74,12 +74,7 @@ public class RobotManager : MonoBehaviour {
         }
 
         if (geometryClustering != null) {
-            geometryClustering.DrawGizmos(
-                geometryClusterParams.drawCurrentLines, 
-                geometryClusterParams.drawPoints, 
-                geometryClusterParams.drawLines, 
-                geometryClusterParams.drawCircles, 
-                geometryClusterParams.drawWipeShape);
+            geometryClustering.DrawGizmos();
         }
 
         if (showMatchGridMap && gridMap != null)

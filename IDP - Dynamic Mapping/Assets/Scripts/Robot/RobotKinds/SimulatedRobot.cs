@@ -15,7 +15,8 @@ public class SimulatedRobot : Robot {
     public GameObject lidarObject;
 
     public int raycastCount = 500;
-    public float raycastDistance = 10;
+    public float lidarMinRange = 0;
+    public float lidarMaxRange = 10;
 
     public bool drawRays = true;
     public bool drawCorners = true;
@@ -32,7 +33,7 @@ public class SimulatedRobot : Robot {
 
     void Start() {
         // Instantiate the LIDAR:
-        lidar = new Lidar(lidarObject, raycastCount, raycastDistance, 0);
+        lidar = new Lidar(lidarObject, raycastCount, lidarMinRange, lidarMaxRange, 0);
 
         // Instantiate the model we are going to use for the robot:
         Pose2D[] lidarPoses = new Pose2D[] { lidar.GetLocalPose() };
@@ -54,7 +55,7 @@ public class SimulatedRobot : Robot {
         // real state of the robot to build the next robot frame:
         if (currentTime - lastTimeUpdate >= waitBetweenUpdates) {
             // Use raycasting to compute observations from the LIDAR:
-            AugmentedObservation[][] observations = new AugmentedObservation[][] {
+            Observation[][] observations = new Observation[][] {
                 lidar.ComputeObservations()
             };
 

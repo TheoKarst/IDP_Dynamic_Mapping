@@ -3,10 +3,10 @@ using UnityEngine;
 using UnityEngine.Assertions;
 
 public class WipeShapeUtils {
-    public static List<int> HighPassSubsample(AugmentedObservation[] observations, float deltaAngle) {
+    public static List<int> HighPassSubsample(Observation[] observations, float deltaAngle) {
         List<int> result = new List<int>();
 
-        AugmentedObservation lastObservation = null;
+        Observation lastObservation = observations[0];
         int lastObservationIndex = -1;
         float lastObservationFilterValue = -1;
 
@@ -14,15 +14,15 @@ public class WipeShapeUtils {
         while (index < observations.Length) {
             // Find the observation with the minimum radius in the list of observations
             // having an angle between first.theta and first.theta + deltaAngle:
-            AugmentedObservation first = observations[index];
+            Observation first = observations[index];
 
             int maxIndex = index;
             float maxFilterValue = MaxAreaFilter(observations, index);
-            AugmentedObservation maxObservation = first;
+            Observation maxObservation = first;
 
             index++;
             while (index < observations.Length) {
-                AugmentedObservation current = observations[index];
+                Observation current = observations[index];
 
                 if (current.theta - first.theta > deltaAngle)
                     break;
@@ -41,7 +41,7 @@ public class WipeShapeUtils {
             // between lastObservation and maxObservation is greater than deltaAngle.
             // If this is not the case, we keep among them the one with the biggest
             // filter value:
-            if (lastObservation != null && maxObservation.theta - lastObservation.theta < deltaAngle) {
+            if (lastObservationIndex != -1 && maxObservation.theta - lastObservation.theta < deltaAngle) {
                 if (maxFilterValue > lastObservationFilterValue) {
                     lastObservation = maxObservation;
                     lastObservationIndex = maxIndex;
@@ -49,7 +49,7 @@ public class WipeShapeUtils {
                 }
             }
             else {
-                if (lastObservation != null)
+                if (lastObservationIndex != -1)
                     result.Add(lastObservationIndex);
 
                 lastObservation = maxObservation;
@@ -58,13 +58,13 @@ public class WipeShapeUtils {
             }
         }
 
-        if (lastObservation != null)
+        if (lastObservationIndex != -1)
             result.Add(lastObservationIndex);
 
         return result;
     }
 
-    private static float MaxAreaFilter(AugmentedObservation[] observations, int index) {
+    private static float MaxAreaFilter(Observation[] observations, int index) {
         int last = observations.Length - 1;
 
         Vector2 A = LocalPosition(observations[index == 0 ? last : index - 1]);
@@ -78,14 +78,14 @@ public class WipeShapeUtils {
         return BA.x * BC.y - BA.y * BC.x;
     }
 
-    private static Vector2 LocalPosition(AugmentedObservation observation) {
+    private static Vector2 LocalPosition(Observation observation) {
         return new Vector2(
             observation.r * Mathf.Cos(observation.theta),
             observation.r * Mathf.Sin(observation.theta)
         );
     }
 
-    public static int[] AlphaFilter(AugmentedObservation[] observations, float alpha, float clamp) {
+    public static int[] AlphaFilter(Observation[] observations, float alpha, float clamp) {
         // For each observation, if we have to remove it:
         bool[] remove = new bool[observations.Length];
 

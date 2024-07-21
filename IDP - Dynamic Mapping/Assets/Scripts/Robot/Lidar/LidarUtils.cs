@@ -5,7 +5,7 @@ public class LidarUtils {
 
     // Run Douglas Peucker algorithm on the given observations, and return the indices of
     // the points returned by the algorithm:
-    public static int[] DouglasPeucker(AugmentedObservation[] observations, float epsilon) {
+    public static int[] DouglasPeucker(Observation[] observations, float epsilon) {
         // Get the position of the observations, in the referential of the LIDAR. We
         // don't need the state estimate to do so:
         Vector2[] points = new Vector2[observations.Length];
@@ -21,20 +21,20 @@ public class LidarUtils {
     }
 
     // Return the corners with an angle greater than "minAngleDegrees":
-    public static List<int> ExtractConvexCorners(AugmentedObservation[] observations, float minAngleDegrees) {
+    public static List<int> ExtractConvexCorners(Observation[] observations, float minRange, float maxRange, float minAngleDegrees) {
         List<int> corners = new List<int>();
 
         int count = observations.Length;
 
         // Use the same naming convention as the paper "Corner Detection for Room Mapping of Fire Fighting RobotManager":
         for (int i = 0; i < count; i++) {
-            AugmentedObservation curr = observations[i];
+            Observation curr = observations[i];
 
-            if (curr.outOfRange)
+            if (curr.r < minRange || curr.r > maxRange)
                 continue;
 
-            AugmentedObservation prev = observations[(i + count - 1) % count];
-            AugmentedObservation next = observations[(i + 1) % count];
+            Observation prev = observations[(i + count - 1) % count];
+            Observation next = observations[(i + 1) % count];
 
             float b = prev.r, c = curr.r, e = next.r;
 
@@ -57,20 +57,20 @@ public class LidarUtils {
     }
 
     // From a subset of observations, return the corners with an angle greater than "minAngleDegrees":
-    public static List<int> ExtractConvexCorners(AugmentedObservation[] observations, int[] indices, float minAngleDegrees) {
+    public static List<int> ExtractConvexCorners(Observation[] observations, float minRange, float maxRange, int[] indices, float minAngleDegrees) {
         List<int> corners = new List<int>();
 
         int count = indices.Length;
 
         // Use the same naming convention as the paper "Corner Detection for Room Mapping of Fire Fighting RobotManager":
         for (int i = 0; i < count; i++) {
-            AugmentedObservation curr = observations[indices[i]];
+            Observation curr = observations[indices[i]];
 
-            if (curr.outOfRange)
+            if (curr.r < minRange || curr.r > maxRange)
                 continue;
 
-            AugmentedObservation prev = observations[indices[(i + count - 1) % count]];
-            AugmentedObservation next = observations[indices[(i + 1) % count]];
+            Observation prev = observations[indices[(i + count - 1) % count]];
+            Observation next = observations[indices[(i + 1) % count]];
 
             float b = prev.r, c = curr.r, e = next.r;
 
@@ -93,7 +93,7 @@ public class LidarUtils {
     }
 
     // Among the list of observations from the LIDAR, return the one that are static, according to the given world model:
-    public static List<Observation> GetStaticObservations(AugmentedObservation[] observations, List<int> subset, WorldModel worldModel, VehicleModel model, VehicleState stateEstimate) {
+    public static List<Observation> GetStaticObservations(Observation[] observations, List<int> subset, WorldModel worldModel, VehicleModel model, VehicleState stateEstimate) {
         List<Observation> landmarks = new List<Observation>();
 
         foreach (int index in subset) {

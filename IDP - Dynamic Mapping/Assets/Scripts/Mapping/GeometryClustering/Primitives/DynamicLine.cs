@@ -108,12 +108,26 @@ public class DynamicLine : Primitive {
         _id = _instantiatedLines++;
     }
 
-    public void DrawGizmos(float height) {
+    public void DrawGizmos(float height, bool drawError) {
         Color color = _isStatic ? Color.black : lineColor;
 
         Vector3 p1 = Utils.To3D(beginPoint, height);
         Vector3 p2 = Utils.To3D(endPoint, height);
         Handles.DrawBezier(p1, p2, p1, p2, color, null, 4);
+
+        // Draw a cube at the middle of the line, representing its error estimate:
+        if (drawError) {
+            float errorRho = Mathf.Sqrt((float)covariance[0, 0]);
+            float errorTheta = Mathf.Sqrt((float)covariance[1, 1]) * Mathf.Rad2Deg;
+
+            Gizmos.color = errorRho < 2 && errorTheta < 90 ? Color.yellow : Color.red;
+            errorRho = Mathf.Min(errorRho, 2);
+            errorTheta = Mathf.Min(errorTheta, 90);
+
+            Vector3 center = Utils.To3D((beginPoint + endPoint) / 2, height + errorTheta / 2);
+            Gizmos.DrawCube(center, Utils.To3D(errorRho, errorRho, errorTheta));
+        }
+
     }
 
     // From the previous line estimate and the elapsed time since the last update,
@@ -251,6 +265,12 @@ public class DynamicLine : Primitive {
         // Otherwise, if the line is not mooving for long enough, we can consider this line to be static:
         else if(!_isStatic && matchCount - lastMatchDynamic >= minMatchesToConsiderStatic) {
             _isStatic = true;
+            state.dRho = 0;
+            state.dTheta = 0;
+        }
+
+        // If the line is already static, we also make sure that the speed is zero:
+        else if(_isStatic) {
             state.dRho = 0;
             state.dTheta = 0;
         }

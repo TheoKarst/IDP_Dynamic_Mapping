@@ -21,7 +21,8 @@ public class KalmanRobot : Robot {
     public GameObject lidarObject;
 
     public int raycastCount = 500;
-    public float raycastDistance = 10;
+    public float lidarMinRange = 0;
+    public float lidarMaxRange = 10;
     public float douglasPeuckerEpsilon = 0.2f;
 
     public bool drawRays = true;
@@ -46,7 +47,7 @@ public class KalmanRobot : Robot {
 
     void Start() {
         // Instantiate the LIDAR:
-        lidar = new Lidar(lidarObject, raycastCount, raycastDistance, 0);
+        lidar = new Lidar(lidarObject, raycastCount, lidarMinRange, lidarMaxRange, 0);
 
         // Instantiate the model we are going to use for the robot:
         Pose2D[] lidarPoses = new Pose2D[] { lidar.GetLocalPose() };
@@ -74,7 +75,7 @@ public class KalmanRobot : Robot {
         // while the LIDAR measures, the state estimate and map update are discrete):
         if (currentTime - lastTimeUpdate >= waitBetweenUpdates) {
             // Use raycasting to compute observations from the LIDAR:
-            AugmentedObservation[][] observations = new AugmentedObservation[][] {
+            Observation[][] observations = new Observation[][] {
                 lidar.ComputeObservations()
             };
 

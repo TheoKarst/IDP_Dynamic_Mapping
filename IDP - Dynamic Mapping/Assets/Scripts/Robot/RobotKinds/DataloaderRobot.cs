@@ -50,10 +50,10 @@ public class DataloaderRobot : Robot {
         public Matrix<double> vehicleStateCovariance;
 
         // List of observations made by each LIDAR on the robot:
-        public AugmentedObservation[][] observations;
+        public Observation[][] observations;
 
         public RobotData(float timestamp, VehicleState state,
-            Matrix<double> stateCovariance, AugmentedObservation[][] observations) {
+            Matrix<double> stateCovariance, Observation[][] observations) {
 
             this.timestamp = timestamp;
             this.vehicleState = state;
@@ -70,11 +70,11 @@ public class DataloaderRobot : Robot {
         public Vector3 localPosition;
         public Quaternion localRotation;
 
-        public AugmentedObservation[] observations;
+        public Observation[] observations;
 
         public LidarData(Pose2D localPose, Vector3 position, Quaternion rotation, 
             Vector3 localPosition, Quaternion localRotation,
-            AugmentedObservation[] observations) {
+            Observation[] observations) {
 
             this.localPose = localPose;
             this.position = position;
@@ -89,7 +89,11 @@ public class DataloaderRobot : Robot {
     public GameObject rearLidar;
     public GameObject frontLidar;
 
-    public float minObservationRadius = 0.1f;
+    [Tooltip("Observations below this threshold are ignored")]
+    public float lidarMinRange = 0.1f;
+
+    [Tooltip("Observations above this threshold are clamped")]
+    public float lidarMaxRange = 100f;
     public bool drawRays = true;
 
     [Tooltip("Button to restart loading data from the beginning")]
@@ -158,23 +162,21 @@ public class DataloaderRobot : Robot {
 
     public void OnDrawGizmos() {
         if(drawRays && currentFrame != null) {
-            AugmentedObservation[] observations = currentFrame.observations[FRONT_LIDAR_INDEX];
-            for (int i = 0; i < observations.Length; i++) {
-                AugmentedObservation observation = observations[i];
-
+            Observation[] observations = currentFrame.observations[FRONT_LIDAR_INDEX];
+            foreach(Observation observation in observations) {
                 Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * observation.theta, Vector3.up) * frontLidar.transform.forward;
 
-                Gizmos.color = Color.Lerp(Color.red, Color.white, 1f * i / observations.Length);
+                Gizmos.color = observation.r < lidarMinRange || observation.r > lidarMaxRange ?
+                    Color.white : Color.red;
                 Gizmos.DrawRay(frontLidar.transform.position, direction * observation.r);
             }
 
             observations = currentFrame.observations[REAR_LIDAR_INDEX];
-            for (int i = 0; i < observations.Length; i++) {
-                AugmentedObservation observation = observations[i];
-
+            foreach (Observation observation in observations) {
                 Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * observation.theta, Vector3.up) * rearLidar.transform.forward;
 
-                Gizmos.color = Color.Lerp(Color.red, Color.white, 1f * i / observations.Length);
+                Gizmos.color = observation.r < lidarMinRange || observation.r > lidarMaxRange ?
+                    Color.white : Color.red;
                 Gizmos.DrawRay(rearLidar.transform.position, direction * observation.r);
             }
         }
@@ -270,7 +272,7 @@ public class DataloaderRobot : Robot {
         Debug.Log("Vehicle state: " + vehicleState);
 
         // Stack the observations from both LIDARs into an array:
-        AugmentedObservation[][] observations = new AugmentedObservation[2][];
+        Observation[][] observations = new Observation[2][];
         observations[REAR_LIDAR_INDEX] = rearLidarData.observations;
         observations[FRONT_LIDAR_INDEX] = frontLidarData.observations;
 
@@ -307,7 +309,7 @@ public class DataloaderRobot : Robot {
         Quaternion localRotation = ToQuaternion(local_rotation_data);
         Vector3 position = ToVector3(global_position_data);
         Quaternion rotation = ToQuaternion(global_rotation_data);
-        AugmentedObservation[] observations = BuildObservations(ranges, angles, lidarIndex);
+        Observation[] observations = BuildObservations(ranges, angles, lidarIndex);
 
         // Compute the local pose of the LIDAR:
         Pose2D localPose = GetLocalPose(localPosition, localRotation);
@@ -315,13 +317,13 @@ public class DataloaderRobot : Robot {
         return new LidarData(localPose, position, rotation, localPosition, localRotation, observations);
     }
 
-    private AugmentedObservation[] BuildObservations(float[] ranges, float[] angles, int lidarIndex) {
+    private Observation[] BuildObservations(float[] ranges, float[] angles, int lidarIndex) {
         int maxCount = Mathf.Min(ranges.Length, angles.Length);
 
-        List<AugmentedObservation> observations = new List<AugmentedObservation>();
+        List<Observation> observations = new List<Observation>();
         for(int i = 0; i < maxCount; i++) {
-            if (ranges[i] >= minObservationRadius)
-                observations.Add(new AugmentedObservation(ranges[i], -Mathf.Deg2Rad * angles[i], lidarIndex, false));
+            if (ranges[i] >= lidarMinRange)
+                observations.Add(new Observation(ranges[i], -Mathf.Deg2Rad * angles[i], lidarIndex));
         }
 
         return observations.ToArray();

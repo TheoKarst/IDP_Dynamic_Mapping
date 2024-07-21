@@ -33,7 +33,7 @@ public class WipeShapeTester : MonoBehaviour {
     private Vector2[] wipeShape;
     private int[] subsampledPoints;
 
-    private AugmentedObservation[] lastObservations;
+    private Observation[] lastObservations;
 
     void Start() {
 
@@ -54,7 +54,7 @@ public class WipeShapeTester : MonoBehaviour {
 
             // This script only uses the data from a single LIDAR:
             VehicleModel model = robot.GetVehicleModel();
-            AugmentedObservation[] observations = data.observations[lidarIndex];
+            Observation[] observations = data.observations[lidarIndex];
             lastObservations = observations;
 
             // Get the world space position of the observations:
@@ -352,12 +352,12 @@ public class WipeShapeTester : MonoBehaviour {
     }
     */
 
-    private void SaveData(AugmentedObservation[] observations, string filename) {
+    private void SaveData(Observation[] observations, string filename) {
         StreamWriter file = File.CreateText(filename);
 
         file.WriteLine("range;angle");
 
-        foreach (AugmentedObservation observation in observations)
+        foreach (Observation observation in observations)
             file.WriteLine(observation.r + ";" + observation.theta);
 
         file.Flush();
