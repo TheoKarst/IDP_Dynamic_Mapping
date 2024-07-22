@@ -35,7 +35,7 @@ class Robot:
         for index, observations in enumerate(lidar_observations):
             self.lidars[index].update_observations(observations)
 
-        print("Robot pose: " + str(robot_pose))
+        # print("Robot pose: " + str(robot_pose))
 
     def draw(self, scene):
         scene.draw_surface(self.robot, self.pose.x, self.pose.y, math.degrees(self.pose.angle))
