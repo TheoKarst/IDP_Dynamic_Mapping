@@ -149,7 +149,7 @@ Observation[] InflateObservations(Observation[] observations, int count) {
     Observation next = observations[i+1];
     
     for(int j = 0; j < count; j++) {
-      float r = map(j, 0, count, current.r, next.r);
+      float r = map(j, 0, count, current.r, next.r) + random(-10, 10);
       float theta = map(j, 0, count, current.theta, next.theta);
       result[count * i + j] = new Observation(r, theta);
     }
@@ -161,7 +161,7 @@ Observation[] InflateObservations(Observation[] observations, int count) {
 }
 
 void benchmarks() {
-  Observation[] test = InflateObservations(observations, 50);
+  Observation[] test = InflateObservations(observations, 10);
   
   println("Running the algorithm on a set of " + test.length + " points...");
   

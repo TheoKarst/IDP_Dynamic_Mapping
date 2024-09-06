@@ -1,4 +1,6 @@
+import math
 import pygame as py
+from robot import Robot
 from dataloader import Dataloader
 
 folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\StaticCapture_0"
@@ -13,50 +15,95 @@ class Scene:
 
         self.pixels_per_meter = pixels_per_meter
 
+        # Create a dataloader to load recorded data:
         self.dataloader = Dataloader(folder)
 
-        self.robot = self.dataloader.load_robot_setup()
+        # Instantiate a robot with the setup defined in the recorded data:
+        robot_setup = self.dataloader.load_robot_setup()
+        self.robot = Robot(**robot_setup)
 
+        # For information, print the boundaries of the screen in world space:
         xmin, ymin = self.world_coordinates(0, 0)
         xmax, ymax = self.world_coordinates(screen.get_width(), screen.get_height())
-        print(f"Screen setup: [{xmin}; {xmax}], [{ymin}; {ymax}]")
+        print(f"Screen setup: [xmin: {xmin}m; xmax: {xmax}m], [ymin: {ymin}m; ymax: {ymax}m]")
 
     def update(self):
-        self.dataloader.update(self.robot, py.time.get_ticks() / 1000)
+        """ Called each frame, updates the whole scene """
+
+        data_frame = self.dataloader.load_current_frame(py.time.get_ticks() / 1000)
+
+        if data_frame is not None:
+            self.robot.update(**data_frame)
 
     def draw(self):
+        """ Draws the whole scene """
+
         self.robot.draw(self)
 
-    def draw_surface(self, surface : py.Surface, x : float, y : float, angle : float = 0):
-        """ Convert the given world space pose of a surface into screen space coordinates, 
-            and draw the surface on the screen
-             
-            :param x: World position of the surface along the x-axis
-            :param y: World position of the surface along the y-axis
-            :param angle: World angle of the surface (in degrees)
+    def draw_rectangle(self, x, y, width, height, angle, color):
+        """
+        Draws a rectangle in the scene
+
+            :param x: x-coordinate of the center of the rectangle, in meters
+            :param y: y-coordinate of the center of the rectangle, in meters
+            :param width: width of the rectangle in meters
+            :param height: height of the rectangle in meters
+            :param angle: angle (in radians) of the rectangle, counter-clockwise
+            :param color: color of the rectangle
         """
 
-        if angle != 0:
-            surface = py.transform.rotate(surface, angle)
+        # Convert the position from world to screen space:
+        x, y = self.screen_coordinates(x, y)
 
-        rect = surface.get_rect()
-        rect.center = self.screen_coordinates(x, y)
+        # Resize the ractangle:
+        width *= self.pixels_per_meter
+        height *= self.pixels_per_meter
 
-        self.screen.blit(surface, rect)
+        # Compute the position of the corners:
+        theta = math.atan(height / width)
+        radius = math.sqrt(width*width + height*height) / 2
+
+        corners = []
+        for offset in [theta, math.pi - theta, math.pi + theta, -theta]:
+            corner_x = x + radius * math.cos(offset - angle)
+            corner_y = y + radius * math.sin(offset - angle)
+
+            corners.append((corner_x, corner_y))
+
+        py.draw.polygon(self.screen, color, corners)
 
     def draw_line(self, x1, y1, x2, y2, color):
+        """
+        Draws a line in the scene
+        
+            :param x1: x-coordinate of the begin point of the line in meters
+            :param y1: y-coordinate of the begin point of the line in meters
+            :param x2: x-coordinate of the end point of the line in meters
+            :param y2: y-coordinate of the end point of the line in meters
+            :param color: color of the line
+        """
+
         x1, y1 = self.screen_coordinates(x1, y1)
         x2, y2 = self.screen_coordinates(x2, y2)
 
         py.draw.line(self.screen, color, (x1, y1), (x2, y2))
 
     def draw_circle(self, x, y, radius, color):
+        """
+        Draws a circle in the scene
+        
+            :param x: x-coordinate of the circle in meters
+            :param y: y-coordinate of the circle in meters
+            :param radius: radius of the circle in meters
+            :param color: color of the circle
+        """
+
         center = self.screen_coordinates(x, y)
 
-        py.draw.circle(self.screen, color, center, radius)
+        py.draw.circle(self.screen, color, center, radius * self.pixels_per_meter)
 
     def screen_coordinates(self, x : float, y : float) -> tuple:
-        """ Convert coordinates from world space into screen space """
+        """ Converts coordinates from world space into screen space """
 
         screen_x = (x - self.corner_x) * self.pixels_per_meter
         screen_y = (self.corner_y - y) * self.pixels_per_meter
@@ -64,7 +111,7 @@ class Scene:
         return (screen_x, screen_y)
     
     def world_coordinates(self, x : float, y : float) -> tuple:
-        """ Convert coordinates from screen space into world space """
+        """ Converts coordinates from screen space into world space """
 
         world_x = self.corner_x + x / self.pixels_per_meter
         world_y = self.corner_y - y / self.pixels_per_meter
@@ -85,6 +132,8 @@ class Scene:
         self.pixels_per_meter *= factor
 
     def move(self, delta_x : float, delta_y : float):
+        """ Move the scene by the given amounts in pixels """
+
         self.corner_x -= delta_x / self.pixels_per_meter
         self.corner_y -= delta_y / self.pixels_per_meter
 

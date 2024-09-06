@@ -33,9 +33,9 @@ public struct VehicleState {
     }
 
     public override string ToString() {
-        string print_x = Utils.ScientificNotation(x);
-        string print_y = Utils.ScientificNotation(y);
-        string print_phi = Utils.ScientificNotation(Mathf.Rad2Deg * phi);
+        string print_x = Utils.ToString(x);
+        string print_y = Utils.ToString(y);
+        string print_phi = Utils.ToString(Mathf.Rad2Deg * phi);
 
         return "[x: " + print_x + ", y: " + print_y + ", phi: " + print_phi + "°]"; 
     }

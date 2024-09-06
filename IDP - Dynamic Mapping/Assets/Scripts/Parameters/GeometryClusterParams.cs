@@ -5,6 +5,18 @@ using UnityEngine;
 [Serializable]
 public class GeometryClusterParams {
     /***********************************************************************************************/
+    // This section describes the parameter of the grid map used to speed up the matching between
+    // observed objects (circles and lines), and objects in the world model:
+    
+    [Header("Line match grid map")]
+    
+    public float centerX = 0;
+    public float centerY = 0;
+    public int width = 40;
+    public int height = 40;
+    public float cellSize = 2;
+
+    /***********************************************************************************************/
     [Header("Geometry Extraction:")]
 
     [Tooltip("Maximum distance between two consecutive points to be matched to the same line")]
@@ -113,6 +125,7 @@ public class GeometryClusterParams {
     /***********************************************************************************************/
     [Header("Drawing")]
 
+    public bool drawMatchGridMap = false;
     public bool drawPoints = true;
     public bool drawPointsError = false;
     public bool drawLines = true;

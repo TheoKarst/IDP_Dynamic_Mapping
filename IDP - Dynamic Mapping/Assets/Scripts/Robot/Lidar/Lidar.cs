@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class Lidar {
@@ -18,7 +19,7 @@ public class Lidar {
     private float maxRange;
 
     // List of observations made by the LIDAR:
-    private Observation[] observations;
+    private List<Observation> observations;
 
     // Used for drawing only:
     private Vector3 lastScanPosition, lastScanForward;  // Real position of the LIDAR during last scan
@@ -29,8 +30,6 @@ public class Lidar {
         this.raycastCount = raycastCount;
         this.minRange = minRange;
         this.maxRange = maxRange;
-
-        this.observations = new Observation[raycastCount];
     }
 
     public void DrawGizmos(bool drawRays) {
@@ -38,9 +37,7 @@ public class Lidar {
             Vector3 direction = lastScanForward;
 
             foreach (Observation observation in observations) {
-                Gizmos.color = observation.r < minRange || observation.r > maxRange ? 
-                    Color.white : Color.red;
-
+                Gizmos.color = Color.red;
                 Gizmos.DrawRay(lastScanPosition, direction * observation.r);
 
                 direction = Quaternion.AngleAxis(-360f / raycastCount, Vector3.up) * direction;
@@ -48,8 +45,12 @@ public class Lidar {
         }
     }
 
-    // Use raycasting to compute the observations made by the LIDAR:
+    // Use raycasting to compute the observations made by the LIDAR. Observations with a range
+    // smaller than minRange are ignored and observations with a range larger than maxRange are
+    // clamped and marked as outOfRange:
     public Observation[] ComputeObservations() {
+        observations = new List<Observation>(raycastCount);
+
         // Save the current position and orientation of the LIDAR, to draw gizmos later:
         lastScanPosition = lidar.transform.position;
         lastScanForward = lidar.transform.TransformDirection(Vector3.forward);
@@ -58,16 +59,19 @@ public class Lidar {
         float observationAngle = 0;
         Vector3 direction = lidar.transform.TransformDirection(Vector3.forward);
 
-        for (int i = 0; i < observations.Length; i++) {
+        for (int i = 0; i < raycastCount; i++) {
             RaycastHit hit;
-            if (Physics.Raycast(lidar.transform.position, direction, out hit)) {
-                observations[i] = new Observation(hit.distance, observationAngle, lidarIndex);
+            if (Physics.Raycast(lidar.transform.position, direction, out hit, maxRange + 1)
+                && hit.distance <= maxRange) {
+
+                // The observation is added only if the range is bigger than minRange:
+                if(hit.distance >= minRange)
+                    observations.Add(new Observation(hit.distance, observationAngle, lidarIndex, false));
             }
             else {
-                // If there was no hit, consider that there was a hit at 2*maxDistance, to represent
-                // +infinity. Observations with a range greater than maxRange are treated identically
-                // anyways:
-                observations[i] = new Observation(2*maxRange, observationAngle, lidarIndex);
+                // If there was no hit, the range is clamped at maxRange, and the observation is
+                // marked as out of range:
+                observations.Add(new Observation(maxRange, observationAngle, lidarIndex, true));
             }
 
             // Rotate the direction of the raycast counterclockwise:
@@ -75,7 +79,7 @@ public class Lidar {
             observationAngle += 2 * Mathf.PI / raycastCount;
         }
 
-        return observations;
+        return observations.ToArray();
     }
 
     // Local pose of the LIDAR on the robot:
@@ -85,10 +89,6 @@ public class Lidar {
         float angle = -lidar.transform.localRotation.eulerAngles.y * Mathf.Deg2Rad;
 
         return new Pose2D(x, y, angle);
-    }
-
-    public Observation[] GetObservations() {
-        return observations;
     }
 
     public LidarSetup GetSetup() {

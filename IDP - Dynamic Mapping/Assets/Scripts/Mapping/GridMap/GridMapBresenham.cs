@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -7,37 +8,36 @@ public class GridMapBresenham : WorldModel {
     private RawImage mapImage;
     private Texture2D texture;
 
-    // Parameters of the grid map:
-    private int pixelSize = 4;
-
     private float cellSize = 0.1f;
     private int mapWidth = 50;
     private int mapHeight = 50;
 
     private float maxConfidence = 0.99f;
     private int framesToConsiderStatic = 60;
-    private int framesToConsiderDynamic = 20;
+    private int framesToConsiderDynamic = 5;
 
     // Values used to update the grid when new observations are made:
     private float HighStatic, LowStatic;
     private float HighDynamic, LowDynamic;
 
-    // Possible state for each cell of the grid:
+    // Possible state for an observation of a cell:
     private const int FREE = 0;
     private const int OCCUPIED = 1;
-    private const int UNKNOWN = 2;
 
     // Static and dynamic maps in log-odds form (the value of each cell can be computed
     // using the function getValue)
     private float[][] staticMap;
     private float[][] dynamicMap;
 
+    // For drawing purposes, this represents the landmarks that were compared with this map
+    // to identify which ones were static or dynamic:
+    private List<(int, int)> landmarkCandidates = new List<(int, int)>();
+
     // Value in the grid corresponding to the maximum confidence:
     private float maxLogOddValue;
 
     public GridMapBresenham(GridMapParams gridMapParams) {
         this.mapImage = gridMapParams.mapImage;
-        this.pixelSize = gridMapParams.pixelSize;
 
         this.cellSize = gridMapParams.cellSize;
         this.mapWidth = gridMapParams.mapWidth;
@@ -59,12 +59,12 @@ public class GridMapBresenham : WorldModel {
         // Compute maxLogOdd values from maxConfidence:
         maxLogOddValue = Mathf.Log(maxConfidence / (1 - maxConfidence));
 
-        // Compute the inverse sensor model values:
-        float tmp = Mathf.Pow(0.95f / (1 - 0.95f), 1f / framesToConsiderStatic);
+        // Compute the values for the inverse sensor model:
+        float tmp = Mathf.Exp(maxLogOddValue / framesToConsiderStatic);
         HighStatic = tmp / (1 + tmp);
         LowStatic = 1 - HighStatic;
 
-        tmp = Mathf.Pow(0.95f / (1 - 0.95f), 1f / framesToConsiderDynamic);
+        tmp = Mathf.Exp(maxLogOddValue / framesToConsiderDynamic);
         HighDynamic = tmp / (1 + tmp);
         LowDynamic = 1 - HighDynamic;
 
@@ -81,15 +81,14 @@ public class GridMapBresenham : WorldModel {
             }
         }
 
+        // The texture is used to represent the static (on top) and the dynamic (on bottom) maps:
         texture = new Texture2D(mapWidth, 2 * mapHeight);
         texture.filterMode = FilterMode.Point;  // no smooth pixels
-
-        // mapImage.GetComponent<RectTransform>().sizeDelta = new Vector2(mapWidth * pixelSize, 2 * mapHeight * pixelSize);
         mapImage.texture = texture;
     }
 
     // Update the static and dynamic maps using the current sensor position and observations:
-    public void UpdateMaps(Pose2D worldSensorPose, Observation[] observations, float maxRange) {
+    public void UpdateMaps(Pose2D worldSensorPose, Observation[] observations) {
 
         // Position of the sensor in the grids:
         int x0 = Mathf.FloorToInt(worldSensorPose.x / cellSize) + mapWidth / 2;
@@ -109,7 +108,7 @@ public class GridMapBresenham : WorldModel {
             int y1 = Mathf.FloorToInt(yWorld / cellSize) + mapHeight / 2;
 
             // Update the cells touched by the raycast:
-            Bresenham(x0, y0, x1, y1, observation.r < maxRange);
+            Bresenham(x0, y0, x1, y1, !observation.outOfRange);
         }
     }
 
@@ -136,16 +135,16 @@ public class GridMapBresenham : WorldModel {
         }
     }
 
-    private void UpdateCell(int x, int y, int state) {
-        if (state == UNKNOWN || x < 0 || x >= mapWidth || y < 0 || y >= mapHeight)
+    private void UpdateCell(int x, int y, int observation) {
+        if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight)
             return;
 
         float previousStaticValue = getMapValue(x, y, staticMap);
 
-        // Update the static and dynamic maps according to Tables 1 and 2
-        // (inverse observation model for the static and dynamic maps):
-        float pSt = state == OCCUPIED && previousStaticValue > 0.1f ? HighStatic : LowStatic;
-        float pDt = state == OCCUPIED && previousStaticValue <= 0.1f ? HighDynamic : LowDynamic;
+        // Update the static and dynamic maps according to the inverse observation model
+        // of the static and dynamic maps:
+        float pSt = observation == OCCUPIED && previousStaticValue > 0.1f ? HighStatic : LowStatic;
+        float pDt = observation == OCCUPIED && previousStaticValue <= 0.1f ? HighDynamic : LowDynamic;
 
         // Update the maps using equations (12) and (13):
         staticMap[x][y] += Mathf.Log(pSt / (1 - pSt));
@@ -169,16 +168,22 @@ public class GridMapBresenham : WorldModel {
         return p / (1 + p);
     }
 
-    public bool IsStatic(Vector2 worldPosition) {
-        // TODO: Correct this bug:
-        return true;
+    public void Cleanup() {
+        landmarkCandidates.Clear();
+    }
 
-        /*
+    // Return if the given position corresponds to a static object or not
+    public bool IsStatic(Vector2 worldPosition) {
+
         // Convert the world position into a cell position:
         int xCell = Mathf.FloorToInt(worldPosition.x / cellSize) + mapWidth / 2;
         int yCell = Mathf.FloorToInt(worldPosition.y / cellSize) + mapHeight / 2;
 
-        // Check if there is a static cell around this cell:
+        // Register this to the list of landmark candidates for drawing / debugging purposes:
+        landmarkCandidates.Add((xCell, yCell));
+
+        // Instead of checking just one cell, check if at least one neighbouring cell is static.
+        // This method is a bit slower but more robust to errors in the estimate of the observation:
         const int border = 5;
         for(int x = Mathf.Max(xCell - border, 0); x <= Mathf.Min(xCell + border, mapWidth-1); x++) {
             for (int y = Mathf.Max(yCell - border, 0); y <= Mathf.Min(yCell + border, mapHeight - 1); y++) {
@@ -187,23 +192,34 @@ public class GridMapBresenham : WorldModel {
             }
         }
 
-        return false;*/
+        return false;
     }
 
-    public void DrawMap(bool showMap, bool updateTexture) {
+    public void DrawMap(bool showMap, bool updateTexture, bool drawLandmarkCandidates) {
         if(showMap && updateTexture) {
+            // Should contain the pixels row by row, starting at the bottom left of the texture:
             Color[] pixels = new Color[2 * mapWidth * mapHeight];
+
             for (int x = 0; x < mapWidth; x++) {
                 for (int y = 0; y < mapHeight; y++) {
-                    // Gray color of the static cell:
+                    // Gray color of the static cell. If the occupancy probability is 0,
+                    // the cell should be white:
                     float gray = 1 - getMapValue(x, y, staticMap);
-                    pixels[mapWidth * y + x] = new Color(gray, gray, gray);
-
-                    // Gray color of the dynamic cell:
-                    gray = 1 - getMapValue(x, y, dynamicMap);
                     pixels[mapWidth * (mapHeight + y) + x] = new Color(gray, gray, gray);
+
+                    // Gray color of the dynamic cell. If the occupancy probability is 0,
+                    // the cell should be white:
+                    gray = 1 - getMapValue(x, y, dynamicMap);
+                    pixels[mapWidth * y + x] = new Color(gray, gray, gray);
                 }
             }
+
+            if(drawLandmarkCandidates) {
+                // Landmark candidates are represented by red cells in the static map:
+                foreach((int x, int y) in landmarkCandidates)
+                    pixels[mapWidth * (mapHeight + y) + x] = new Color(1, 0, 0);
+            }
+
             texture.SetPixels(pixels);
             texture.Apply();
         }

@@ -1,10 +1,12 @@
 import pygame as py
 from scene import Scene
 
-# define constants
+# Dimensions of the screen in pixels
 WIDTH = 800
 HEIGHT = 400
-FPS = 60 
+
+# Framerate:
+FPS = 60
 
 # initialize pygame and create screen
 py.init()  

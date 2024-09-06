@@ -263,4 +263,29 @@ public class GridMap {
             }
         }
     }
+
+    // Debug function to draw how a grid would look like even if the grid is not instantiated:
+    public static void DrawGizmos(float z, int width, int height, float centerX, float centerY, 
+        float cellSize) {
+
+        Gizmos.color = Color.black;
+
+        float cornerX = centerX - width * cellSize / 2;
+        float cornerY = centerY + height * cellSize / 2;
+
+        float startX = cornerX, endX = cornerX + width * cellSize;
+        float startY = cornerY, endY = cornerY - height * cellSize;
+
+        for (int i = 0; i <= width; i++) {
+            float x = startX + i * cellSize;
+            Gizmos.DrawLine(Utils.To3D(x, startY, z),
+                Utils.To3D(x, endY, z));
+        }
+
+        for (int i = 0; i <= height; i++) {
+            float y = startY - i * cellSize;
+            Gizmos.DrawLine(Utils.To3D(startX, y, z),
+                Utils.To3D(endX, y, z));
+        }
+    }
 }

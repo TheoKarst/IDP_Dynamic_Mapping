@@ -5,29 +5,28 @@ public class RobotManager : MonoBehaviour {
 
     public Robot robot;
 
-    [Header("Line match grid map")]
-    public bool showMatchGridMap = false;
-    public float centerX = 0;
-    public float centerY = 0;
-    public int width = 40;
-    public int height = 40;
-    public float cellSize = 2;
+    public bool drawLandmarkCandidates = true;
 
+    // For now, there is no possibility to disable the mapping using grid maps, since
+    // this mapping is more reliable to detect if a landmark is static or dynamic, and is
+    // thus required for the localization estimate in a dynamic environment:
     public GridMapParams gridMapParams;
+
+    public bool runGeometryClustering = true;
     public GeometryClusterParams geometryClusterParams;
 
     private GridMapBresenham worldGridMap;
     private GeometryClustering geometryClustering;
-    private GridMap gridMap;
 
     private long updateCount = 0;
 
     void Start() {
         // Instantiate the grid map:
         worldGridMap = new GridMapBresenham(gridMapParams);
-        
+
         // Instantiate the geometry clustering algorithm:
-        geometryClustering = new GeometryClustering(geometryClusterParams, gridMap);
+        if(runGeometryClustering)
+            geometryClustering = new GeometryClustering(geometryClusterParams);
     }
 
     // Update is called once per frame
@@ -49,19 +48,20 @@ public class RobotManager : MonoBehaviour {
 
             // Then, for each LIDAR in the current frame, use the LIDAR observations to update the world models:
             for(int i = 0; i < data.observations.Length; i++) {
-                float maxRange = model.GetLidarSetup(i).max_range;
                 Pose2D worldSensorPose = model.GetWorldSensorPose(data.vehicleState, i);
 
                 Profiler.BeginSample("Static/Dynamic maps update");
-                worldGridMap.UpdateMaps(worldSensorPose, data.observations[i], maxRange);
+                worldGridMap.UpdateMaps(worldSensorPose, data.observations[i]);
                 Profiler.EndSample();
 
-                Profiler.BeginSample("Geometry clustering update");
-                geometryClustering.UpdateModel(
-                    worldSensorPose, model,
-                    data.vehicleState, data.vehicleStateCovariance,
-                    data.observations[i], Time.time);
-                Profiler.EndSample();
+                if(geometryClustering != null) {
+                    Profiler.BeginSample("Geometry clustering update");
+                    geometryClustering.UpdateModel(
+                        worldSensorPose, model,
+                        data.vehicleState, data.vehicleStateCovariance,
+                        data.observations[i], Time.time);
+                    Profiler.EndSample();
+                }
             }
 
             updateCount++;
@@ -71,19 +71,22 @@ public class RobotManager : MonoBehaviour {
     public void OnDrawGizmos() {
         if (worldGridMap != null) {
             worldGridMap.DrawMap(gridMapParams.showTexture,
-                updateCount % gridMapParams.textureUpdateWait == 0);
+                updateCount % gridMapParams.textureUpdateWait == 0,
+                drawLandmarkCandidates);
         }
 
         if (geometryClustering != null) {
             geometryClustering.DrawGizmos();
         }
 
-        if (showMatchGridMap && gridMap != null)
-            gridMap.DrawGizmos(0.2f);
-    }
-
-    public void OnValidate() {
-        gridMap = new GridMap(width, height, centerX, centerY, cellSize);
+        // For testing, draw the match grid map dynamically when options in the editor are changed.
+        // This is only executed when the application is not playing:
+        if (!Application.isPlaying && geometryClusterParams.drawMatchGridMap) {
+            GridMap.DrawGizmos(0.2f, 
+                geometryClusterParams.width, geometryClusterParams.height,
+                geometryClusterParams.centerX, geometryClusterParams.centerY, 
+                geometryClusterParams.cellSize);
+        }   
     }
 
     public WorldModel GetWorldModel() {

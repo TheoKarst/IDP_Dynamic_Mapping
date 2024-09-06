@@ -93,9 +93,9 @@ public class DeprecatedLine : Primitive {
 
     public string LogMatchCandidate(DeprecatedLine modelLine, float maxAngleDistance, float maxEndpointDistance) {
         float deltaAngle = Mathf.PingPong(Mathf.Abs(theta - modelLine.theta), Mathf.PI / 2);
-        string d1 = Utils.ScientificNotation(Mathf.Rad2Deg * deltaAngle);
-        string d2 = Utils.ScientificNotation(modelLine.DistanceFrom(beginPoint));
-        string d3 = Utils.ScientificNotation(modelLine.DistanceFrom(endPoint));
+        string d1 = Utils.ToString(Mathf.Rad2Deg * deltaAngle);
+        string d2 = Utils.ToString(modelLine.DistanceFrom(beginPoint));
+        string d3 = Utils.ToString(modelLine.DistanceFrom(endPoint));
 
         return "[MC: " + d1 + "°, " + d2 + ", " + d3 + "=>" + IsMatchCandidate(modelLine, maxAngleDistance, maxEndpointDistance) + "]";
     }
@@ -118,10 +118,10 @@ public class DeprecatedLine : Primitive {
     }
 
     public string LogParams() {
-        string print_rho = Utils.ScientificNotation(rho);
+        string print_rho = Utils.ToString(rho);
         float print_theta = Utils.Round(Mathf.Rad2Deg * theta, 1);
-        string print_cov_rho = Utils.ScientificNotation(Mathf.Sqrt((float) covariance[0, 0]));
-        string print_cov_theta = Utils.ScientificNotation(Mathf.Rad2Deg * Mathf.Sqrt((float) covariance[1, 1]));
+        string print_cov_rho = Utils.ToString(Mathf.Sqrt((float) covariance[0, 0]));
+        string print_cov_theta = Utils.ToString(Mathf.Rad2Deg * Mathf.Sqrt((float) covariance[1, 1]));
         
         return "rho=" + print_rho + " ±" + print_cov_rho + 
             "; theta=" + print_theta + "° ±" + print_cov_theta;

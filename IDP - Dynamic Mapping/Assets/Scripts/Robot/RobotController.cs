@@ -44,9 +44,14 @@ public class RobotController {
         float yP = velocity * Mathf.Sin(robotAngle);
         float angleP = velocity * Mathf.Tan(Mathf.Deg2Rad * steering) / parameters.L;
 
+        // Add random noise to the pose of the robot (to represent a more realistic model):
+        float noiseX = Utils.RandomGaussian(0, parameters.noiseX);
+        float noiseY = Utils.RandomGaussian(0, parameters.noiseY);
+        float noisePhi = Utils.RandomGaussian(0, parameters.noisePhi);
+
         // Update the position and orientation of the robot, given the previous values:
-        robot.transform.position += h * new Vector3(xP, 0, yP);
-        robot.transform.Rotate(Vector3.up, -h * angleP * Mathf.Rad2Deg);
+        robot.transform.position += new Vector3(h * xP + noiseX, 0, h * yP + noiseY);
+        robot.transform.Rotate(Vector3.up, -h * angleP * Mathf.Rad2Deg - noisePhi);
     }
 
     public ModelInputs GetModelInputs() {

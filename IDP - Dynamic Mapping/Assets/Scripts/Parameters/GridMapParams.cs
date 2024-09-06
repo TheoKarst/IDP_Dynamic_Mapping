@@ -10,7 +10,6 @@ public class GridMapParams {
     public int textureUpdateWait = 10;
     public bool showTexture = false;
 
-    public int pixelSize = 1;
     public float cellSize = 0.1f;
     public int mapWidth = 100;
     public int mapHeight = 100;

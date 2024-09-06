@@ -327,8 +327,15 @@ public class DataloaderRobot : Robot {
 
         List<Observation> observations = new List<Observation>();
         for(int i = 0; i < maxCount; i++) {
-            if (ranges[i] >= lidarMinRange)
-                observations.Add(new Observation(ranges[i], -Mathf.Deg2Rad * angles[i], lidarIndex));
+            if (ranges[i] >= lidarMinRange) {
+                Observation observation;
+                if (ranges[i] <= lidarMaxRange)
+                    observation = new Observation(ranges[i], -Mathf.Deg2Rad * angles[i], lidarIndex, false);
+                else
+                    observation = new Observation(lidarMaxRange, -Mathf.Deg2Rad * angles[i], lidarIndex, true);
+
+                observations.Add(observation);
+            }
         }
 
         return observations.ToArray();

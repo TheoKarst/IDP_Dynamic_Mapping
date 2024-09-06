@@ -1,7 +1,6 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Runtime.InteropServices;
 using UnityEditor;
 using UnityEngine;
 
@@ -75,11 +74,11 @@ public class DynamicLine : Primitive {
         // Thus, we initialise this part of the covariance matrix with zeros. The matrix
         // will be updated later with the Kalman Filter when we get more data about this line
         this.covariance = M.DenseOfArray(new double[,] {
-            { covariance[0,0], covariance[0,1], 0, 0 },
-            { covariance[1,0], covariance[1,1], 0, 0 },
-            {      0         ,      0         , 0, 0 },
-            {      0         ,      0         , 0, 0 },
-        }) + Q;
+            { covariance[0,0], covariance[0,1],   0   ,   0    },
+            { covariance[1,0], covariance[1,1],   0   ,   0    },
+            {      0         ,      0         , Q[2,2],   0    },
+            {      0         ,      0         ,   0   , Q[3,3] },
+        });
 
         this.beginPoint = beginPoint;
         this.endPoint = endPoint;
@@ -570,13 +569,13 @@ public class DynamicLine : Primitive {
     public override string ToString() {
         float print_rho = Utils.Round(state.rho, 2);
         float print_theta = Utils.Round(Mathf.Rad2Deg * state.theta, 2);
-        string print_d_rho = Utils.ScientificNotation(state.dRho);
-        string print_d_theta = Utils.ScientificNotation(Mathf.Rad2Deg * state.dTheta);
+        string print_d_rho = Utils.ToString(state.dRho);
+        string print_d_theta = Utils.ToString(Mathf.Rad2Deg * state.dTheta);
 
         float print_cov_rho = Utils.Round(Mathf.Sqrt((float)covariance[0, 0]), 2);
         float print_cov_theta = Utils.Round(Mathf.Rad2Deg * Mathf.Sqrt((float)covariance[1, 1]), 2);
-        string print_cov_d_rho = Utils.ScientificNotation(Mathf.Sqrt((float)covariance[2, 2]));
-        string print_cov_d_theta = Utils.ScientificNotation(Mathf.Rad2Deg * Mathf.Sqrt((float)covariance[3, 3]));
+        string print_cov_d_rho = Utils.ToString(Mathf.Sqrt((float)covariance[2, 2]));
+        string print_cov_d_theta = Utils.ToString(Mathf.Rad2Deg * Mathf.Sqrt((float)covariance[3, 3]));
 
         return "Dynamic Line: [" + beginPoint + "; " + endPoint + "]: " +
             "rho=" + print_rho + " ±" + print_cov_rho +

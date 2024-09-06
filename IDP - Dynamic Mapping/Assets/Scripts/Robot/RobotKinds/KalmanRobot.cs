@@ -1,7 +1,5 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Profiling;
 using static DataloaderRobot;
 
 public class KalmanRobot : Robot {
@@ -26,7 +24,6 @@ public class KalmanRobot : Robot {
     public float douglasPeuckerEpsilon = 0.2f;
 
     public bool drawRays = true;
-    public bool drawCorners = true;
 
     [Header("Kalman Filter")]
     public KalmanParams kalmanParams;
@@ -42,26 +39,22 @@ public class KalmanRobot : Robot {
     private bool newFrameAvailable = false;
     private RobotData currentFrame = null;
 
-    // State estimate of the robot, from the Kalman Filter:
-    private VehicleState robotStateEstimate;
-
     void Start() {
         // Instantiate the LIDAR:
         lidar = new Lidar(lidarObject, raycastCount, lidarMinRange, lidarMaxRange, 0);
 
         // Instantiate the model we are going to use for the robot:
         LidarSetup[] lidarSetups = new LidarSetup[] { lidar.GetSetup() };
-        vehicleModel = new VehicleModel(lidarSetups, controllerParams.L, controllerParams.maxSpeed,
-            Mathf.Deg2Rad * controllerParams.maxSteering, waitBetweenUpdates);
+        vehicleModel = new VehicleModel(lidarSetups, controllerParams.L);
 
         // Instantiate the script to move the robot with arrow keys:
         controller = new RobotController(robotObject, controllerParams);
 
         // Instantiate the Kalman Filter to estimate the robot position. We initialize
         // it with the real pose of the robot:
-        robotStateEstimate = controller.GetRobotRealState();
+        VehicleState initialState = controller.GetRobotRealState();
         Logger kalmanLogger = kalmanParams.writeLogFile ? new Logger(false, "kalman_estimate.csv") : new Logger(false);
-        kalmanFilter = new KalmanFilter(this, robotStateEstimate, vehicleModel, kalmanParams, kalmanLogger, 0);
+        kalmanFilter = new KalmanFilter(this, initialState, vehicleModel, kalmanParams, kalmanLogger, 0);
     }
 
     // Update is called once per frame
@@ -75,38 +68,53 @@ public class KalmanRobot : Robot {
         // while the LIDAR measures, the state estimate and map update are discrete):
         if (currentTime - lastTimeUpdate >= waitBetweenUpdates) {
             // Use raycasting to compute observations from the LIDAR:
-            Observation[][] observations = new Observation[][] {
-                lidar.ComputeObservations()
-            };
-            float maxRange = lidar.GetSetup().max_range;
+            Observation[] observations = lidar.ComputeObservations();
 
             // Get the current inputs of the robot:
             ModelInputs inputs = controller.GetModelInputs();
 
-            Profiler.BeginSample("Extract landmark candidates");
             // Get the observations from the LIDAR that are good landmarks candidates:
-            int[] filteredObservations = LidarUtils.DouglasPeucker(observations[0], douglasPeuckerEpsilon);
-            List<int> landmarkCandidates = LidarUtils.ExtractConvexCorners(observations[0], maxRange, filteredObservations, 220);
+            int[] filteredObservations = LidarUtils.DouglasPeucker(observations, douglasPeuckerEpsilon);
+            List<int> landmarkCandidatesIndices = LidarUtils.ExtractConvexCorners(observations, filteredObservations, 220);
 
-            // Use the static landmark candidates to update our state estimate. To find the static
-            // landmarks, we need a state estimate. For that we can use the vehicle model and the
-            // previous state estimate. Using these landmarks, the Kalman Filter will then provide
-            // a better estimate of the real state of the robot:
-            VehicleState statePrediction = vehicleModel.PredictCurrentState(robotStateEstimate, inputs, currentTime - lastTimeUpdate);
-            List<Observation> staticLandmarkCandidates = LidarUtils.GetStaticObservations(observations[0], landmarkCandidates, manager.GetWorldModel(), vehicleModel, statePrediction);
-            Profiler.EndSample();
+            // Using the world model, we want to identify which landmarks corresponds to static objects. For that, we need
+            // a pose estimate for the robot. Since we still haven't identified which landmarks to use for localisation,
+            // we have to rely only on the prediction step for the robot state estimate:
+            WorldModel worldModel = manager.GetWorldModel();
 
-            Profiler.BeginSample("Kalman Update");
+            List<Observation> landmarkCandidates;
+            if(worldModel != null) {
+                // Get the previous state estimate:
+                VehicleState previousStateEstimate = kalmanFilter.GetStateEstimate();
+
+                // Perform the prediction step of the Kalman Filter to estimate the current pose of the robot.
+                // We cannot use the update step of the Kalman Filter here, since we are still trying to figure out
+                // which observations to use for the state correction:
+                VehicleState statePrediction = vehicleModel.PredictCurrentState(previousStateEstimate, inputs, currentTime - lastTimeUpdate);
+
+                // From this estimate, we can compute the world space position of the observations and detect if they are static:
+                landmarkCandidates = LidarUtils.GetStaticObservations(observations, landmarkCandidatesIndices, 
+                    worldModel, vehicleModel, statePrediction);
+            }
+
+            // If we have no world model, we cannot find which ones are static or not:
+            else {
+                landmarkCandidates = new List<Observation>(landmarkCandidatesIndices.Count);
+                foreach (int index in landmarkCandidatesIndices) {
+                    landmarkCandidates.Add(observations[index]);
+                }
+            }
+
             // Use these observations to update the robot state estimate:
-            kalmanFilter.UpdateStateEstimate(staticLandmarkCandidates, inputs, currentTime);
-            VehicleState vehicleState = kalmanFilter.GetStateEstimate();
-            Matrix<double> vehicleStateCovariance = kalmanFilter.GetStateCovarianceEstimate();
-            Profiler.EndSample();
+            kalmanFilter.UpdateStateEstimate(landmarkCandidates, inputs, currentTime);
 
             // Create a new data frame to represent the current state of the robot:
-            currentFrame = new RobotData(currentTime, vehicleState, vehicleStateCovariance, observations);
-            newFrameAvailable = true;
+            currentFrame = new RobotData(currentTime, 
+                kalmanFilter.GetStateEstimate(), 
+                kalmanFilter.GetStateCovarianceEstimate(), 
+                new Observation[][] { observations });
 
+            newFrameAvailable = true;
             lastTimeUpdate = currentTime;
         }
     }

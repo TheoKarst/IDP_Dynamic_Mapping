@@ -7,13 +7,23 @@ from observation import Observation
 
 class Dataloader:
     def __init__(self, folder):
-        self.folder = folder
-        self.current_frame_id = -2
-        self.current_frame = None
-        self.next_frame = None
-        self.reading_complete = False
+        """ Instantiates a dataloader to load recorded data 
+        
+            :param folder: The folder in which the data is
+        """
+
+        self.folder = folder            # Folder from which the data is loaded
+        self.current_frame_id = -2      # Index of the current frame of data
+        self.current_frame = None       # JSON dictionnary containing the current frame
+        self.next_frame = None          # JSON dictionnary containing the next frame
+        self.reading_complete = False   # False if there are still frames to read
 
     def load_robot_setup(self):
+        """
+        Loads the data in the config file and return the initial setup of the robot as a dictionnary
+        """
+
+        # Load data from the config file:
         data = self.load_data(os.path.join(self.folder, "config.json"))
 
         # Extract the initial pose of the robot from the data:
@@ -30,40 +40,60 @@ class Dataloader:
                 setup['min_range'], setup['max_range'])
             
             lidars.append(lidar)
+
+        # Create a dictionnary to put the setup data for the robot:
+        robot_config = {}
+        robot_config['pose'] = robot_pose
+        robot_config['lidars'] = lidars
             
-        return Robot(robot_pose, lidars, 10, 20)
+        return robot_config
 
-    def update(self, robot : Robot, time : float):
+    def load_current_frame(self, time : float):
+        """
+        Loads data in the data folder until the next frame has a timestamp greater than
+        the current time and return the current frame as a dictionnary or None if the
+        reading is complete
+        
+            :param time: Current time in the simulation
+        """
+
         if self.reading_complete:
-            return
+            return None
 
+        # Continue reading frames until the next frame has a timestamp greater than the current time:
         while self.next_frame is None or self.next_frame['timestamp'] <= time:
             self.current_frame_id += 1
             filename = os.path.join(self.folder, f"frame_{self.current_frame_id + 1}.json")
 
             if not os.path.exists(filename):
                 self.reading_complete = True
-                return
+                return None
 
             self.current_frame = self.next_frame
             self.next_frame = self.load_data(filename)
 
-        if self.current_frame is not None:
-            # Get the current pose of the robot:
-            robot_pose = Pose2D(**self.current_frame['robot_pose'])
+        # Get the current pose of the robot:
+        robot_pose = Pose2D(**self.current_frame['robot_pose'])
 
-            # Get the observations from the LIDARs:
-            lidar_observations = []
-            for lidar_data in self.current_frame['lidars_data']:
-                observations = []
-                for range, angle in zip(lidar_data['ranges'], lidar_data['angles']):
-                    observations.append(Observation(range, angle))
+        # Get the observations from the LIDARs:
+        lidar_observations = []
+        for lidar_data in self.current_frame['lidars_data']:
+            observations = []
+            for range, angle in zip(lidar_data['ranges'], lidar_data['angles']):
+                observations.append(Observation(range, angle))
 
-                lidar_observations.append(observations)
+            lidar_observations.append(observations)
 
-            robot.update(robot_pose, lidar_observations)
+        # Return the frame as a dictionnary:
+        data_frame = {}
+        data_frame['robot_pose'] = robot_pose
+        data_frame['lidar_observations'] = lidar_observations
 
+        return data_frame
+    
     def load_data(self, path : str):
+        """ Loads a json file and returns data as a dictionnary """
+
         with open(path, "r") as f:
             return json.load(f)
 

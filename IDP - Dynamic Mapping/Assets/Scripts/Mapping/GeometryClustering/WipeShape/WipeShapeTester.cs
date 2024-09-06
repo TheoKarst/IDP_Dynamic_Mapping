@@ -60,8 +60,7 @@ public class WipeShapeTester : MonoBehaviour {
             // Get the world space position of the observations:
             Vector2[] positions = new Vector2[observations.Length];
             for(int i = 0; i < observations.Length; i++) {
-                Observation observation = new Observation(observations[i].r, observations[i].theta, lidarIndex);
-                positions[i] = model.ComputeObservationPositionEstimate(data.vehicleState, observation);
+                positions[i] = model.ComputeObservationPositionEstimate(data.vehicleState, observations[i]);
             }
             this.positions = positions;
 

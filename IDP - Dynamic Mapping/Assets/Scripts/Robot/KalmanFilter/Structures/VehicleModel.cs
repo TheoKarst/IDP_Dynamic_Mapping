@@ -29,20 +29,14 @@ public class VehicleModel {
         this.ObservationError = observationError;
     }
 
-    public VehicleModel(LidarSetup[] lidarSetups, float L, float maxSpeed, float maxSteering, float deltaTime) {
+    public VehicleModel(LidarSetup[] lidarSetups, float L) {
         this.lidarSetups = lidarSetups;
         this.L = L;
 
-        // Covariance of the error on the linear and angular position of the robot:
-        float ePos = 2 * deltaTime * maxSpeed;
-        float ePhi = 2 * deltaTime * maxSpeed * Mathf.Tan(maxSteering) / L;
-        
-        // Covariance of the measure distance and angle of the LIDAR;
+        float ePos = 0.1f;
+        float ePhi = 3 * Mathf.Deg2Rad;
         float eR = 0.2f;
         float eTheta = 5 * Mathf.Deg2Rad;
-
-        Debug.Log("Instantiating a robot model. ePos=" + ePos + ", ePhi=" + Mathf.Rad2Deg * ePhi
-            + "°, eR=" + eR + ", eTheta=" + Mathf.Rad2Deg * eTheta + "°");
 
         // Covariance matrix for the process noise errors (x, y, phi):
         this.ProcessNoiseError = M.Diagonal(new double[] {
@@ -96,7 +90,7 @@ public class VehicleModel {
         float ri = Mathf.Sqrt(dX * dX + dY * dY);
         float thetai = Mathf.Atan2(dY, dX) - stateEstimate.phi - lidarPose.angle;
 
-        return new Observation(ri, thetai, lidarIndex);
+        return new Observation(ri, thetai, lidarIndex, false);
     }
 
     // From the vehicle state estimate, compute the position of the given observation in
@@ -164,7 +158,7 @@ public class VehicleModel {
     // TESTING: Compute the observation position estimate for a list of observations.
     // The objective is to have a faster function:
     public (Vector<double>[], Matrix<double>[]) ComputeObservationsPositionsEstimates(
-        VehicleState stateEstimate, Matrix<double> stateCovariance, Observation[] observations, float maxRange, int lidarIndex) {
+        VehicleState stateEstimate, Matrix<double> stateCovariance, Observation[] observations, int lidarIndex) {
 
         // Get the local pose of the LIDAR which made the observations:
         Pose2D lidarPose = lidarSetups[lidarIndex].local_pose;
@@ -200,7 +194,7 @@ public class VehicleModel {
             Observation observation = observations[i];
 
             // If the observation is out of range, ignore it:
-            if (observation.r > maxRange)
+            if (observation.outOfRange)
                 continue;
 
             float cosphi_theta = Mathf.Cos(phi + observation.theta + lidarPose.angle);

@@ -29,19 +29,23 @@ public class GeometryClustering {
     private int logLine = 0;
     private int newLineCount = 0;
 
-    public GeometryClustering(GeometryClusterParams parameters, GridMap gridMap) {
+    public GeometryClustering(GeometryClusterParams parameters) {
         this.parameters = parameters;
-        this.gridMap = gridMap;
+
+        this.gridMap = new GridMap(
+            parameters.width, parameters.height, 
+            parameters.centerX, parameters.centerY, 
+            parameters.cellSize);
 
         if(parameters.LogLinesData) {
             mapModelIdToColumns = new Dictionary<int, int>();
 
             lineLogFile = File.CreateText("./Assets/Data/logs/lines_data.csv");
-            lineLogFile.Write("Iteration;");
+            lineLogFile.Write("Time (s);Iteration;");
             for (int i = 0; i < MAX_LOG_LINES; i++)
                 lineLogFile.Write("matchCount;isStatic;"
-                    + "rho (m);theta (°);dRho (m/s);dTheta(°/s);"
-                    + "eRho (m);eTheta (°);eDRho (m/s);eDTheta (°/s);");
+                    + "rho (m);theta (deg);dRho (m/s);dTheta(deg/s);"
+                    + "eRho (m);eTheta (deg);eDRho (m/s);eDTheta (deg/s);");
             lineLogFile.WriteLine();
         }
     }
@@ -127,6 +131,10 @@ public class GeometryClustering {
         if(parameters.drawWipeShape && currentWipeShape != null) {
             currentWipeShape.DrawGizmos(height);
         }
+
+        if(parameters.drawMatchGridMap && gridMap != null) {
+            gridMap.DrawGizmos(height);
+        }
     }
 
     /*
@@ -172,15 +180,12 @@ public class GeometryClustering {
         // All the observations are supposed to come from the same LIDAR:
         int lidarIndex = observations[0].lidarIndex;
 
-        // Get the max range of the LIDAR, using the vehicle model:
-        float maxRange = model.GetLidarSetup(lidarIndex).max_range;
-
         // Compute the position of all the observations that are not out of range:
         (Vector<double>[] Xps, Matrix<double>[] Cps) 
-            = model.ComputeObservationsPositionsEstimates(vehicleState, stateCovariance, observations, maxRange, lidarIndex);
+            = model.ComputeObservationsPositionsEstimates(vehicleState, stateCovariance, observations, lidarIndex);
 
         for(int i = 0; i < observations.Length; i++) {
-            if (observations[i].r <= maxRange) {
+            if (!observations[i].outOfRange) {
                 float x = (float)Xps[i][0];
                 float y = (float)Xps[i][1];
                 float theta = observations[i].theta;
@@ -682,7 +687,7 @@ public class GeometryClustering {
             lineData[index + 9] = eDTheta * Mathf.Rad2Deg;
         }
 
-        lineLogFile.Write(logLine + ";");
+        lineLogFile.Write(Time.realtimeSinceStartup + ";" + logLine + ";");
         for (int i = 0; i < lineData.Length; i++)
             lineLogFile.Write(lineData[i] + ";");
 

@@ -100,28 +100,29 @@ public class KalmanFilter {
         Matrix<double> cov;
         Vector<double> position;
 
-        // Position and error estimate of the robot:
+        // Position estimate of the robot, using the prediction only (without observations):
         // Gizmos.color = Color.yellow;
-        // Vector3 robotCenter = new Vector3(statePredictionOnly.x, 0.2f, statePredictionOnly.y);
-        // Gizmos.DrawSphere(robotCenter, 0.1f);
+        // Vector3 robotCenterPred = new Vector3(statePredictionOnly.x, 0.2f, statePredictionOnly.y);
+        // Gizmos.DrawSphere(robotCenterPred, 0.1f);
 
+        // Position and error estimate of the robot pose using Kalman Filter (prediction + update): 
         Gizmos.color = Color.red;
         cov = stateCovarianceEstimate.ExtractPvv();
-        Vector3 robotCenter = new Vector3(stateEstimate.x, 0.11f, stateEstimate.y);
-        Gizmos.DrawCube(robotCenter, new Vector3(
+        Vector3 robotCenterUpdated = new Vector3(stateEstimate.x, 0.11f, stateEstimate.y);
+        Gizmos.DrawCube(robotCenterUpdated, new Vector3(
             Mathf.Sqrt((float) cov[0,0]), 
             Mathf.Sqrt((float) cov[2,2]), 
             Mathf.Sqrt((float) cov[1,1])));
 
         Vector3 direction = Quaternion.AngleAxis(-Mathf.Rad2Deg * stateEstimate.phi, Vector3.up)
             * Vector3.right;
-        Gizmos.DrawLine(robotCenter, robotCenter + direction);
+        Gizmos.DrawLine(robotCenterUpdated, robotCenterUpdated + direction);
 
         if (drawConfirmedLandmarks) {
             // Position and error estimate of the confirmed landmarks:
             for (int i = 0; i < confirmedLandmarks.Count; i++) {
                 position = confirmedLandmarks[i].getPosition();
-                cov = stateCovarianceEstimate.ExtractLandmarkCovariance(i);
+                // cov = stateCovarianceEstimate.ExtractLandmarkCovariance(i);
 
                 Gizmos.color = Color.green;
                 // Gizmos.DrawCube(new Vector3((float) position[0], 0.5f, (float) position[1]),
@@ -147,7 +148,7 @@ public class KalmanFilter {
             // Also draw the position of the observations position estimates:
             for (int i = 0; i < observationsPos.Count; i++) {
                 position = observationsPos[i];
-                cov = observationsCov[i];
+                // cov = observationsCov[i];
 
                 Gizmos.color = Color.blue;
                 Gizmos.DrawCube(new Vector3((float) position[0], 0.5f, (float) position[1]),
@@ -270,6 +271,8 @@ public class KalmanFilter {
 
         // Write data to the log file:
         logger.Log(robot.GetRobotRealState(), statePredictionOnly, stateEstimate);
+
+        Debug.Log("Confirmed landmarks: " + confirmedLandmarks.Count + ", Potential landmarks: " + potentialLandmarks.Count);
     }
 
     // From an observation of the LIDAR, the predicted state, the predicted state covariance estimate

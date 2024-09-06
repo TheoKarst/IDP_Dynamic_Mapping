@@ -14,4 +14,8 @@ public class ControllerParams {
     public float maxSteering = 10;
 
     public float friction = 10;
+
+    public float noiseX = 0;
+    public float noiseY = 0;
+    public float noisePhi = 0;
 }
