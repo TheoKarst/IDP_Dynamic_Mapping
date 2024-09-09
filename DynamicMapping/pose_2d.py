@@ -7,7 +7,7 @@ class Pose2D:
         self.angle = angle
 
     def get_global_pose(self, parent_pose : 'Pose2D') -> 'Pose2D':
-        """ Compute the global pose of this pose """
+        """ Compute the global pose of this pose, using the pose of the parent """
 
         costheta = math.cos(parent_pose.angle)
         sintheta = math.sin(parent_pose.angle)

@@ -1,6 +1,5 @@
 from pose_2d import Pose2D
 from lidar import Lidar
-from observation import Observation
 # from scene import Scene
 
 class Robot:
@@ -29,17 +28,23 @@ class Robot:
         self.width = width
         self.height = height
 
-    def update(self, robot_pose : Pose2D, lidar_observations : list[list[Observation]]):
+    def update(self, robot_pose : Pose2D, lidars_observations : list[dict]):
         self.pose = robot_pose
         
-        for index, observations in enumerate(lidar_observations):
-            self.lidars[index].update_observations(observations)
+        for index, observations in enumerate(lidars_observations):
+            self.lidars[index].update(self.pose, observations)
 
-    def draw(self, scene):
+    def draw(self, scene : 'Scene', draw_rays : bool):
         # When drawing the rectangle, width and height are inverted because when
         # the angle is zero, the robot should be oriented to the right:
         scene.draw_rectangle(self.pose.x, self.pose.y, 
                              self.height, self.width, self.pose.angle, self.color)
 
         for lidar in self.lidars:
-            lidar.draw(scene, self.pose, True)
+            lidar.draw(scene, draw_rays)
+
+    def get_sensor_pose(self, sensor_index : int):
+        """ Returns the world pose of the sensor with the given index """
+
+        return self.lidars[sensor_index].global_pose
+

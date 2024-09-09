@@ -34,6 +34,9 @@ while running:
         elif event.type == py.MOUSEBUTTONDOWN and event.button == 1:
             py.mouse.get_rel()
 
+        elif event.type == py.KEYDOWN:
+            scene.on_key_down(event.key)
+
     if py.mouse.get_pressed(num_buttons=3)[0]:
         delta_x, delta_y = py.mouse.get_rel()
         scene.move(delta_x, -delta_y)

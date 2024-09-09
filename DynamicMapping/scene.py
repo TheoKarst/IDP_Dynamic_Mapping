@@ -1,12 +1,15 @@
 import math
 import pygame as py
+import numpy as np
 from robot import Robot
 from dataloader import Dataloader
+from grids_mapping_bresenham import GridsMappingBresenham
+from grids_mapping_square import GridsMappingSquare
 
 folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\StaticCapture_0"
 
 class Scene:
-    def __init__(self, screen : py.Surface, centerX, centerY, pixels_per_meter):
+    def __init__(self, screen : py.Surface, centerX : float, centerY : float, pixels_per_meter : float):
         self.screen = screen
 
         # World position of the top left corner of the camera:
@@ -22,6 +25,13 @@ class Scene:
         robot_setup = self.dataloader.load_robot_setup()
         self.robot = Robot(**robot_setup)
 
+        # Instantiate a manager for grid mapping:
+        self.world_maps = GridsMappingSquare((0,0), 700, 400, 0.1)
+        self.world_maps.setup_using_frames_counts(60, 5, 0.999)
+
+        self.draw_maps = True
+        self.draw_rays = True
+
         # For information, print the boundaries of the screen in world space:
         xmin, ymin = self.world_coordinates(0, 0)
         xmax, ymax = self.world_coordinates(screen.get_width(), screen.get_height())
@@ -35,12 +45,67 @@ class Scene:
         if data_frame is not None:
             self.robot.update(**data_frame)
 
+            # For each LIDAR, use the observations of that LIDAR to update the world model:
+            for lidar_index, observations in enumerate(data_frame['lidars_observations']):
+                # Get the global pose of the current LIDAR:
+                lidar_pose = self.robot.get_sensor_pose(lidar_index)
+
+                # Use the observations of the LIDAR to update the static and dynamic maps:
+                self.world_maps.update_maps(lidar_pose, observations)
+
     def draw(self):
         """ Draws the whole scene """
 
-        self.robot.draw(self)
+        # Draw the static and dynamic maps if necessary:
+        if self.draw_maps:
+            self.world_maps.draw(self)
 
-    def draw_rectangle(self, x, y, width, height, angle, color):
+        self.robot.draw(self, self.draw_rays)
+
+    def on_key_down(self, key):
+        """ Should be called when a key button on the keyboard is pressed """
+
+        # If the M-key is pressed, toggle the drawing of the static and dynamic maps:
+        if key == py.K_m:
+            self.draw_maps = not self.draw_maps
+
+        if key == py.K_r:
+            self.draw_rays = not self.draw_rays
+
+    def draw_grid(self, x : float, y : float, cell_size : float, data : np.ndarray):
+        """
+        Draws a grid in the scene
+        
+            :param x: x-coordinate of the center of the grid, in meters
+            :param y: y-coordinate of the center of the grid, in meters
+            :param cell_size: Size of each cell in the grid, in meters
+            :param data: 2D ndarray of data, containing grayscales between 0 and 1
+        """
+
+        # Create a surface to draw the grid:
+        surface = py.Surface(data.shape)
+
+        # Convert the data into grayscales between 0 and 255:
+        data = (255 * data).astype(np.uint8, copy=False)
+
+        # Convert to RGB representation by stacking three times the same colors
+        # and put the data in the surface:
+        py.surfarray.blit_array(surface, np.stack((data, ) * 3, axis=-1))
+
+        # Reshape the surface:
+        width = data.shape[0] * cell_size * self.pixels_per_meter
+        height = data.shape[1] * cell_size * self.pixels_per_meter
+        surface = py.transform.scale(surface, (width, height))
+
+        # Compute the center of the surface:
+        rect = surface.get_rect()
+        rect.center = self.screen_coordinates(x, y)
+
+        self.screen.blit(surface, rect)
+
+
+    def draw_rectangle(self, x : float, y : float, width : float, height : float, 
+                       angle : float, color : tuple):
         """
         Draws a rectangle in the scene
 
@@ -72,7 +137,7 @@ class Scene:
 
         py.draw.polygon(self.screen, color, corners)
 
-    def draw_line(self, x1, y1, x2, y2, color):
+    def draw_line(self, x1 : float, y1 : float, x2 : float, y2 : float, color : tuple):
         """
         Draws a line in the scene
         
@@ -88,7 +153,7 @@ class Scene:
 
         py.draw.line(self.screen, color, (x1, y1), (x2, y2))
 
-    def draw_circle(self, x, y, radius, color):
+    def draw_circle(self, x : float, y : float, radius : float, color : tuple):
         """
         Draws a circle in the scene
         

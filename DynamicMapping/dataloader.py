@@ -1,9 +1,9 @@
 import json
 import os
+import numpy as np
 from robot import Robot
 from lidar import Lidar
 from pose_2d import Pose2D
-from observation import Observation
 
 class Dataloader:
     def __init__(self, folder):
@@ -76,18 +76,20 @@ class Dataloader:
         robot_pose = Pose2D(**self.current_frame['robot_pose'])
 
         # Get the observations from the LIDARs:
-        lidar_observations = []
+        lidars_observations = []
         for lidar_data in self.current_frame['lidars_data']:
-            observations = []
-            for range, angle in zip(lidar_data['ranges'], lidar_data['angles']):
-                observations.append(Observation(range, angle))
 
-            lidar_observations.append(observations)
+            # Observations are represented using dictionnaries of ndarrays for performance:
+            observations = {}
+            observations['ranges'] = np.array(lidar_data['ranges'])
+            observations['angles'] = np.array(lidar_data['angles'])
+
+            lidars_observations.append(observations)
 
         # Return the frame as a dictionnary:
         data_frame = {}
         data_frame['robot_pose'] = robot_pose
-        data_frame['lidar_observations'] = lidar_observations
+        data_frame['lidars_observations'] = lidars_observations
 
         return data_frame
     
