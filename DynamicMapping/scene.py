@@ -3,8 +3,8 @@ import pygame as py
 import numpy as np
 from robot import Robot
 from dataloader import Dataloader
-from grids_mapping_bresenham import GridsMappingBresenham
-from grids_mapping_square import GridsMappingSquare
+from mapping.grid_maps.grids_mapping_bresenham import GridsMappingBresenham
+from mapping.grid_maps.grids_mapping_rectangle import GridsMappingRectangle
 
 folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\StaticCapture_0"
 
@@ -26,7 +26,7 @@ class Scene:
         self.robot = Robot(**robot_setup)
 
         # Instantiate a manager for grid mapping:
-        self.world_maps = GridsMappingSquare((0,0), 700, 400, 0.1)
+        self.world_maps = GridsMappingRectangle((0,0), 700, 400, 0.1)
         self.world_maps.setup_using_frames_counts(60, 5, 0.999)
 
         self.draw_maps = True
