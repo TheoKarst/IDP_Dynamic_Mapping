@@ -36,13 +36,31 @@ class Lidar:
         
         # LIDAR observations are represented using a dict of ndarrays
         # for performance reasons:
-        self.observations = None
+        self.observations = {}
 
     def update(self, robot_pose : Pose2D, observations : dict):
-        """ Updates the global pose and the observations of the LIDAR """
+        """ 
+        Updates the global pose and the observations of the LIDAR, sorts
+        observations by angle and clean inconsistent observations 
+        """
 
         self.global_pose = self.local_pose.get_global_pose(robot_pose)
-        self.observations = observations
+        
+        # Remove observations with a range less than self.min_range:
+        keep_indices = observations['ranges'] >= self.min_range
+        self.observations['ranges'] = observations['ranges'][keep_indices]
+        self.observations['angles'] = observations['angles'][keep_indices]
+
+        # Sort observations by angle:
+        sorted_indices = np.argsort(self.observations['angles'])
+        self.observations['ranges'] = self.observations['ranges'][sorted_indices]
+        self.observations['angles'] = self.observations['angles'][sorted_indices]
+
+        # Clamp observations out of range:
+        out_of_range = self.observations['ranges'] >= self.max_range
+        self.observations['ranges'][out_of_range] = self.max_range
+        self.observations['out_of_range'] = out_of_range
+
 
     def draw(self, scene : 'Scene', draw_rays : bool):
         """ Draws a circle representing the LIDAR and optionnaly the LIDAR rays """
@@ -51,33 +69,29 @@ class Lidar:
         if draw_rays and self.observations is not None:
             rays_color = (255, 0, 0)
 
-            for range, angle in zip(self.observations['ranges'], self.observations['angles']):
-                # Get the position of the observation:
-                observation_x, observation_y = self.observation_position(range, angle)
-
-                # DRaw a line between the LIDAR and the observation position:
+            # For each observation, draw a line between the LIDAR and that observation:
+            for position in self.observations_position():
                 scene.draw_line(self.global_pose.x, self.global_pose.y, 
-                                observation_x, observation_y, rays_color)
+                                position[0], position[1], rays_color)
 
         # Draw the LIDAR itself:
         scene.draw_circle(self.global_pose.x, self.global_pose.y, self.radius, self.color)
 
-    def observation_position(self, range, angle):
+    def observations_position(self):
         """
-        Computes the global position of the given observation made by the LIDAR
-        
-            :param range: Range of the observation in meters
-            :param angle: Angle between the LIDAR forward and the observation (counterclockwise),
-                in radians
-            :returns: The position of the observation as a tuple (x, y)
+        Computes the global position of the observation made by the LIDAR
+            :returns: The world position of the observations a ndarray
         """
+
+        observations_count = len(self.observations['ranges'])
 
         # Compute the global angle of the observation:
-        theta = self.global_pose.angle + angle
+        theta = self.global_pose.angle + self.observations['angles']
 
-        x = self.global_pose.x + range * np.cos(theta)
-        y = self.global_pose.y + range * np.sin(theta)
+        positions = np.zeros((observations_count, 2))
+        positions[:,0] = self.global_pose.x + self.observations['ranges'] * np.cos(theta)
+        positions[:,1] = self.global_pose.y + self.observations['ranges'] * np.sin(theta)
 
-        return x, y
+        return positions
 
     

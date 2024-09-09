@@ -5,6 +5,7 @@ from robot import Robot
 from dataloader import Dataloader
 from mapping.grid_maps.grids_mapping_bresenham import GridsMappingBresenham
 from mapping.grid_maps.grids_mapping_rectangle import GridsMappingRectangle
+from mapping.geometry_maps.geometry_mapping import GeometryMapping
 
 folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\StaticCapture_0"
 
@@ -26,8 +27,11 @@ class Scene:
         self.robot = Robot(**robot_setup)
 
         # Instantiate a manager for grid mapping:
-        self.world_maps = GridsMappingRectangle((0,0), 700, 400, 0.1)
-        self.world_maps.setup_using_frames_counts(60, 5, 0.999)
+        self.grid_maps = GridsMappingRectangle((0,0), 700, 400, 0.1)
+        self.grid_maps.setup_using_frames_counts(60, 5, 0.999)
+
+        # Instantiate a manager for mapping using geometric primitives:
+        self.geometry_map = GeometryMapping()
 
         self.draw_maps = True
         self.draw_rays = True
@@ -40,25 +44,37 @@ class Scene:
     def update(self):
         """ Called each frame, updates the whole scene """
 
-        data_frame = self.dataloader.load_current_frame(py.time.get_ticks() / 1000)
+        # Get the current time in seconds (elapsed time since pygame.init() was called):
+        current_time = py.time.get_ticks() / 1000
+
+        data_frame = self.dataloader.load_current_frame(current_time)
 
         if data_frame is not None:
+            # The first thing to update is the robot, to have the right position for the 
+            # robot, the LIDARs and the observations during the frame:
             self.robot.update(**data_frame)
 
-            # For each LIDAR, use the observations of that LIDAR to update the world model:
-            for lidar_index, observations in enumerate(data_frame['lidars_observations']):
-                # Get the global pose of the current LIDAR:
-                lidar_pose = self.robot.get_sensor_pose(lidar_index)
+            # For each LIDAR, use the observations of that LIDAR to update the world models:
+            for lidar_index in range(len(self.robot.lidars)):
+
+                # Get the global pose of the LIDAR:
+                lidar_pose = self.robot.lidars[lidar_index].global_pose
+
+                # Get the observations of that LIDAR:
+                observations = self.robot.lidars[lidar_index].observations
 
                 # Use the observations of the LIDAR to update the static and dynamic maps:
-                self.world_maps.update_maps(lidar_pose, observations)
+                self.grid_maps.update_maps(lidar_pose, observations)
+
+                # Use the observations of the LIDAR to update the map using geometric primitives:
+                self.geometry_map.update(self.robot, lidar_index, observations, current_time)
 
     def draw(self):
         """ Draws the whole scene """
 
         # Draw the static and dynamic maps if necessary:
         if self.draw_maps:
-            self.world_maps.draw(self)
+            self.grid_maps.draw(self)
 
         self.robot.draw(self, self.draw_rays)
 

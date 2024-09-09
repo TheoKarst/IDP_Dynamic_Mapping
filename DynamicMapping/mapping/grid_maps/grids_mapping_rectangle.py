@@ -72,7 +72,8 @@ class GridsMappingRectangle(GridsMapping):
         observed = (ranges <= nearest_range + self.alpha / 2) & (angles <= max_angle)
         
         # Among the observed cells, compute which ones are occupied:
-        occupied = (np.abs(ranges - nearest_range) <= self.alpha / 2)[observed]
+        occupied = ((np.abs(ranges - nearest_range) <= self.alpha / 2) \
+                    & np.logical_not(observations['out_of_range'][nearest_ray]))[observed]
         
         # Compute for each observed cell if it's currently considered free from static objects:
         prev_static_free = self.log_odds_to_proba(self.static_map[observed]) <= 0.1
@@ -103,12 +104,10 @@ class GridsMappingRectangle(GridsMapping):
 
             :param angles: 2D array of containing for each cell the angle between
                 that cell and the LIDAR
-            :param observations: Observations made by the LIDAR
+            :param observations: Observations made by the LIDAR, that must be sorted
+                by increasing values of angles
             :returns: For each cell, the index of the closest ray from that cell
         """
-
-        # First, sort the observations by angle if necessary:
-        utils.sort_observations(observations)
 
         # Use searchsorted to find the two closest observations. For each cell,
         # we get the index of the first observation greater or equal to the

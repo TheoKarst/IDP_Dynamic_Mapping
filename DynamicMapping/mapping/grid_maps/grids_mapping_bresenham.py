@@ -46,8 +46,8 @@ class GridsMappingBresenham(GridsMapping):
 
         # For each observation, use Bresenham's algorithm to project the ray onto the grids,
         # detect which cells are currently free or occupied and update the maps:
-        for x, y in zip(x1, y1):
-            self.bresenham(x0, y0, x, y, True)
+        for x, y, out_of_range in zip(x1, y1, observations['out_of_range']):
+            self.bresenham(x0, y0, x, y, not out_of_range)
 
     def bresenham(self, x0 : int, y0 : int, x1 : int, y1 : int, collision : bool):
         """
