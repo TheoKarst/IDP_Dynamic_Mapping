@@ -128,95 +128,104 @@ class LineBuilder:
 
     # Compute the covariance matrix of the parameters (rho, theta) of the line:
     def compute_covariance(self):
-        # TODO: Implement this !
-        return None
+        # We first convert the array of points into Numpy arrays:
+        positions = np.array(self.points['positions'])
+        covariances = np.array(self.points['covariances'])
 
-    # private Matrix<double> ComputeCovariance() {
-    #     // Step 1: Compute Cv (covariance matrix on m,q or s,t):
-    #     Matrix<double> Cv = M.Dense(2, 2, 0);    // 2*2 Zero Matrix
+        n = len(positions)
+        N1 = self.Rxx * n - self.Rx * self.Rx
+        N2 = self.Ryy * n - self.Ry * self.Ry
+        T = self.Rxy * n - self.Rx * self.Ry
 
-    #     int n = points.Count;
-    #     float N1 = Rxx * n - Rx * Rx;
-    #     float N2 = Ryy * n - Ry * Ry;
-    #     float T = Rxy * n - Rx * Ry;
+        # If we are using (m, q) representation:
+        if N1 >= N2:
+            m = T / N1
+            q = (self.Ry - m * self.Rx) / n
 
-    #     Matrix<double> Hl;
-    #     if (N1 >= N2) {     // We use (m,q) representation
-    #         float m = T / N1;
-    #         float q = (Ry - m * Rx) / n;
+            # First compute the covariance matrix of m, q:
+            Cv = self.compute_mq_covariance(positions, covariances, m, N1, T)
 
-    #         for (int i = 0; i < points.Count; i++) {
-    #             Matrix<double> J = JacobianMQi(m, N1, T, i);
-    #             Matrix<double> Cp = points[i].Cp;
-    #             Cv += J * Cp.TransposeAndMultiply(J);
-    #         }
+            # Then compute the Jacobian of (rho, theta) with respect to (m, q):
+            drho_dm = -m * abs(q) / ((1 + m*m) ** (3/2))
+            drho_dq = np.sign(q) / np.sqrt(m*m + 1)
+            dtheta_dm = 1 / (1 + m*m)
+            dtheta_dq = 0
 
-    #         // Compute Hl, Jacobian of (rho, theta) with respect to (m, q):
-    #         float tmp = 1 + m * m;
-    #         float drho_dm = -m * Mathf.Abs(q) / Mathf.Pow(tmp, 1.5f);
-    #         float drho_dq = Mathf.Sign(q) / Mathf.Sqrt(tmp);
-    #         float dtheta_dm = 1 / tmp;
-    #         float dtheta_dq = 0;
+            Hl = np.array([[drho_dm,    drho_dq  ], 
+                           [dtheta_dm,  dtheta_dq]])
 
-    #         Hl = M.DenseOfArray(new double[,] {
-    #             { drho_dm,      drho_dq },
-    #             { dtheta_dm,    dtheta_dq } });
-    #     }
-    #     else {              // We use (s,t) representation
-    #         float s = T / N2;
-    #         float t = (Rx - s * Ry) / n;
+        # Else, if we are using (s, t) representation:
+        else:
+            s = T / N2
+            t = (self.Rx - s * self.Ry) / n
 
-    #         for (int i = 0; i < points.Count; i++) {
-    #             Matrix<double> J = JacobianSTi(s, N2, T, i);
-    #             Matrix<double> Cp = points[i].Cp;
-    #             Cv += J * Cp.TransposeAndMultiply(J);
-    #         }
+            # First compute the covariance matrix of s, t:
+            Cv = self.compute_st_covariance(positions, covariances, s, N2, T)
 
-    #         // Compute Hl, Jacobian of (rho, theta) with respect to (s, t):
-    #         float tmp = 1 + s * s;
-    #         float drho_ds = -s * Mathf.Abs(t) / Mathf.Pow(tmp, 1.5f);
-    #         float drho_dt = Mathf.Sign(t) / Mathf.Sqrt(tmp);
-    #         float dtheta_ds = -1 / tmp;
-    #         float dtheta_dt = 0;
+            # Then compute the Jacobian of (rho, theta) with respect to (s, t):
+            drho_ds = -s * np.sign(t) / ((1 + s*s) ** (3/2))
+            drho_dt = np.sign(t) / np.sqrt(1 + s*s)
+            dtheta_ds = -1 / (1 + s*s)
+            dtheta_dt = 0
 
-    #         Hl = M.DenseOfArray(new double[,] {
-    #             { drho_ds,      drho_dt },
-    #             { dtheta_ds,    dtheta_dt } });
-    #     }
+            Hl = np.array([[drho_ds,    drho_dt  ],
+                           [dtheta_ds,  dtheta_dt]])
+            
+        # The covariance matrix of (rho, theta) can finally be computed using:
+        return Hl @ Cv @ Hl.T
+    
+    def compute_mq_covariance(self, positions, covariances, m, N1, T):
+        n = len(positions)
 
-    #     // Setp 2: Use the previously computed Cv and Hl to compute the covariance
-    #     // matrix of the parameters (rho, theta) of the line:
-    #     return Hl * Cv.TransposeAndMultiply(Hl);
-    # }
+        # Unwrap the columns of the positions:
+        xi, yi = positions[:,0], positions[:,1]
 
-    # private Matrix<double> JacobianMQi(float m, float N1, float T, int i) {
-    #     int n = points.Count;
-    #     float xpi = points[i].position.x, ypi = points[i].position.y;
+        # We have: (m, q) = f((x1, y1), ..., (xn, yn)).
+        # We need to compute the Jacobian of f with respect to each point (xi, yi).
+        # To do this, all the Jacobians are stacked together:
+        J = np.zeros((n, 2, 2))
 
-    #     float dm_dx = (N1 * (n * ypi - Ry) - 2 * T * (n * xpi - Rx)) / (N1 * N1);
-    #     float dm_dy = (n * xpi - Rx) / N1;
-    #     float dq_dx = -(Rx * dm_dx + m) / n;
-    #     float dq_dy = (1 - Rx * dm_dy) / n;
+        # Derivative of m with respect to xi:
+        J[:,0,0] = ((n * yi - self.Ry) * N1 - 2 * T * (n*xi- self.Rx)) / (N1*N1)
 
-    #     return M.DenseOfArray(new double[,] { 
-    #         { dm_dx, dm_dy }, 
-    #         { dq_dx, dq_dy } });
-    # }
+        # Derivative of m with respect to yi:
+        J[:,0,1] = (n * xi - self.Rx) / N1
 
-    # private Matrix<double> JacobianSTi(float s, float N2, float T, int i) {
-    #     int n = points.Count;
-    #     float xpi = points[i].position.x, ypi = points[i].position.y;
+        # Derivative of q with respect to xi:
+        J[:,1,0] = -(self.Rx * J[:,0,0] + m) / n
 
-    #     float ds_dx = (n * ypi - Ry) / N2;
-    #     float ds_dy = (N2 * (n * xpi - Rx) - 2 * T * (n * ypi - Ry)) / (N2 * N2);
-    #     float dt_dx = (1 - Ry * ds_dx) / n;
-    #     float dt_dy = -(Ry * ds_dy + s) / n;
+        # Derivative of q with respect to yi:
+        J[:,1,1] = (1 - self.Rx * J[:,0,1]) / n
 
-    #     return M.DenseOfArray(new double[,] {
-    #         { ds_dx, ds_dy },
-    #         { dt_dx, dt_dy } });
-    # }
+        # We can compute the covariance matrix of m, q using:
+        return np.sum(J @ covariances @ np.transpose(J, axes=(0,2,1)), axis=0)
+    
+    def compute_st_covariance(self, positions, covariances, s, N2, T):
+        n = len(positions)
 
+        # Unwrap the columns of the positions:
+        xi, yi = positions[:,0], positions[:,1]
+
+        # We have: (s, t) = f((x1, y1), ..., (xn, yn)).
+        # We need to compute the Jacobian of f with respect to each point (xi, yi).
+        # To do this, all the Jacobians are stacked together:
+        J = np.zeros((n, 2, 2))
+
+        # Derivative of s with respect to xi:
+        J[:,0,0] = (n * yi - self.Ry) / N2
+
+        # Derivative of s with respect to yi:
+        J[:,0,1] = ((n * xi - self.Rx) * N2 - 2 * T * (n * yi - self.Ry)) / (N2 * N2)
+
+        # Derivative of t with respect to xi:
+        J[:,1,0] = (1 - self.Ry * J[:,0,0]) / n
+
+        # Derivative of t with respect to yi:
+        J[:,1,1] = -(self.Ry * J[:,0,1] + s) / n
+
+        # We can compute the covariance matrix of s, t using:
+        return np.sum(J @ covariances @ np.transpose(J, axes=(0,2,1)), axis=0)
+    
     def distance_from(self, position):
         """ Returns the distance between the line and the given position """
 
