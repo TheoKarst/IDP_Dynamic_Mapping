@@ -1,0 +1,12 @@
+{
+    "robot_pose": {
+        "error_x" : 0.1,
+        "error_y" : 0.1,
+        "error_angle" : 1
+    },
+
+    "observation" : {
+        "error_range" : 0.1,
+        "error_angle" : 1
+    }   
+}

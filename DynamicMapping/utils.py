@@ -1,3 +1,4 @@
+import json
 import numpy as np
 
 def abs_delta_angles(a : np.ndarray, b : np.ndarray):
@@ -22,6 +23,9 @@ def substract_angles(a : np.ndarray, b : np.ndarray):
 
     return np.where(delta > np.pi, delta - 2 * np.pi, delta)
 
-def cov_matrix(errors):
-    return np.diag(np.array(errors) ** 2)
+def load_json(path : str):
+        """ Loads a json file and returns data as a dictionnary """
+
+        with open(path, "r") as f:
+            return json.load(f)
     

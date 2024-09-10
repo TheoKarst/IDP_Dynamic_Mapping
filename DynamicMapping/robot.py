@@ -2,7 +2,7 @@ import numpy as np
 from pose_2d import Pose2D
 from lidar import Lidar
 # from scene import Scene
-from config import RobotParams
+import parameters.parameters as params
 
 class Robot:
     def __init__(self, 
@@ -22,12 +22,12 @@ class Robot:
             :param state_covariance: Covariance matrix of the state (x, y, angle)
                 of the robot. This can be used if we want to assume a constant
                 state covariance matrix or if this matrix is not given in the
-                recorded data. If None, the matrix is fetched from the config file.
+                recorded data. If None, the matrix is fetched from the parameters file.
             :param observation_covariance: Covariance matrix of the range and angle
                 of the observations. This can be used if we want to assume a
                 constant observation covariance matrix or if this matrix is not given 
-                in the recorded data. If None, the matrix is fetched from the config 
-                file.
+                in the recorded data. If None, the matrix is fetched from the 
+                parameters file.
             :param width: Width of the robot in meters
             :param height: Height of the robot in meters
             :param color: Color of the robot (for dispay)
@@ -38,12 +38,12 @@ class Robot:
         self.pose = pose
         self.lidars = lidars
 
-        self.state_covariance = RobotParams.state_covariance() \
-            if state_covariance is None else state_covariance
+        self.state_covariance = state_covariance if state_covariance is not None \
+            else params.state_covariance
         
-        self.observation_covariance = RobotParams.observation_covariance() \
-            if observation_covariance is None else observation_covariance
-
+        self.observation_covariance = observation_covariance if observation_covariance is not None \
+            else params.observation_covariance
+        
         self.width = width
         self.height = height
 

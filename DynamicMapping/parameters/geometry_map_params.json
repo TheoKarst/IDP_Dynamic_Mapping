@@ -1,0 +1,52 @@
+{
+    "geometry_extraction" : {
+        "points_critical_distance" : 1,
+        "line_critical_distance" : 0.02,
+        "points_critical_angle" : 2,
+
+        "circle_critical_distance" : 0.2,
+
+        "line_min_length" : 0.3,
+        "line_min_points" : 5,
+        "circle_min_points" : 6
+    },
+
+    "geometry_matching" : {
+        "line_max_match_angle" : 20,
+        "line_max_match_orthogonal_distance" : 0.4,
+        "line_max_match_parallel_distance" : 0.1,
+        "circle_max_match_distance" : 0.5,
+        "line_validity_extent" : 0.1
+    },
+
+    "dynamic_lines" : {
+        "use_static_lines" : false,
+        "init_steps" : 10,
+        
+        "lines_max_range_error" : 2,
+        "lines_max_angle_error" : 20,
+
+        "min_matches_to_consider_static" : 5,
+        "static_max_range_derivative" : 0.1,
+        "static_max_angle_derivative" : 5,
+
+        "lines_friction" : 0.01,
+
+        "lines_process_noise" : {
+            "range" : 0.1,
+            "angle" : 1,
+            "der_range" : 1,
+            "der_angle" : 4
+        }
+    },
+
+    "dynamic_circles" : {
+        "min_distance_to_lines" : 1
+    },
+
+    "wipe_shape" : {
+        "alpha" : 20,
+        "epsilon" : 0.2,
+        "clamp_distance" : 20
+    }
+}

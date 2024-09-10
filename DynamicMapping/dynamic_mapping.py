@@ -19,6 +19,8 @@ scene = Scene(screen, 0, 0, 10)
 running = True
 while running:
     clock.tick(FPS)
+    print("Current FPS:", clock.get_fps())
+    
     screen.fill((255, 255, 255))
 
     # check for the exit

@@ -9,7 +9,6 @@ class CircleBuilder:
         # Points representing this circle:
         if points is None:
             self.points = {}
-            self.points['angles'] = []
             self.points['positions'] = []
             self.points['covariances'] = []
         
@@ -21,11 +20,7 @@ class CircleBuilder:
 
         self.center = self.Rxy / len(self.points['positions'])
 
-    def add_point(self, point):
-        # Unwrap the tuple representing the point:
-        angle, position, covariance = point
-        
-        self.points['angles'].append(angle)
+    def add_point(self, position, covariance):        
         self.points['positions'].append(position)
         self.points['covariances'].append(covariance)
         

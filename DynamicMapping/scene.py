@@ -64,7 +64,7 @@ class Scene:
                 observations = self.robot.lidars[lidar_index].observations
 
                 # Use the observations of the LIDAR to update the static and dynamic maps:
-                self.grid_maps.update_maps(lidar_pose, observations)
+                # self.grid_maps.update_maps(lidar_pose, observations)
 
                 # Use the observations of the LIDAR to update the map using geometric primitives:
                 self.geometry_map.update(self.robot, lidar_index, observations, current_time)
@@ -75,6 +75,7 @@ class Scene:
         # Draw the static and dynamic maps if necessary:
         if self.draw_maps:
             self.grid_maps.draw(self)
+            self.geometry_map.draw(self)
 
         self.robot.draw(self, self.draw_rays)
 

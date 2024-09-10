@@ -1,14 +1,19 @@
 import numpy as np
 from robot import Robot
 from .line_builder import LineBuilder
-import config
+from .dynamic_line import DynamicLine
+import parameters.parameters as params
 import utils
 
 class GeometryMapping:
     def __init__(self, parameters : dict | None = None):
         self.last_time_update = -1
+
         self.parameters = parameters if parameters is not None \
-            else config.load_geometry_mapping_parameters()
+            else params.geometry_params
+        
+        self.lines = None
+        self.circles = None
 
     def update(self, robot : Robot, lidar_index : int, observations : dict, current_time : float):
 
@@ -21,10 +26,18 @@ class GeometryMapping:
         points = self.compute_points(robot, lidar_index, observations)
 
         # Extract primitives from the observed points:
-        lines, circles = self.extract_primitives(points)
+        self.lines, self.circles = self.extract_primitives(points)
         
-        print("Lines: %i,\tCircles: %i" % (len(lines), len(circles)))
+        # print("Lines: %i,\tCircles: %i" % (len(lines), len(circles)))
 
+    def draw(self, scene : 'Scene'):
+        if self.lines is not None:
+            for line in self.lines:
+                line.draw(scene)
+
+        if self.circles is not None:
+            for circle in self.circles:
+                pass
 
     def compute_points(self, robot : Robot, lidar_index : int, observations : dict):
 
@@ -56,42 +69,51 @@ class GeometryMapping:
         line_builder = None
         circle_builder = None
 
+        # Last point that was added to a line:
+        last_point = None
+
+        # Get the parameters used for the extraction of primitives:
+        params = self.parameters['geometry_extraction']
+        line_process_noise = np.identity(2)     # TODO: Change this !
+
         for current_point in zip(points['angles'], points['positions'], points['covariances']):
             
             # Initialisation: this should be executed just for the first non null point:
             if line_builder is None and circle_builder is None:
-                line_builder = LineBuilder(current_point)
+                line_builder = LineBuilder(current_point[1], current_point[2])
+                last_point = current_point
                 continue
 
             # 1. If we are currently building a line:
             if line_builder is not None:
-                previous_point = line_builder.last_point
 
                 # Compute the Euclidean distance between the current and the previous point,
                 # the orthogonal distance between the current point and the line, and the
                 # angular difference between the current and previous point:
-                points_distance = np.sqrt(np.sum((current_point[1] - previous_point[1]) ** 2))
+                points_distance = np.sqrt(np.sum((current_point[1] - last_point[1]) ** 2))
                 line_distance = line_builder.distance_from(current_point[1])
-                angular_difference = utils.abs_delta_angles(previous_point[0], current_point[0])
+                angular_difference = utils.abs_delta_angles(last_point[0], current_point[0])
 
                 # Try to match the current point with the current line:
-                condition_1 = points_distance <= self.parameters['points_critical_distance']
+                condition_1 = points_distance <= params['points_critical_distance']
                 condition_2 = line_builder.points_count() < 3 \
-                    or line_distance <= self.parameters['line_critical_distance']
-                condition_3 = angular_difference <= self.parameters['points_critical_angle']
+                    or line_distance <= params['line_critical_distance']
+                condition_3 = angular_difference <= params['points_critical_angle']
                 
                 # If the three conditions are met, we can add the point to the line:
                 if condition_1 and condition_2 and condition_3:
-                    line_builder.add_point(current_point)
+                    line_builder.add_point(current_point[1], current_point[2])
+                    last_point = current_point
                     continue
 
                 # Else, if the current line is long enough to be extracted, then extract it, 
                 # and add the current point in a new line:
-                elif (line_builder.points_count() >= self.parameters['line_min_points']
-                      and line_builder.length() >= self.parameters['line_min_length']):
+                elif (line_builder.points_count() >= params['line_min_points']
+                      and line_builder.length() >= params['line_min_length']):
 
-                    extracted_lines.append(line_builder.build(self.parameters['line_process_noise_error']))
-                    line_builder = LineBuilder(current_point)
+                    extracted_lines.append(line_builder.build(line_process_noise))
+                    line_builder = LineBuilder(current_point[1], current_point[2])
+                    last_point = current_point
                     continue
 
                 # Otherwise, convert the current line into a circle cluster, and continue 
@@ -104,27 +126,28 @@ class GeometryMapping:
 
             # If the current point can be added to the current circle, add it:
             if (circle_builder.distance_from(current_point) 
-                    <= self.parameters['circle_critical_distance']):
+                    <= params['circle_critical_distance']):
                 
-                circle_builder.add_point(current_point)
+                circle_builder.add_point(current_point[1], current_point[2])
 
             # Otherwise, extract the current circle and add the current point in a new line:
             else:
-                if circle_builder.points_count() >= self.parameters['circle_min_points']:
+                if circle_builder.points_count() >= params['circle_min_points']:
                     extracted_circles.append(circle_builder.build())
 
                 circle_builder = None
-                line_builder = LineBuilder(current_point)
+                line_builder = LineBuilder(current_point[1], current_point[2])
+                last_point = current_point
 
         # Finally, extract the current line or current circle if necessary:
         if (line_builder is not None 
-            and line_builder.points_count() >= self.parameters['line_min_points'] 
-            and line_builder.length() >= self.parameters['line_min_length']):
+            and line_builder.points_count() >= params['line_min_points'] 
+            and line_builder.length() >= params['line_min_length']):
 
-            extracted_lines.append(line_builder.build(self.parameters['line_process_noise_error']))
+            extracted_lines.append(line_builder.build(line_process_noise))
 
         elif(circle_builder is not None 
-            and circle_builder.points_count() >= self.parameters['circle_min_points']):
+            and circle_builder.points_count() >= params['circle_min_points']):
             extracted_circles.append(circle_builder.build())
 
         return extracted_lines, extracted_circles

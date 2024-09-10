@@ -1,7 +1,7 @@
-import json
 import os
 import numpy as np
-from robot import Robot
+
+import utils
 from lidar import Lidar
 from pose_2d import Pose2D
 
@@ -24,7 +24,7 @@ class Dataloader:
         """
 
         # Load data from the config file:
-        data = self.load_data(os.path.join(self.folder, "config.json"))
+        data = utils.load_json(os.path.join(self.folder, "config.json"))
 
         # Extract the initial pose of the robot from the data:
         robot_pose = Pose2D(**data['initial_robot_pose'])
@@ -70,7 +70,7 @@ class Dataloader:
                 return None
 
             self.current_frame = self.next_frame
-            self.next_frame = self.load_data(filename)
+            self.next_frame = utils.load_json(filename)
 
         # Get the current pose of the robot:
         robot_pose = Pose2D(**self.current_frame['robot_pose'])
@@ -92,10 +92,3 @@ class Dataloader:
         data_frame['lidars_observations'] = lidars_observations
 
         return data_frame
-    
-    def load_data(self, path : str):
-        """ Loads a json file and returns data as a dictionnary """
-
-        with open(path, "r") as f:
-            return json.load(f)
-

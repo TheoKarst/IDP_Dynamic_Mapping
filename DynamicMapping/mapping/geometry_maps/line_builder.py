@@ -1,18 +1,13 @@
 import numpy as np
 from .circle_builder import CircleBuilder
+from .dynamic_line import DynamicLine
 
 class LineBuilder:
 
-    def __init__(self, initial_point):
-        # Last point that was added to the line:
-        self.last_point = initial_point
-
-        # Unwrap the tuple representing the point:
-        initial_angle, initial_position, initial_covariance = initial_point
+    def __init__(self, initial_position, initial_covariance):
 
         # List of points representing this line:
         self.points = {}
-        self.points['angles'] = [initial_angle]
         self.points['positions'] = [initial_position]
         self.points['covariances'] = [initial_covariance]
 
@@ -32,16 +27,9 @@ class LineBuilder:
         self.end_point = None
         self.up_to_date_endpoints = False
 
-    def add_point(self, point):
+    def add_point(self, position, covariance):
         """ Adds a point to the line and updates the parameters of the line """
 
-        # Update the last point:
-        self.last_point = point
-
-        # Unwrap the tuple representing the point:
-        angle, position, covariance = point
-
-        self.points['angles'].append(angle)
         self.points['positions'].append(position)
         self.points['covariances'].append(covariance)
 
@@ -55,7 +43,7 @@ class LineBuilder:
         self.Rxy += position[0] * position[1]
 
         # Get the number of points in the line:
-        n = len(self.points['angles'])
+        n = len(self.points['positions'])
 
         N1 = self.Rxx * n - self.Rx * self.Rx
         N2 = self.Ryy * n - self.Ry * self.Ry
@@ -97,13 +85,7 @@ class LineBuilder:
         covariance = self.compute_covariance()
 
         # Build the line:
-        # line = new DynamicLine(rho, theta, covariance, beginPoint, endPoint, Q);
-        line = (self.rho, self.theta, covariance, self.begin_point, self.end_point)
-
-        # Match all the points to the built line:
-        # foreach (Point point in points) point.MatchToPrimitive(line);
-
-        return line
+        return DynamicLine(self.rho, self.theta, covariance, self.begin_point, self.end_point)
 
     # Compute the endpoints of the line by projecting the first and last points that were added
     # in the line builder, along the line defined by the parameters (rho, theta):
@@ -232,4 +214,4 @@ class LineBuilder:
         return abs(position[0] * np.cos(self.theta) + position[1] * np.sin(self.theta) - self.rho)
 
     def points_count(self):
-        return len(self.points['angles'])
+        return len(self.points['positions'])
