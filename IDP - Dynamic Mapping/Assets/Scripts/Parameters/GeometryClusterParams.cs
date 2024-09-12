@@ -28,13 +28,13 @@ public class GeometryClusterParams {
     [Tooltip("Maximum angle (in degrees) between two consecutive points to be matched to the same line")]
     public float CriticalAlpha = 1f;
 
-    [Tooltip("Maximum distance between two consecutive points to be matched to the same circle cluster")]
+    [Tooltip("Maximum distance between a point and the center of a circle to match the point to that circle")]
     public float CircleCriticalDistance = 0.2f;
 
     [Tooltip("Minimum length of a line (smaller lines are considered as circle clusters)")]
     public float LineMinLength = 0.3f;
 
-    [Tooltip("Minimum number of points a line should hve to be extracted")]
+    [Tooltip("Minimum number of points a line should have to be extracted")]
     [Min(3)]
     public int LineMinPoints = 6;
 

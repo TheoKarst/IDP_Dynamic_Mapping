@@ -8,5 +8,8 @@
     "observation" : {
         "error_range" : 0.1,
         "error_angle" : 1
-    }   
+    },
+
+    "state_covariance" : null,
+    "observation_covariance" : null
 }

@@ -19,6 +19,8 @@ class Scene:
 
         self.pixels_per_meter = pixels_per_meter
 
+        self.text_font = py.font.SysFont('Comic Sans MS', 14)
+
         # Create a dataloader to load recorded data:
         self.dataloader = Dataloader(folder)
 
@@ -33,8 +35,12 @@ class Scene:
         # Instantiate a manager for mapping using geometric primitives:
         self.geometry_map = GeometryMapping()
 
-        self.draw_maps = True
-        self.draw_rays = True
+        # Record what to display in the scene using a dictionnary:
+        self.display = {}
+        self.display['rays'] = True             # Draw the rays of the LIDARs
+        self.display['grid_maps'] = 0           # 0: none, 1: static, 2: dynamic, 3: both
+        self.display['geometry_map'] = True
+        self.display['wipe_shape'] = False       # Draw the wipe shape
 
         # For information, print the boundaries of the screen in world space:
         xmin, ymin = self.world_coordinates(0, 0)
@@ -69,25 +75,50 @@ class Scene:
                 # Use the observations of the LIDAR to update the map using geometric primitives:
                 self.geometry_map.update(self.robot, lidar_index, observations, current_time)
 
-    def draw(self):
+    def draw(self, clock : py.time.Clock):
         """ Draws the whole scene """
 
         # Draw the static and dynamic maps if necessary:
-        if self.draw_maps:
-            self.grid_maps.draw(self)
+        if self.display['grid_maps'] == 1:
+            self.grid_maps.draw(self, view='static')
+        elif self.display['grid_maps'] == 2:
+            self.grid_maps.draw(self, view='dynamic')
+        elif self.display['grid_maps'] == 3:
+            self.grid_maps.draw(self, view='both')
+
+        # Draw the robot:
+        self.robot.draw(self, self.display['rays'])
+        
+        # Draw the map using geometric primitives if necessary:
+        if self.display['geometry_map']:
             self.geometry_map.draw(self)
 
-        self.robot.draw(self, self.draw_rays)
+        # Draw the current FPS at which the simulation is running:
+        text = self.text_font.render('FPS: %.1f' % clock.get_fps(), True, (0, 0, 0))
+        self.screen.blit(text, (0,0))
 
     def on_key_down(self, key):
         """ Should be called when a key button on the keyboard is pressed """
 
-        # If the M-key is pressed, toggle the drawing of the static and dynamic maps:
-        if key == py.K_m:
-            self.draw_maps = not self.draw_maps
-
+        # If R-key is pressed, toggle the drawing of LIDAR rays:
         if key == py.K_r:
-            self.draw_rays = not self.draw_rays
+            self.display['rays'] = not self.display['rays']
+
+        # If G-key is pressed, change the draw mode for grid maps:
+        elif key == py.K_g:
+            # 0: none, 1: static, 2: dynamic, 3: both:
+            self.display['grid_maps'] = (self.display['grid_maps'] + 1) % 4
+
+            mode = ['none', 'static', 'dynamic', 'static + dynamic']
+            print("Grid maps display:", mode[self.display['grid_maps']])
+
+        # If P-key is pressed, toggle the drawing of the mapping using geometric primitives:
+        elif key == py.K_p:
+            self.display['geometry_map'] = not self.display['geometry_map']
+
+        # If W-key is pressed, toggle the drawing of the wipe-shape:
+        elif key == py.K_w:
+            self.display['wipe_shape'] = not self.display['wipe_shape']
 
     def draw_grid(self, x : float, y : float, cell_size : float, data : np.ndarray):
         """
@@ -120,6 +151,47 @@ class Scene:
 
         self.screen.blit(surface, rect)
 
+    def draw_arrow(self, start_x : float, start_y : float, width : float, 
+                   height : float, angle: float, color : tuple, 
+                   body_width_ratio : float = 0.8, body_height_ratio : float = 0.3):
+        """
+        Draws an arrow in the scene
+        
+            :param start_x: x-coordinate of the begin point of the arrow in meters
+            :param start_y: y-coordinate of the begin point of the arrow in meters
+            :param width: Width of the arrow in meters
+            :param height: Height of the arrow in meters
+            :param angle: Angle of the arrow in radians, counterclockwise
+            :param color: Color of the rectangle
+            :param body_width_ratio: Width of the 'body' of the arrow (arrow without
+                the tip) divided by the width of the arrow
+            :param body_height_ratio: Height of the 'body' of the arrow (arrow without
+                the tip) divided by the height of the arrow
+        """
+
+        # Define the position of the points of a normalized arrow
+        # (width = height = 1 and angle = 0):
+        body_height_ratio /= 2
+        points = np.array([
+            (0, body_height_ratio), (body_width_ratio, body_height_ratio),
+            (body_width_ratio, 0.5), (1, 0), (body_width_ratio, -0.5),
+            (body_width_ratio, -body_height_ratio), (0, -body_height_ratio)])
+        
+        # Resize the arrow to the correct dimensions:
+        points[:,0] *= width * self.pixels_per_meter
+        points[:,1] *= height * self.pixels_per_meter
+
+        # Rotate the arrow:
+        points = points @ np.array([[np.cos(angle), np.sin(angle)], 
+                                    [-np.sin(angle), np.cos(angle)]])
+        
+        # Put the arrow at the right position:
+        start_x, start_y = self.screen_coordinates(start_x, start_y)
+        points[:,0] += start_x
+        points[:,1] += start_y
+
+        # Draw the arrow:
+        py.draw.polygon(self.screen, color, points)
 
     def draw_rectangle(self, x : float, y : float, width : float, height : float, 
                        angle : float, color : tuple):
@@ -128,10 +200,10 @@ class Scene:
 
             :param x: x-coordinate of the center of the rectangle, in meters
             :param y: y-coordinate of the center of the rectangle, in meters
-            :param width: width of the rectangle in meters
-            :param height: height of the rectangle in meters
-            :param angle: angle (in radians) of the rectangle, counter-clockwise
-            :param color: color of the rectangle
+            :param width: Width of the rectangle in meters
+            :param height: Height of the rectangle in meters
+            :param angle: Angle of the rectangle in radians, counterclockwise
+            :param color: Color of the rectangle
         """
 
         # Convert the position from world to screen space:
@@ -153,6 +225,25 @@ class Scene:
             corners.append((corner_x, corner_y))
 
         py.draw.polygon(self.screen, color, corners)
+
+    def draw_polygon(self, positions : np.ndarray, color : tuple, width : int = 0):
+        """
+        Draws a polygon in the scene
+        
+            :param positions: Numpy array of positions of the points of the polygon
+                in world space (in meters)
+            :param color: Color of tthe polygon
+            :param width:
+                If width == 0 (default): fills the polygon
+                If width > 0: Used for line thickness
+                If width < 0: Nothing will be drawn
+        """
+
+        # Convert the positions from world space to screen space:
+        positions[:,0], positions[:,1] = self.screen_coordinates(positions[:,0], positions[:,1])
+
+        # Draw the polygon:
+        py.draw.polygon(self.screen, color, positions, width)
 
     def draw_line(self, x1 : float, y1 : float, x2 : float, y2 : float, color : tuple):
         """
@@ -184,7 +275,7 @@ class Scene:
 
         py.draw.circle(self.screen, color, center, radius * self.pixels_per_meter)
 
-    def screen_coordinates(self, x : float, y : float) -> tuple:
+    def screen_coordinates(self, x : float | np.ndarray, y : float | np.ndarray) -> tuple:
         """ Converts coordinates from world space into screen space """
 
         screen_x = (x - self.corner_x) * self.pixels_per_meter
@@ -192,7 +283,7 @@ class Scene:
 
         return (screen_x, screen_y)
     
-    def world_coordinates(self, x : float, y : float) -> tuple:
+    def world_coordinates(self, x : float | np.ndarray, y : float | np.ndarray) -> tuple:
         """ Converts coordinates from screen space into world space """
 
         world_x = self.corner_x + x / self.pixels_per_meter

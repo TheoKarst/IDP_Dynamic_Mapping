@@ -79,7 +79,7 @@ class GridsMapping:
         self.lo_high_dynamic = self.max_log_odds / frames_dynamic
         self.lo_low_dynamic = -self.lo_high_dynamic
 
-    def draw(self, scene : 'Scene', view : str = 'both', threshold : float | None = None):
+    def draw(self, scene : 'Scene', view : str = 'static', threshold : float | None = None):
         """ 
         Draws the static and dynamic maps on the scene
         

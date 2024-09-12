@@ -1,37 +1,16 @@
 import numpy as np
+import utils
+
+from .bool_axis import BoolAxis
 
 class DynamicLine:
 
-    # Use a BoolAxis to represent which parts of the line are valid, according to the current
-    # observations from the LIDAR:
-    # private BoolAxis2 lineValidity = new BoolAxis2(false);
-
-    # // Save the state of the line when we called ResetLineValidity() for the last time:
-    # private Vector2 lineValidityBegin;      // beginPoint of the line
-    # private Vector2 lineValidityDelta;      // endPoint - beginPoint
-    # private Vector2 lineValidityU;          // lineValidityDelta / lineValidityDelta.magSq
-
-    # // The minimum and maximum projection values of all the lines matched to this one,
-    # // along lineValidityU:
-    # private float lineValidityMinP, lineValidityMaxP;
-
-    # // To which line in the model this line is matched. This is used to have a speed estimate of all
-    # // the points from the current observation: the points are matched to current lines, and current
-    # // lines are matched with model lines, for which the velocity was correctly computed.
-    # // For each line already in the model, modelLine = this:
-    # private DynamicLine modelLine;
-
-    # // If the line is considered as static:
-    # private bool _isStatic = false;
-    # private int lastMatchDynamic = 0;   // Match count the last time the line was considered as dynamic
-    # private int _matchCount = 0;        // Number of times this line was matched with an observation
-
     def __init__(self, rho, theta, covariance, begin_point, end_point):
         self.state = {}
-        self.state['rho'] = rho
-        self.state['theta'] = theta
-        self.state['der_rho'] = 0
-        self.state['der_theta'] = 0
+        self.state['rho'] = rho         # Range of the line
+        self.state['theta'] = theta     # Angle of the line (in radians)
+        self.state['der_rho'] = 0       # Derivative of rho with respect to time
+        self.state['der_theta'] = 0     # Derivative of theta with respect to time
 
         self.covariance = np.zeros((4,4))
         self.covariance[:2,:2] = covariance
@@ -51,400 +30,385 @@ class DynamicLine:
         # are not moving a lot:
         self.is_static = False
 
+        # Match count the last time the line was considered dynamic:
+        self.last_match_dynamic = 0
+
+        # Number of times this line has been matched with an observation:
+        self.match_count = 0
+
+        # Use a BoolAxis to represent which parts of the line are "valid":
+        self.line_validity = BoolAxis(False)
+
+        # Save the state of the line when we called ResetLineValidity() for the last time:
+        self.line_validity_begin = None     # begin_point of the line
+        self.line_validity_delta = None     # endPoint - beginPoint
+        self.line_validity_u = None         # line_validity_delta / line_validity_delta.magSq
+        
+        # Save the minimum and maximum projection values of all the lines matched to this one,
+        # along line_validity_u:
+        self.line_validity_min_p = 0
+        self.line_validity_max_p = 0
+
         # Color of the line (for drawing):
         self.color = (255, 0, 0)
 
         self.check_state()
-
-    # public DynamicLine(DynamicLine line, Vector2 beginPoint, Vector2 endPoint) {
-    #     this.lineColor = line.lineColor;
-    #     this.state = line.state;
-    #     this.covariance = line.covariance;
-    #     this.beginPoint = beginPoint;
-    #     this.endPoint = endPoint;
-    #     this.modelLine = line.modelLine;
-    #     this._matchCount = line.matchCount;
-    #     this.lastMatchDynamic = line.lastMatchDynamic;
-    #     this._isStatic = line._isStatic;
-
-    #     CheckState();
-
-    #     // Debug:
-    #     _id = _instantiatedLines++;
-    # }
-
+    
     def draw(self, scene : 'Scene'):
         color = (0, 0, 0) if self.is_static else self.color
 
         scene.draw_line(self.begin_point[0], self.begin_point[1], 
                         self.end_point[0], self.end_point[1], color)
 
-    # // From the previous line estimate and the elapsed time since the last update,
-    # // predict where the line should be now.
-    # // Q is the process noise error (4x4 diagonal mtrix)
-    # public void PredictState(float deltaTime, Matrix<double> Q, float friction) {
-    #     // If the line is static, there is nothing to do:
-    #     if (_isStatic)
-    #         return;
+    def predict_state(self, elapsed_time : float, process_noise : np.ndarray, friction : float):
+        """
+        From the previous line estimate and the elapsed time since the last update,
+        predict where the line should be now.
 
-    #     // The factor by which the velocity is multiplied with at each frame:
-    #     float a = 1 - friction;
+            :param elapsed_time: Elapsed time since the last update
+            :param process_noise: Process noise matrix for the dynamic lines (4x4 diagonal matrix)
+            :param friction: Friction applied to the speed of the line (between 0 and 1)
+        """
 
-    #     // For the state prediction, we assume the line speed stayed the same,
-    #     // and we use Euler integration step to update rho and theta:
-    #     state.rho += deltaTime * state.dRho;
-    #     state.theta += deltaTime * state.dTheta;
-    #     state.dRho = a * state.dRho;
-    #     state.dTheta = a * state.dTheta;
+        # If the line is static, there is nothing to do:
+        if (self.is_static):
+            return
 
-    #     // Then we compute the prediction for the line covariance matrix:
-    #     // covariance = F.dot(covariance.dot(F.T)) + Q
-    #     //
-    #     // With:
-    #     // F = [[1 0 deltaTime     0    ],
-    #     //      [0 1     0     deltaTime],
-    #     //      [0 0     a         0    ],
-    #     //      [0 0     0         a    ]]
+        # The factor by which the velocity is multiplied with at each frame:
+        a = 1 - friction
 
-    #     // Renamings for simplicity:
-    #     float h = deltaTime;
-    #     float h2 = h * h;
-    #     float a2 = a * a;
-    #     Matrix<double> P = covariance;
+        # State prediction: we use Euler integration method to compute the
+        # new position of the line from the speed of the line and we add 
+        # friction to the speed:
+        self.state['rho'] += elapsed_time * self.state['der_rho']
+        self.state['theta'] += elapsed_time * self.state['der_theta']
+        self.state['der_rho'] *= a
+        self.state['der_theta'] *= a
 
-    #     // First, we compute: P = F.dot(P.dot(F.T)).
-    #     // The computation is hardcoded for efficiency, as F mostly contains zeros:
-    #     double p00 = P[0, 0] + h * (P[2, 0] + P[0, 2]) + h2 * P[2, 2];
-    #     double p01 = P[0, 1] + h * (P[2, 1] + P[0, 3]) + h2 * P[2, 3];
-    #     double p10 = P[1, 0] + h * (P[3, 0] + P[1, 2]) + h2 * P[3, 2];
-    #     double p11 = P[1, 1] + h * (P[3, 1] + P[1, 3]) + h2 * P[3, 3];
+        # We then compute the prediction for the line covariance matrix:
+        # covariance = F.dot(covariance.dot(F.T)) + Q
+        F = np.array([[1, 0, elapsed_time,      0      ],
+                      [0, 1,      0      , elapsed_time],
+                      [0, 0,      a      ,      0      ],
+                      [0, 0,      0      ,      a      ]])
 
-    #     double p02 = a * (P[0, 2] + h * P[2, 2]);
-    #     double p03 = a * (P[0, 3] + h * P[2, 3]);
-    #     double p12 = a * (P[1, 2] + h * P[3, 2]);
-    #     double p13 = a * (P[1, 3] + h * P[3, 3]);
+        self.covariance = F @ self.covariance @ F.T + process_noise
 
-    #     double p20 = a * (P[2, 0] + h * P[2, 2]);
-    #     double p21 = a * (P[2, 1] + h * P[2, 3]);
-    #     double p30 = a * (P[3, 0] + h * P[3, 2]);
-    #     double p31 = a * (P[3, 1] + h * P[3, 3]);
+        # We also need to update the endpoints of the line. To do so, we
+        # simply project them on the new line:
+        self.project_endpoints()
 
-    #     double p22 = a2 * P[2, 2];
-    #     double p23 = a2 * P[2, 3];
-    #     double p32 = a2 * P[3, 2];
-    #     double p33 = a2 * P[3, 3];
+        # We finally make sure that the new state is well defined:
+        self.check_state()
 
-    #     // Then, we compute covariance = P + Q, where Q is a diagonal matrix:
-    #     covariance[0, 0] = p00 + Q[0, 0];
-    #     covariance[0, 1] = p01;
-    #     covariance[0, 2] = p02;
-    #     covariance[0, 3] = p03;
+    def project_endpoints(self):
+        """ 
+        Replace the endpoints by their orthogonal projection along the line defined
+        by the parameters (rho, theta)
+        """
 
-    #     covariance[1, 0] = p10;
-    #     covariance[1, 1] = p11 + Q[1, 1];
-    #     covariance[1, 2] = p12;
-    #     covariance[1, 3] = p13;
+        costheta, sintheta = np.cos(self.state['theta']), np.sin(self.state['theta'])
 
-    #     covariance[2, 0] = p20;
-    #     covariance[2, 1] = p21;
-    #     covariance[2, 2] = p22 + 0.1 * Mathf.Abs(state.dRho);   // + Q[2, 2];
-    #     covariance[2, 3] = p23;
+        # Unit vector along the line:
+        u = np.array([-sintheta, costheta])
 
-    #     covariance[3, 0] = p30;
-    #     covariance[3, 1] = p31;
-    #     covariance[3, 2] = p32;
-    #     covariance[3, 3] = p33 + 0.1 * Mathf.Abs(state.dTheta); // + Q[3, 3];
+        # "Center" of the infinite line:
+        center = self.state['rho'] * np.array([costheta, sintheta])
 
-    #     // We also need to update the endpoints of the line. To do so, we
-    #     // simply project them on the new line:
-    #     beginPoint = Project(beginPoint);
-    #     endPoint = Project(endPoint);
+        self.begin_point = center + np.sum(self.begin_point * u) * u
+        self.end_point = center + np.sum(self.end_point * u) * u
 
-    #     // Ensures that the new state is well defined:
-    #     CheckState();
-    # }
+    def update_line_using_match(self, observation : 'DynamicLine', 
+        validity_margin : float, static_max_der_rho : float, static_max_der_theta : float, 
+        min_matches_to_consider_static : float):
 
-    # // Use the given observation to update the line state:
-    # private void UpdateState(float observationRho, float observationTheta, Matrix<double> observationCovariance) {
-    #     Vector<double> innovation = V.DenseOfArray(new double[] {
-    #         observationRho - state.rho,
-    #         Utils.LineSubstractAngleRadians(observationTheta, state.theta)
-    #     });
+        """
+        Supposing that this line belongs to the current model of the environment,
+        use the given line (that is supposed to be an observed line, matched with 
+        this one) to update the position estimate, covariance matrix and endpoints 
+        of this line.
+        """
 
-    #     // Compute the innovation covariance:
-    #     // S = H.dot(covariance.dot(H.T)) + R
-    #     //
-    #     // With:
-    #     // H = [[1 0 0 0],      R = observationCovariance
-    #     //      [0 1 0 0]]
+        # First, update the state of this line from the observation, using
+        # Kalman Filter:
+        self.update_state(observation.state['rho'], observation.state['theta'], 
+            observation.covariance[:2,:2])
 
-    #     Matrix<double> S = covariance.SubMatrix(0, 2, 0, 2) + observationCovariance;
-
-    #     // Compute the optimal Kalman Gain:
-    #     // K = covariance.dot(H.T).dot(inverse(S))
-    #     Matrix<double> K = covariance.SubMatrix(0, covariance.RowCount, 0, 2) * S.Inverse();
-
-    #     // Compute the updated state estimate:
-    #     Vector<double> deltaState = K * innovation;
-    #     state.rho += (float) deltaState[0];
-    #     state.theta += (float) deltaState[1];
-    #     state.dRho += (float) deltaState[2];
-    #     state.dTheta += (float) deltaState[3];
-
-    #     // Compute the updated state covariance:
-    #     // covariance = covariance - K * H * covariance:
-    #     covariance -= K * covariance.SubMatrix(0, 2, 0, covariance.ColumnCount);
-
-    #     // Check if the new state is still well defined:
-    #     CheckState();
-    # }
-
-    # private void CheckDynamicStatus(float staticMaxRhoDerivative, float staticMaxThetaDerivative, int minMatchesToConsiderStatic) {
-    #     // We check if the line is currently mooving:
-    #     bool isMooving = Mathf.Abs(state.dRho) > staticMaxRhoDerivative
-    #         || Mathf.Abs(state.dTheta) > staticMaxThetaDerivative;
-
-    #     // If we are currently mooving, save the current match count, and make sure the line
-    #     // is considered as dynamic:
-    #     if(isMooving) {
-    #         lastMatchDynamic = matchCount;
-    #         _isStatic = false;
-    #     }
-
-    #     // Otherwise, if the line is not mooving for long enough, we can consider this line to be static:
-    #     else if(!_isStatic && matchCount - lastMatchDynamic >= minMatchesToConsiderStatic) {
-    #         _isStatic = true;
-    #         state.dRho = 0;
-    #         state.dTheta = 0;
-    #     }
-
-    #     // If the line is already static, we also make sure that the speed is zero:
-    #     else if(_isStatic) {
-    #         state.dRho = 0;
-    #         state.dTheta = 0;
-    #     }
-    # }
-
-    # /// <summary>
-    # /// Return if the given line (supposed to be part of the current world model) is a good candidate
-    # /// to be matched with this line. If this is the case, we will have to check the norm distance
-    # /// between the lines as a next step
-    # /// </summary>
-    # /// <param name="maxAngleDistance">Maximum angle (in radians) between the two lines</param>
-    # /// <param name="maxOrthogonalDistance">Maximum orthogonal distance of this line endpoints to the given model line</param>
-    # /// <param name="maxParallelDistance">Maximum distance of this line endpoints to the model line, along the model line</param>
-    # /// <returns>If the given model line fulfils the previous critera</returns>
-    # public bool IsMatchCandidate(DynamicLine modelLine, float maxAngleDistance, float maxOrthogonalDistance, float maxParallelDistance) {
-
-    #     // If the angular difference between both lines is too big, the lines cannot match:
-    #     if (Utils.LineDeltaAngleRadians(state.theta, modelLine.state.theta) > maxAngleDistance)
-    #         return false;
-
-    #     // If the orthogonal distance of the endpoints of this line
-    #     // from the model line are too big, the lines cannot match:
-    #     if (modelLine.DistanceOf(beginPoint) > maxOrthogonalDistance)
-    #         return false;
-
-    #     if (modelLine.DistanceOf(endPoint) > maxOrthogonalDistance)
-    #         return false;
-
-    #     // Finally, we check the minimum distance between the lines endpoints, along the model line:
-
-    #     // Compute the unit vector along the model line:
-    #     Vector2 u = new Vector2(-Mathf.Sin(modelLine.state.theta), Mathf.Cos(modelLine.state.theta));
-
-    #     // Project all the endpoints along the model line:
-    #     float p1 = Vector2.Dot(beginPoint, u);
-    #     float p2 = Vector2.Dot(endPoint, u);
-    #     float p3 = Vector2.Dot(modelLine.beginPoint, u);
-    #     float p4 = Vector2.Dot(modelLine.endPoint, u);
-
-    #     // Make sure p1 <= p2 and p3 <= p4:
-    #     if (p1 > p2)
-    #         (p1, p2) = (p2, p1);
-
-    #     if (p3 > p4)
-    #         (p3, p4) = (p4, p3);
-
-    #     // The modelLine is a good match candidate only if the distance between
-    #     // the intervals [p1, p2] and [p3, p4] is less than the given distance:
-    #     return Mathf.Max(p3 - p2, p1 - p4) < maxParallelDistance;
-    # }
-
-    # // Compute the Mahalanobis distance between this line (supposed to be part of the current
-    # // observations), and the given one (supposed to belong to the world model):
-    # public float NormDistanceFromModel(DynamicLine model) {
-    #     // Since the speed of the observed lines is unknown (we cannot estimate the speed of
-    #     // a line from a single frame), we only use rho and theta to compute the Norm Distance,
-    #     // and ignore the speed of the line in the model:
-
-    #     // Extract the covariance matrices of (rho, theta) for both lines:
-    #     Matrix<double> Cl = this.covariance.SubMatrix(0, 2, 0, 2);
-    #     Matrix<double> Cm = model.covariance.SubMatrix(0, 2, 0, 2);
-
-    #     // We have to be cautious when substracting angles, to keep the result between -PI/2 and PI/2,
-    #     // but X = Xl - Xm:
-    #     Vector<double> X = V.DenseOfArray(new double[]{
-    #         state.rho - model.state.rho,
-    #         Utils.LineSubstractAngleRadians(state.theta, model.state.theta)
-    #     });
-
-    #     return (float)(X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
-    # }
-    
-    # // Supposing that this line belongs to the current model of the environment,
-    # // use the given line (that is supposed to be matched with this one, and to
-    # // belong to the current observation of the environment) to update the position
-    # // estimate, covariance matrix and endpoints of this line:
-    # public void UpdateLineUsingMatch(DynamicLine observation, 
-    #     float validityMargin, float staticMaxRhoDerivative, 
-    #     float staticMaxThetaDerivative, int minMatchesToConsiderStatic) {
-
-    #     // First, update the state of this line from the observation, using
-    #     // Kalman Filter:
-    #     UpdateState(observation.state.rho, observation.state.theta, 
-    #         observation.covariance.SubMatrix(0, 2, 0, 2));
-
-    #     // Check if the line should now be treated as dynamic or static:
-    #     CheckDynamicStatus(staticMaxRhoDerivative, staticMaxThetaDerivative, minMatchesToConsiderStatic);
+        # Check if the line should now be treated as dynamic or static:
+        self.check_dynamic_status(static_max_der_rho, static_max_der_theta, 
+                                  min_matches_to_consider_static)
         
-    #     // Then, since the observation is by definition valid, use it to
-    #     // update which sections of this line are valid:
-    #     UpdateLineValidity(observation.beginPoint, observation.endPoint, validityMargin);
+        # Then, since the observation is by definition valid, use it to
+        # update which sections of this line are valid:
+        # UpdateLineValidity(observation.begin_point, observation.end_point, validity_margin);
 
-    #     // Finally, match the observation with this line (supposed to be part of the model):
-    #     observation.modelLine = this;
-
-    #     _matchCount++;
-    # }
-
-    # // Set which parts of the line are valid or invalid, according to the current observations.
-    # // startValid: If the beginPoint of this line should be marked as valid
-    # // changes: sorted list of floats, between 0 (beginPoint, excluded) and 1 (endPoint, excluded),
-    # //      representing when we change from valid to invalid (or the opposite)
-    # public void ResetLineValidity(bool startValid, List<float> changes) {
-    #     // Save the current position of the line:
-    #     lineValidityBegin = beginPoint;
-    #     lineValidityDelta = endPoint - beginPoint;
-    #     lineValidityU = lineValidityDelta / lineValidityDelta.sqrMagnitude;
-
-    #     // Reset the minimum and maximum projection along the lineValidityU:
-    #     lineValidityMinP = 0;
-    #     lineValidityMaxP = 1;
-
-    #     // By default, the line is marked as invalid, the beginPoint is valid, there is
-    #     // a change at position 0 from invalid to valid:
-    #     if (startValid)
-    #         changes.Insert(0, 0);
-
-    #     // Make sure the number of changes is a multiple of 2: since the line is by
-    #     // default invalid, and has a finite part marked as valid, tthen the number
-    #     // of changes should be even:
-    #     if (changes.Count % 2 != 0)
-    #         changes.Add(1);
-
-    #     // The line is set to invalid by default, and this state changes for each point in the list:
-    #     lineValidity.Reset(false, changes);
-
-    #     Debug.Log("Reset line validity: (rho=" + state.rho + ", theta=" + state.theta + ")"
-    #         + "[" + beginPoint + "; " + endPoint + "], validity: " + Utils.ToString(changes));
-    # }
-
-    # private void UpdateLineValidity(Vector2 matchBegin, Vector2 matchEnd, float margin) {
-    #     // Project the match along the initial line, in order to update which
-    #     // sections of the line are valid:
-
-    #     float pBegin = Vector2.Dot(matchBegin - lineValidityBegin, lineValidityU);
-    #     float pEnd = Vector2.Dot(matchEnd - lineValidityBegin, lineValidityU);
+        # Finally, increase the match count:
+        self.match_count += 1
         
-    #     // Make sure pBegin <= pEnd:
-    #     if (pBegin > pEnd)
-    #         (pBegin, pEnd) = (pEnd, pBegin);
+    def update_state(self, observation_rho, observation_theta, observation_covariance):
+        """ Use the given observation to update the line state 
+            :param observation_rho: Range of the observed line
+            :param observation_theta: Angle of the observed line
+            :param observation_covariance: 2x2 covariance matrix of the observation
+        """
 
-    #     // Update lineValidity min and max projections:
-    #     if(pBegin < lineValidityMinP) lineValidityMinP = pBegin;
-    #     if(pEnd > lineValidityMaxP) lineValidityMaxP = pEnd;
+        # Compute the innovation vector:
+        innovation = np.array([
+            observation_rho - self.state['rho'],
+            utils.line_substract_angles(observation_theta, self.state['theta'])
+        ])
 
-    #     // The line should be valid between pBegin-margin and pBegin+margin:
-    #     lineValidity.SetValue(pBegin-margin, pEnd+margin, true);
+        # Compute the innovation covariance:
+        # S = H.dot(covariance.dot(H.T)) + R
+        #
+        # Where:
+        # H = [[1 0 0 0],      R = observationCovariance
+        #      [0 1 0 0]]
 
-    #     Debug.Log("Update line validity: (rho=" + state.rho + ", theta=" + state.theta + ")"
-    #         + "[" + beginPoint + "; " + endPoint + "], " +
-    #         "validity: [" + (pBegin-margin) + "; " + (pEnd+margin) + "]");
-    # }
+        # Looking at H, we can see that multiplying with H only 'selects' some 
+        # rows and columns of a matrix so computations can be simplified:
+        S = self.covariance[:2,:2] + observation_covariance
+        
+        # Compute the optimal Kalman Gain:
+        # K = covariance.dot(H.T).dot(inverse(S))
+        K = self.covariance[:,:2] @ np.linalg.inv(S)
 
-    # // Add to the list the parts of this line that are valid:
-    # public void AddValidParts(List<DynamicLine> dest, float minLineLength, float maxRhoErrorSq, float maxThetaErrorSq, int initialisationSteps) {
-    #     // If the error on the position estimate of the line is too high, then we have to remove it:
-    #     if (_matchCount > initialisationSteps && 
-    #         (covariance[0, 0] > maxRhoErrorSq || covariance[1, 1] > maxThetaErrorSq)) {
+        # Compute the updated state estimate:
+        # state = state - K.dot(innovation)
+        delta_state = K @ innovation
+        self.state['rho'] += delta_state[0]
+        self.state['theta'] += delta_state[1]
+        self.state['der_rho'] += delta_state[2]
+        self.state['der_theta'] += delta_state[3]
 
-    #         Debug.LogWarning("Deleting line because of its error !");
-    #         return;
-    #     }
+        # Compute the updated state covariance:
+        # covariance = covariance - K * H * covariance:
+        self.covariance -= K @ self.covariance[:2,:]
 
-    #     ReadOnlyCollection<float> changes = lineValidity.GetSplits();
+        # Make sure that the new state is well defined:
+        self.check_state()
 
-    #     // If there is only one valid section, resize this line and add it to dest:
-    #     if(changes.Count == 2) {
-    #         float min = Mathf.Max(changes[0], lineValidityMinP);
-    #         float max = Mathf.Min(changes[1], lineValidityMaxP);
+    def check_dynamic_status(self, static_max_der_rho, static_max_der_theta, min_matches_to_consider_static):
+        # We check if the line is currently moving:
+        is_moving = abs(self.state['der_rho']) > static_max_der_rho \
+                or abs(self.state['der_theta']) > static_max_der_theta
 
-    #         if(max - min >= minLineLength) {
-    #             beginPoint = lineValidityBegin + min * lineValidityDelta;
-    #             endPoint = lineValidityBegin + max * lineValidityDelta;
+        # If we are currently moving, save the current match count, and make sure the line
+        # is considered as dynamic:
+        if is_moving:
+            self.last_match_dynamic = self.match_count
+            self.is_static = False
 
-    #             dest.Add(this);
-    #         }
-    #         return;
-    #     }
+        # Else, if the line is static, make sure that the speed is zero:
+        elif self.is_static:
+            self.state['der_rho'] = 0
+            self.state['der_theta'] = 0
 
-    #     // Otherwise, create a new line for each long enough valid section:
-    #     for(int i = 0; i < changes.Count; i+=2) {
-    #         float min = Mathf.Max(changes[i], lineValidityMinP);
-    #         float max = Mathf.Min(changes[i+1], lineValidityMaxP);
+        # Otherwise, if the line is not moving for long enough, we can consider this line to be static:
+        elif self.match_count - self.last_match_dynamic >= min_matches_to_consider_static:
+            self.is_static = True
+            self.state['der_rho'] = 0
+            self.state['der_theta'] = 0
 
-    #         if(max - min >= minLineLength) {
-    #             Vector2 begin = lineValidityBegin + min * lineValidityDelta;
-    #             Vector2 end = lineValidityBegin + max * lineValidityDelta;
-    #             dest.Add(new DynamicLine(this, begin, end));
-    #         }
-    #     }
-    # }
+    def is_match_candidate(self, model_line : 'DynamicLine', max_delta_angle : float, 
+                           max_orthogonal_distance : float, max_parallel_distance):
+        """
+        Returns if the given line (supposed to be part of the model) is a good candidate
+        to be matched with this line (supposed to be an observed line)
 
-    # /// <summary>
-    # /// Return the orthogonal distance of the point from the line
-    # /// </summary>
-    # public float DistanceOf(Vector2 point) {
-    #     return Mathf.Abs(point.x * Mathf.Cos(state.theta) + point.y * Mathf.Sin(state.theta) - state.rho);
-    # }
+            :param model_line: Line in the model we are evaluating
+            :param max_delta_angle: Maximum angle in radians between two lines
+            :param max_orthogonal_distance: Maximum orthogonal distance between the endpoints of this line
+                and the model_line
+            :param max_parallel_distance: Maximum distance between the endpoints of this line and the
+                model_line, along the model_line
+            :returns: If the given model_line fulfils the previous conditions
+        """
 
-    # /// <summary>
-    # /// If the forward direction is the vector from beginPoint to endPoint:
-    # /// <list type="bullet">
-    # /// <item>Return -1 if the given point is on the left of the line</item>
-    # /// <item>Return +1 if the given point is on the right of the line</item>
-    # /// <item>Return 0 if the given point belongs to the line</item>
-    # /// </list>
-    # /// </summary>
-    # public int SideOfPoint(Vector2 point) {
-    #     float dot = Vector2.Dot(Vector2.Perpendicular(beginPoint - endPoint), point - beginPoint);
+        # If the angular difference between both lines is too big, the lines cannot match:
+        if utils.line_delta_angle(self.state['theta'], model_line.state['theta']) > max_delta_angle:
+            return False
 
-    #     return dot == 0 ? 0 : dot > 0 ? 1 : -1;
-    # }
+        # If the orthogonal distance of the endpoints of this line
+        # from the model line are too big, the lines cannot match:
+        if model_line.distance_of(self.begin_point) > max_orthogonal_distance:
+            return False
 
-    # Compute the orthonal projection of the given point on the line
-    # private Vector2 Project(Vector2 point) {
-    #     float costheta = Mathf.Cos(state.theta), sintheta = Mathf.Sin(state.theta);
+        if model_line.distance_of(self.end_point) > max_orthogonal_distance:
+            return False
 
-    #     // Unit vector along the line:
-    #     Vector2 u = new Vector2(-sintheta, costheta);
+        # Finally, we check the minimum distance between the lines endpoints, along the model line:
 
-    #     // "Center" of the infinite line:
-    #     Vector2 center = new Vector2(state.rho * costheta, state.rho * sintheta);
+        # Compute the unit vector along the model line:
+        u = np.array([-np.sin(model_line.state['theta']), np.cos(model_line.state['theta'])])
 
-    #     return center + Vector2.Dot(point, u) * u;
-    # }
+        # Project all the endpoints along the model line:
+        p1 = np.sum(self.begin_point * u)
+        p2 = np.sum(self.end_point * u)
+        p3 = np.sum(model_line.begin_point * u)
+        p4 = np.sum(model_line.end_point * u)
+
+        # Make sure p1 <= p2 and p3 <= p4:
+        if p1 > p2:
+            (p1, p2) = (p2, p1)
+
+        if p3 > p4:
+            (p3, p4) = (p4, p3)
+
+        # The model_line is a good match candidate only if the distance between
+        # the intervals [p1, p2] and [p3, p4] is less than the given distance:
+        return max(p3 - p2, p1 - p4) < max_parallel_distance
+
+    def norm_distance_from_model(self, model_line : 'DynamicLine'):
+        """
+        Compute the Mahalanobis distance between this line (supposed to be an observed line)
+        and the given one (supposed to be part of the model)
+        """
+
+        # Since the speed of the observed lines is unknown (we cannot estimate the speed of
+        # a line from a single frame), we only use rho and theta to compute the Norm Distance,
+        # and ignore the speed of the line in the model:
+
+        # Extract the covariance matrices of (rho, theta) for both lines:
+        Cl = self.covariance[:2,:2]
+        Cm = model_line.covariance[:2,:2]
+        
+        # Compute X = Xl - Xm, and make sure that the difference between the
+        # angle of two lines stays in the range ]-pi/2, pi/2]:
+        X = np.array([
+            self.state['rho'] - model_line.state['rho'],
+            utils.line_substract_angles(self.state['theta'], model_line.state['theta'])
+        ])
+
+        return X @ np.linalg.inv(Cl + Cm) @ X
+
+    def reset_line_validity(self, start_valid : bool, changes : list[float]):
+        """
+        Sets which parts of the line are valid or invalid, according to the current observations.
+        
+            :param start_valid: If the begin_point of this line should be marked as valid
+            :param changes: Sorted list of floats, between 0 (beginPoint, excluded) and 1 
+            (endPoint, excluded) representing when we change from valid to invalid (or 
+            the opposite)
+        """
+
+        # Save the current position of the line:
+        self.line_validity_begin = self.begin_point
+        self.line_validity_delta = self.end_point - self.begin_point
+        self.line_validity_u = self.line_validity_delta / np.sum(self.line_validity_delta ** 2)
+
+        # Reset the minimum and maximum projection along the lineValidityU:
+        self.line_validity_min_p = 0
+        self.line_validity_max_p = 1
+
+        # By default, the line is marked as invalid. If the begin_point is valid,
+        # we have to insert a change from invalid to valid at position 0:
+        if (start_valid):
+            changes.insert(0, 0)
+
+        # Make sure the number of changes is a multiple of 2: since the line is by
+        # default invalid, and has a finite part marked as valid, then the number
+        # of changes should be even:
+        if len(changes) % 2 != 0:
+            changes.append(1)
+
+        # The line is set to invalid by default, and this state changes for each point in the list:
+        self.line_validity.reset(False, changes)
+
+    def update_line_validity(self, match_begin : np.ndarray, match_end : np.ndarray, margin : float):
+        """
+        Updates the validity of the line, knowing that the section between match_begin and match_end
+        should be considered valid
+        
+            :param match_begin: Begin point of an observed line matched with this one
+            :param match_end: End point of an observed line matched with this one
+            :param margin: 
+        """
+
+        # Project the match along the initial line, in order to update which
+        # sections of the line are valid:
+
+        p_begin = np.sum((match_begin - self.line_validity_begin) * self.line_validity_u)
+        p_end = np.sum((match_end - self.line_validity_begin) * self.line_validity_u)
+        
+        # Make sure p_begin <= p_end:
+        if p_begin > p_end:
+            (pBegin, pEnd) = (pEnd, pBegin)
+
+        # Update the min and max projections of the line validity:
+        if p_begin < self.line_validity_min_p:
+            self.line_validity_min_p = p_begin
+        if p_end > self.line_validity_max_p:
+            self.line_validity_max_p = p_end
+
+        # The line should be valid between pBegin-margin and pBegin+margin:
+        self.line_validity.set_value(p_begin-margin, p_end+margin, True)
+
+    def add_valid_parts(self, dest : list['DynamicLine'], line_min_length : float, 
+                        max_rho_error_sq : float, max_theta_error_sq : float, init_steps : int):
+        """
+        Adds to the given list the parts of this line that are valid
+        
+            :param dest: The list on which new line segments will be added
+            :param line_min_length: Minimum length of a line
+            :param max_rho_error_sq: Square of the maximum error estimate on 
+                the range of a line to keep it
+            :param max_theta_error_sq: Square of the maximum error estimate
+                on the angle of a line to keep it
+            :param init_steps: Minimum number of steps where the line is kept alive, 
+                before checking the two above thresholds
+        """
+        
+        # If the error on the position estimate of the line is too high, then we have to remove it:
+        if (self.match_count > init_steps and (self.covariance[0, 0] > max_rho_error_sq 
+                                               or self.covariance[1, 1] > max_theta_error_sq)):
+            return
+
+        changes = self.line_validity.splits
+
+        # If there is only one valid section, resize this line and add it to dest:
+        if len(changes) == 2:
+            tmin = max(changes[0], self.line_validity_min_p)
+            tmax = min(changes[1], self.line_validity_max_p)
+            
+            if tmax - tmin >= line_min_length:
+                self.begin_point = self.line_validity_begin + tmin * self.line_validity_delta
+                self.end_point = self.line_validity_begin + tmax * self.line_validity_delta
+
+                dest.append(self)
+
+            return
+
+        # Otherwise, create a new line for each long enough valid section:
+        for i in range(0, len(changes), 2):
+            tmin = max(changes[i], self.line_validity_min_p)
+            tmax = min(changes[i+1], self.line_validity_max_p)
+
+            if tmax - tmin >= line_min_length:
+                begin = self.line_validity_begin + tmin * self.line_validity_delta
+                end = self.line_validity_begin + tmax * self.line_validity_delta
+                dest.append(self.resized_copy(begin, end))
+
+    def distance_of(self, point):
+        """ Returns the orthogonal distance between the point and the line """
+
+        return np.abs(point[0] * np.cos(self.state['theta']) 
+                      + point[1] * np.sin(self.state['theta']) - self.state['rho'])
+
+    def side_of_point(self, point : np.ndarray):
+        """ 
+        Supposing that the "forward" of the line is the vector from begin_point to end_point:
+        - Returns -1 if the given point is on the left of the line
+        - Returns +1 if the given point is on the right of the line
+        - Returns  0 if the given point belongs to the line
+        """
+
+        # Generate a vector perpendicular to the line:
+        n = self.begin_point - self.end_point
+        n = np.array([-n[1], n[0]])
+
+        # Return the sign of the dot product between (point - begin_point) and n:
+        return np.sign(np.sum(n * (point - self.begin_point)))
 
     def check_state(self):
         """
@@ -493,19 +457,21 @@ class DynamicLine:
     #         der_along_x1 * sintheta + der_along_y1 * costheta);
     # }
 
-    # public float IntersectDistance(Vector2 A, Vector2 B) {
-    #     Vector2 AB = B - A;
-    #     Vector2 CD = endPoint - beginPoint;
+    def intersect_distance(self, A : np.ndarray, B : np.ndarray):
+        """
+        Returns the value t such that the point:
+        I = line.begin_point + t * (line.end_point - line.begin_point)
+        belongs to the line AB. This point is thus the intersection point
+        between this line and the line AB
+        """
 
-    #     float den = CD.x * AB.y - CD.y * AB.x;
+        AB = B - A
+        den = np.cross(self.end_point - self.begin_point, AB)
 
-    #     if (den == 0)
-    #         return -1;
+        if den == 0:
+            return -1
 
-    #     Vector2 AC = beginPoint - A;
-
-    #     return (AC.y * AB.x - AC.x * AB.y) / den;
-    # }
+        return np.cross(AB, self.begin_point - A) / den
 
     def __str__(self):
         return "Dynamic Line: [(%.2f, %.2f) -> (%.2f, %.2f)]: \
@@ -518,3 +484,17 @@ class DynamicLine:
            self.state['theta'], np.sqrt(self.covariance[1,1]),
            self.state['der_rho'], np.sqrt(self.covariance[2,2]),
            self.state['der_theta'], np.sqrt(self.covariance[3,3]))
+    
+    def resized_copy(self, begin_point, end_point):
+        """ Create a copy of this line and redefines its endpoints """
+
+        copy = DynamicLine(0, 0, 0, begin_point, end_point)
+        copy.color = self.color
+        copy.state = self.state.copy()
+        copy.covariance = self.covariance.copy()
+        copy.match_count = self.match_count
+        copy.last_match_dynamic = self.last_match_dynamic
+        copy.is_static = self.is_static
+        copy.check_state()
+
+        return copy

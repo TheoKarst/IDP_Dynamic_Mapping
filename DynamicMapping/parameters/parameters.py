@@ -35,6 +35,7 @@ convert_to_radians(geometry_params['dynamic_lines'], 'lines_max_angle_error')
 convert_to_radians(geometry_params['dynamic_lines'], 'static_max_angle_derivative')
 convert_to_radians(geometry_params['dynamic_lines']['lines_process_noise'], 'angle')
 convert_to_radians(geometry_params['dynamic_lines']['lines_process_noise'], 'der_angle')
+convert_to_radians(geometry_params['wipe_shape'], 'alpha')
 
 # Compute the line process noise error matrix:
 line_process_noise_error = cov_matrix(geometry_params['dynamic_lines']['lines_process_noise'])

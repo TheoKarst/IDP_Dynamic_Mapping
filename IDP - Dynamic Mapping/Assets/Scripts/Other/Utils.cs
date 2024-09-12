@@ -22,7 +22,7 @@ public class Utils {
         return num;
     }
 
-    // Compute the shortest angle distance between two lines with the given angles.
+    // Compute the shortest angle between two lines with the given angles.
     // The result is thus always in the range [0; PI/2]:
     public static float LineDeltaAngleRadians(float a, float b) {
         return Mathf.PingPong(Mathf.Abs(a - b), Mathf.PI / 2);

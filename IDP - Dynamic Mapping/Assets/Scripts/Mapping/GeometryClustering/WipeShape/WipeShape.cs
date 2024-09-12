@@ -187,8 +187,8 @@ public class WipeShape {
                 // the right of the line. In this situation, the line is going outside of the
                 // shape, so startPointOutside = true.
                 // This is also the case if direction == 1 and nextLineDistance < 0:
-                startPointOutside = direction == -1 && nextLineSide > 0 
-                    || direction == 1 && nextLineSide < 0;
+                startPointOutside = (direction == -1 && nextLineSide > 0) 
+                                 || (direction == 1 && nextLineSide < 0);
                 currentSideUnknown = false;
             }
 

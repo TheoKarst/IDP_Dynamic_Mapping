@@ -388,7 +388,7 @@ public class DynamicLine : Primitive {
             changes.Insert(0, 0);
 
         // Make sure the number of changes is a multiple of 2: since the line is by
-        // default invalid, and has a finite part marked as valid, tthen the number
+        // default invalid, and has a finite part marked as valid, then the number
         // of changes should be even:
         if (changes.Count % 2 != 0)
             changes.Add(1);

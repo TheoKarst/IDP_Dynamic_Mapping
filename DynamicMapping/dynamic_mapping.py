@@ -9,7 +9,8 @@ HEIGHT = 400
 FPS = 60
 
 # initialize pygame and create screen
-py.init()  
+py.init()
+py.font.init()
 screen = py.display.set_mode((WIDTH , HEIGHT))
 clock = py.time.Clock()
 
@@ -18,9 +19,7 @@ scene = Scene(screen, 0, 0, 10)
 
 running = True
 while running:
-    clock.tick(FPS)
-    print("Current FPS:", clock.get_fps())
-    
+    clock.tick(FPS)    
     screen.fill((255, 255, 255))
 
     # check for the exit
@@ -47,7 +46,7 @@ while running:
     scene.update()
 
     # Draw the scene:
-    scene.draw()
+    scene.draw(clock)
 
     # Flip the display after drawing everything:
     py.display.flip()
