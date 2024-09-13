@@ -1,5 +1,7 @@
 import numpy as np
 
+from geometry_maps.primitives.circle import Circle
+
 class CircleBuilder:
 
     def __init__(self, points : dict | None = None):
@@ -43,9 +45,7 @@ class CircleBuilder:
         R = self.compute_circle_radius()
 
         # Build the circle:
-        circle = (self.center, R)
-
-        return circle
+        return Circle(self.center, R)
 
     def compute_circle_radius(self):
         """ Computes the radius of the circle from the position of the points """

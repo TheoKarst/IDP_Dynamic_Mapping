@@ -1,6 +1,7 @@
 import numpy as np
 
 from geometry_maps.primitives.dynamic_line import DynamicLine
+from geometry_maps.primitives.circle import Circle
 
 class WipeShape:
     def __init__(self, center : tuple, positions : list | np.ndarray, angles : list | np.ndarray):
@@ -138,6 +139,26 @@ class WipeShape:
 
         line.reset_line_validity(start_point_outside, intersections)
 
+    def update_circle_validity(self, circle : Circle):
+        """
+        Sets the validity of the given circle to False if its center is 
+        inside the wipe-shape and True otherwise
+        """
+
+        next_index = self.find_section_upper(circle.center)
+        prev_index = next_index - 1 if next_index > 0 else len(self.positions) - 1
+        
+        next_pos = self.positions[next_index]
+        prev_pos = self.positions[prev_index]
+
+        # Rotate (next - prev) to point outside the shape:
+        normal = prev_pos - next_pos
+        normal = np.array([-normal[1], normal[0]])
+
+        # Compute the dot product between normal and (circle.position - prevPos).
+        # If the dot product is greater than 0, the point is outside the shape:
+        circle.is_valid = np.sum((circle.center - prev_pos) * normal) > 0
+    
     def find_section_upper(self, point : np.ndarray):
         """
         Returns the index of a point from the shape, with an angle greater or

@@ -1,5 +1,27 @@
+import argparse
+
+# Toggle here which mapping method to use (activating both can be slow):
+USE_GRIDS_MAPPING = True
+USE_GEOMETRY_MAPPING = True
+
+# Get the folder from which we should get the LIDAR captures using the command line:
+parser = argparse.ArgumentParser(
+                    prog='DynamicMapping',
+                    description='Dynamic mapping algorithms for 2D LIDARs')
+parser.add_argument('-f', '--folder', type=str, 
+                    help="Relative path of the folder where the recorded data is")
+args = parser.parse_args()
+
+# Do other imports after the argument parsing, for a faster reaction of the command
+# line when we are just printing the help message of the program
+import os
 import pygame as py
+
 from scene.scene import Scene
+
+# Default folder where to search for LIDAR data:
+DIR_NAME = os.path.dirname(os.path.realpath(__file__))
+DEFAULT_DATAFOLDER = os.path.join(DIR_NAME, "../../LidarCaptures/DynamicCapture_0")
 
 # Set this to True to run the simulation frame by frame (pressing the right 
 # arrow key to go to the next frame):
@@ -12,6 +34,13 @@ HEIGHT = 400
 # Target Framerate:
 FPS = 60
 
+if args.folder is None:
+    datafolder = DEFAULT_DATAFOLDER
+    print("\nUsing the default datafolder:", datafolder)
+else:
+    datafolder = os.path.join(os.getcwd(), args.folder)
+    print("\nUsing the recorded data located at:", datafolder)
+
 # initialize pygame and create screen
 py.init()
 py.font.init()
@@ -19,7 +48,7 @@ screen = py.display.set_mode((WIDTH, HEIGHT))
 clock = py.time.Clock()
 
 # Create a scene to manage all the entities:
-scene = Scene(screen, 0, 0, 10)
+scene = Scene(screen, 0, 0, 10, datafolder, USE_GRIDS_MAPPING, USE_GEOMETRY_MAPPING)
 
 running = True
 while running:

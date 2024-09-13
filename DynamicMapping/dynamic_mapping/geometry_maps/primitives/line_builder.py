@@ -1,4 +1,5 @@
 import numpy as np
+
 from geometry_maps.primitives.circle_builder import CircleBuilder
 from geometry_maps.primitives.dynamic_line import DynamicLine
 

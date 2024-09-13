@@ -159,6 +159,13 @@ class DynamicLine:
         use the given line (that is supposed to be an observed line, matched with 
         this one) to update the position estimate, covariance matrix and endpoints 
         of this line.
+            :param validity_margin: Used to extend the validity of an observed line
+            :param static_max_der_rho: Maximum value for the derivative of rho to consider
+                the line static
+            :param static_max_der_theta: Maximum value for the derivative of theta to
+                consider the line static
+            :param min_matches_to_consider_static: Minimum of frames to consider an
+                immobile line as static
         """
 
         # First, update the state of this line from the observation, using

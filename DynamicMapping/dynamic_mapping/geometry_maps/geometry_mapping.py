@@ -65,6 +65,10 @@ class GeometryMapping:
         # Update the lines in the model, using the observed lines:
         self.update_model_lines(lines, self.wipe_shape, elapsed_time)
 
+        # Update the circles in the model, using the observed circles:
+        self.update_model_circles(circles, self.wipe_shape, elapsed_time)
+
+
     def draw(self, scene : 'Scene', display : dict):
         """
         Draws the map in the scene
@@ -315,3 +319,67 @@ class GeometryMapping:
 
         # Replace the previous lines with the updated ones:
         self.model_lines = new_lines
+
+    def update_model_circles(self, observed_circles : list[Circle], wipe_shape : WipeShape, 
+                           elapsed_time : float):
+        """
+        Uses the observed circles to update the circles in the model
+        
+            :param observed_circles: Circles extracted from the current observations
+            :param wipe_shape: Wipe-shape representing the free area of the sensor
+            :param elapsed_time: Elapsed time in seconds since the last update
+        """
+
+        new_circles = []
+
+        for circle in self.model_circles:
+            # Drawing: Reset the color of the circle in the model to red:
+            circle.circle_color = (255, 0, 0)
+
+            # Predict the current state of the circle:
+            circle.predict_state(elapsed_time, self.parameters['dynamic_circles']['circles_friction'])
+
+            # Compute if the circle is consistent with the free space of the wipe-shape:
+            wipe_shape.update_circle_validity(circle)
+
+        # Try to match the current circles with the circles in the model:
+        for circle in observed_circles:
+
+            # Check if the observed circle is far enough from the lines already in the model:
+            neighboring_lines = self.match_grid.find_circle_neighbors(circle)
+            min_distance = self.parameters['dynamic_circles']['min_distance_to_lines']
+            if not circle.is_far_from_lines(neighboring_lines, min_distance):
+                continue
+
+            # If this is the case, we try to match this circle with a circle in the model:
+            best_match = None
+            min_distance = -1
+
+            for match_candidate in self.model_circles:
+                distance = circle.distance_from(match_candidate)
+
+                if best_match is None or distance < min_distance:
+                    best_match = match_candidate
+                    min_distance = distance
+
+            # If a match is found, use this circle to update the match state estimate:
+            if (best_match is not None
+                and min_distance <= self.parameters['geometry_matching']['circle_max_match_distance']):
+
+                best_match.update_circle_using_match(circle)
+
+                # If a circle is matched with a current circle, then it's valid:
+                best_match.is_valid = True
+                best_match.circle_color = (0, 0, 255)
+
+            # Else, just add the circle to the model:
+            else:
+                new_circles.append(circle)
+                circle.circle_color = (0, 255, 0)
+
+        # Keep only the valid circles in the model:
+        for circle in self.model_circles:
+            if circle.is_valid:
+                new_circles.append(circle)
+
+        self.model_circles = new_circles

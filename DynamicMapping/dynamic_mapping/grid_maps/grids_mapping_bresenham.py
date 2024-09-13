@@ -1,5 +1,7 @@
 import numpy as np
 
+import geometry_maps.utils.angles as utils
+
 from scene.pose_2d import Pose2D
 from grid_maps.grids_mapping import GridsMapping
 

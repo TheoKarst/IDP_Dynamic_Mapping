@@ -22,12 +22,11 @@ public class GeometryClustering {
 
     private float lastTimeUpdate = -1;
 
-    // TEST:
+    // Used for logging data:
     private const int MAX_LOG_LINES = 10;
     private StreamWriter lineLogFile;
     private Dictionary<int, int> mapModelIdToColumns;
     private int logLine = 0;
-    private int newLineCount = 0;
 
     public GeometryClustering(GeometryClusterParams parameters) {
         this.parameters = parameters;

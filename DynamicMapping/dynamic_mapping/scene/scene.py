@@ -8,11 +8,9 @@ from grid_maps.grids_mapping_bresenham import GridsMappingBresenham
 from grid_maps.grids_mapping_rectangle import GridsMappingRectangle
 from geometry_maps.geometry_mapping import GeometryMapping
 
-# folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\StaticCapture_0"
-folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\DynamicCapture_0"
-
 class Scene:
-    def __init__(self, screen : py.Surface, center_x : float, center_y : float, pixels_per_meter : float):
+    def __init__(self, screen : py.Surface, center_x : float, center_y : float, pixels_per_meter : float,
+                 data_folder : str, use_grids_map : bool = True, use_geometry_map : bool = True):
         """
         Creates a scene for the mapping simulation using grid maps and geometric primitives
         
@@ -20,6 +18,9 @@ class Scene:
             :param center_x: Center of the camera along the x-axis
             :param center_y: Center of the camera along the y-axis
             :param pixels_per_meter: Number of pixels on the screen to represent one meter in the world
+            :param data_folder: Folder from which the recorded data should be read
+            :param use_grids_map: If the mapping using grid maps is toggled
+            :param use_geometry_maps: If the mapping using geometry maps is toggled
         """
         
         self.screen = screen
@@ -34,25 +35,31 @@ class Scene:
         self.text_font = py.font.SysFont('Comic Sans MS', 14)
 
         # Create a dataloader to load recorded data:
-        self.dataloader = Dataloader(folder)
+        self.dataloader = Dataloader(data_folder)
 
         # Instantiate a robot with the setup defined in the recorded data:
         robot_setup = self.dataloader.load_robot_setup()
         self.robot = Robot(**robot_setup)
 
         # Instantiate a manager for grid mapping:
-        self.grid_maps = GridsMappingRectangle((0,0), 700, 400, 0.1)
-        self.grid_maps.setup_using_frames_counts(60, 5, 0.999)
+        if use_grids_map:
+            self.grid_maps = GridsMappingRectangle((0,0), 700, 400, 0.1)
+            self.grid_maps.setup_using_frames_counts(60, 5, 0.999)
+        else:
+            self.grid_maps = None
 
         # Instantiate a manager for mapping using geometric primitives:
-        self.geometry_map = GeometryMapping()
+        if use_geometry_map:
+            self.geometry_map = GeometryMapping()
+        else:
+            self.geometry_map = None
 
         # Record what to display in the scene using a dictionnary:
         self.display = {}
-        self.display['rays'] = True                 # Draw the rays of the LIDARs
+        self.display['rays'] = False                # Draw the rays of the LIDARs
         self.display['grid_maps'] = 0               # 0: none, 1: static, 2: dynamic, 3: both
         self.display['geometry_map'] = True
-        self.display['wipe_shape'] = False          # Draw the wipe shape
+        self.display['wipe_shape'] = True           # Draw the wipe shape
         self.display['match_grid'] = False          # Draw the match grid used for geometry mapping
         self.display['speed_estimates'] = True      # Draw the speed estimate of the primitives
         self.display['lines'] = True                # Draw the lines in the geometry map
@@ -104,10 +111,12 @@ class Scene:
                 observations = self.robot.lidars[lidar_index].observations
 
                 # Use the observations of the LIDAR to update the static and dynamic maps:
-                # self.grid_maps.update_maps(lidar_pose, observations)
+                if self.grid_maps is not None:
+                    self.grid_maps.update_maps(lidar_pose, observations)
 
                 # Use the observations of the LIDAR to update the map using geometric primitives:
-                self.geometry_map.update(self.robot, lidar_index, observations, delta_time)
+                if self.geometry_map is not None:
+                    self.geometry_map.update(self.robot, lidar_index, observations, delta_time)
 
     def draw(self, clock : py.time.Clock):
         """
@@ -117,18 +126,19 @@ class Scene:
         """
 
         # Draw the static and dynamic maps if necessary:
-        if self.display['grid_maps'] == 1:
-            self.grid_maps.draw(self, view='static')
-        elif self.display['grid_maps'] == 2:
-            self.grid_maps.draw(self, view='dynamic')
-        elif self.display['grid_maps'] == 3:
-            self.grid_maps.draw(self, view='both')
+        if self.grid_maps is not None:
+            if self.display['grid_maps'] == 1:
+                self.grid_maps.draw(self, view='static')
+            elif self.display['grid_maps'] == 2:
+                self.grid_maps.draw(self, view='dynamic')
+            elif self.display['grid_maps'] == 3:
+                self.grid_maps.draw(self, view='both')
 
         # Draw the robot:
         self.robot.draw(self, self.display['rays'])
         
         # Draw the map using geometric primitives if necessary:
-        if self.display['geometry_map']:
+        if self.geometry_map is not None and self.display['geometry_map']:
             self.geometry_map.draw(self, self.display)
 
         # Draw the current FPS at which the simulation is running:
