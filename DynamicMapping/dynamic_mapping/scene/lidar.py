@@ -1,7 +1,8 @@
 import numpy as np
-from pose_2d import Pose2D
-# from robot import Robot
-# from scene import Scene
+
+from scene.pose_2d import Pose2D
+# from scene.robot import Robot
+# from scene.scene import Scene
 
 class Lidar:
     def __init__(self, 

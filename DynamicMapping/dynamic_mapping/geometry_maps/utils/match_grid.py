@@ -1,5 +1,6 @@
 import math
-from .dynamic_line import DynamicLine
+
+from geometry_maps.primitives.dynamic_line import DynamicLine
 
 class MatchGrid:
     """

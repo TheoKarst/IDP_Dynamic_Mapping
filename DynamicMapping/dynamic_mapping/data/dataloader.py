@@ -1,9 +1,9 @@
 import os
 import numpy as np
 
-import utils.utils as utils
-from utils.lidar import Lidar
-from utils.pose_2d import Pose2D
+import data.utils as utils
+from scene.pose_2d import Pose2D
+from scene.lidar import Lidar
 
 class Dataloader:
     def __init__(self, folder):

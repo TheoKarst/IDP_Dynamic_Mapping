@@ -1,5 +1,6 @@
 import numpy as np
-# from scene import Scene
+
+# from scene.scene import Scene
 
 # Base class for the grids mapping algorithms.
 # 

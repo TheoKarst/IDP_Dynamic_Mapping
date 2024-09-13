@@ -1,5 +1,6 @@
 import random
-from mapping.geometry_maps.bool_axis import BoolAxis
+
+from ..geometry_maps.utils.bool_axis import BoolAxis
 
 axis = BoolAxis(False)
   

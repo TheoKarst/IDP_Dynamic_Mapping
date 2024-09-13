@@ -1,7 +1,7 @@
 import numpy as np
-from pose_2d import Pose2D
-# from scene import Scene
-from .grids_mapping import GridsMapping
+
+from scene.pose_2d import Pose2D
+from grid_maps.grids_mapping import GridsMapping
 
 class GridsMappingBresenham(GridsMapping):
     """

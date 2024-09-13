@@ -1,11 +1,12 @@
 import math
 import pygame as py
 import numpy as np
-from robot import Robot
-from dataloader import Dataloader
-from mapping.grid_maps.grids_mapping_bresenham import GridsMappingBresenham
-from mapping.grid_maps.grids_mapping_rectangle import GridsMappingRectangle
-from mapping.geometry_maps.geometry_mapping import GeometryMapping
+
+from scene.robot import Robot
+from data.dataloader import Dataloader
+from grid_maps.grids_mapping_bresenham import GridsMappingBresenham
+from grid_maps.grids_mapping_rectangle import GridsMappingRectangle
+from geometry_maps.geometry_mapping import GeometryMapping
 
 folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\StaticCapture_0"
 # folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\DynamicCapture_0"

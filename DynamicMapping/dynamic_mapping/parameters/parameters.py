@@ -1,6 +1,6 @@
 import numpy as np
 
-import utils
+import data.utils as utils
 
 def convert_to_radians(dict : dict, key : str):
     """ 
@@ -19,7 +19,7 @@ def cov_matrix(errors_dict : dict):
     return np.diag(np.fromiter(errors_dict.values(), dtype=float) ** 2)
 
 # Load the robot parameters and convert degrees to radians:
-robot_params = utils.load_json('parameters/robot_params.json')
+robot_params = utils.load_json('dynamic_mapping/parameters/robot_params.json')
 convert_to_radians(robot_params['robot_pose'], 'error_angle')
 convert_to_radians(robot_params['observation'], 'error_angle')
 
@@ -28,7 +28,7 @@ state_covariance = cov_matrix(robot_params['robot_pose'])
 observation_covariance = cov_matrix(robot_params['observation'])
 
 # Load parameters for the mapping using geometric primitives and convert degrees to radians:
-geometry_params = utils.load_json('parameters/geometry_map_params.json')
+geometry_params = utils.load_json('dynamic_mapping/parameters/geometry_map_params.json')
 convert_to_radians(geometry_params['geometry_extraction'], 'points_critical_angle')
 convert_to_radians(geometry_params['geometry_matching'], 'line_max_match_angle')
 convert_to_radians(geometry_params['dynamic_lines'], 'lines_max_angle_error')

@@ -1,7 +1,7 @@
 import numpy as np
-import utils
 
-from .bool_axis import BoolAxis
+import geometry_maps.utils.angles as utils
+from geometry_maps.utils.bool_axis import BoolAxis
 
 class DynamicLine:
 

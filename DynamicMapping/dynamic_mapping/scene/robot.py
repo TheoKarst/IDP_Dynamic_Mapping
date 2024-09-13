@@ -1,8 +1,10 @@
 import numpy as np
-from pose_2d import Pose2D
-from lidar import Lidar
-# from scene import Scene
+
 import parameters.parameters as params
+
+from scene.pose_2d import Pose2D
+from scene.lidar import Lidar
+# from scene.scene import Scene
 
 class Robot:
     def __init__(self, 

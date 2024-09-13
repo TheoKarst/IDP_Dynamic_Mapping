@@ -1,12 +1,15 @@
 import numpy as np
-from robot import Robot
-from .line_builder import LineBuilder
-from .dynamic_line import DynamicLine
+
 import parameters.parameters as params
-import utils
-from .wipe_shape.utils import alpha_filter, douglas_peucker
-from .wipe_shape.wipe_shape import WipeShape
-from .match_grid import MatchGrid
+import geometry_maps.utils.angles as utils
+
+from scene.robot import Robot
+from geometry_maps.primitives.line_builder import LineBuilder
+from geometry_maps.primitives.dynamic_line import DynamicLine
+from geometry_maps.primitives.wipe_shape import WipeShape
+
+from geometry_maps.utils.filtering import alpha_filter, douglas_peucker
+from geometry_maps.utils.match_grid import MatchGrid
 
 class GeometryMapping:
     def __init__(self, parameters : dict | None = None):

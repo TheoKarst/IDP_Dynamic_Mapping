@@ -1,6 +1,6 @@
 import numpy as np
-from .circle_builder import CircleBuilder
-from .dynamic_line import DynamicLine
+from geometry_maps.primitives.circle_builder import CircleBuilder
+from geometry_maps.primitives.dynamic_line import DynamicLine
 
 class LineBuilder:
 

@@ -1,5 +1,6 @@
 import numpy as np
-from ..dynamic_line import DynamicLine
+
+from geometry_maps.primitives.dynamic_line import DynamicLine
 
 class WipeShape:
     def __init__(self, center, positions, angles):

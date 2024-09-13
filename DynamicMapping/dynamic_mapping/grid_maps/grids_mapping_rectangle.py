@@ -1,8 +1,7 @@
 import numpy as np
-import utils
-from pose_2d import Pose2D
-from .grids_mapping import GridsMapping
-# from scene import Scene
+
+from scene.pose_2d import Pose2D
+from grid_maps.grids_mapping import GridsMapping
 
 # Implementation of the mapping with grid maps, using the paper "2D Occupancy Grid Mapping 
 # With Inverse Range Sensor Model's algorithm" to project the rays of the LIDAR onto the grids
