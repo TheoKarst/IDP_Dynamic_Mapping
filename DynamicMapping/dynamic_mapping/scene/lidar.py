@@ -62,12 +62,15 @@ class Lidar:
         self.observations['ranges'][out_of_range] = self.max_range
         self.observations['out_of_range'] = out_of_range
 
-
     def draw(self, scene : 'Scene', draw_rays : bool):
         """ Draws a circle representing the LIDAR and optionnaly the LIDAR rays """
+
+        # If the LIDAR is not correctly setup, return:
+        if self.global_pose is None:
+            return
         
         # Draw the LIDAR rays:
-        if draw_rays and self.observations is not None:
+        if draw_rays and self.observations:
             rays_color = (255, 0, 0)
 
             # For each observation, draw a line between the LIDAR and that observation:

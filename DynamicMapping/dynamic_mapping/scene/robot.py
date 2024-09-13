@@ -58,7 +58,7 @@ class Robot:
         if state_covariance is not None:
             self.state_covariance = state_covariance
 
-        if  observation_covariance is not None:
+        if observation_covariance is not None:
             self.observation_covariance = observation_covariance
         
         for index, observations in enumerate(lidars_observations):

@@ -4,6 +4,8 @@ import parameters.parameters as params
 import geometry_maps.utils.angles as utils
 
 from scene.robot import Robot
+# from scene.scene import Scene
+
 from geometry_maps.primitives.line_builder import LineBuilder
 from geometry_maps.primitives.dynamic_line import DynamicLine
 from geometry_maps.primitives.wipe_shape import WipeShape
@@ -13,8 +15,6 @@ from geometry_maps.utils.match_grid import MatchGrid
 
 class GeometryMapping:
     def __init__(self, parameters : dict | None = None):
-        self.last_time_update = -1
-
         self.parameters = parameters if parameters is not None \
             else params.geometry_params
         
@@ -33,11 +33,7 @@ class GeometryMapping:
         # Wipe shape used during the current frame, to remove inconsistent primitives:
         self.wipe_shape = None
 
-    def update(self, robot : Robot, lidar_index : int, observations : dict, current_time : float):
-
-        # Compute the elapsed time since the last update:
-        delta_time = 0 if self.last_time_update == -1 else current_time - self.last_time_update
-        self.last_time_update = current_time
+    def update(self, robot : Robot, lidar_index : int, observations : dict, elapsed_time : float):
 
         # Clear the match grid and register again the current model lines:
         self.match_grid.clear()
@@ -55,7 +51,7 @@ class GeometryMapping:
         lines, circles = self.extract_primitives(points)
         
         # Update the lines in the model, using the observed lines:
-        self.update_model_lines(lines, self.wipe_shape, delta_time)
+        self.update_model_lines(lines, self.wipe_shape, elapsed_time)
 
         print("Model lines:", len(self.model_lines))
 

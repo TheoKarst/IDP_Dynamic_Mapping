@@ -6,7 +6,7 @@ from scene.pose_2d import Pose2D
 from scene.lidar import Lidar
 
 class Dataloader:
-    def __init__(self, folder):
+    def __init__(self, folder : str):
         """ Instantiates a dataloader to load recorded data 
         
             :param folder: The folder in which the data is
@@ -48,13 +48,28 @@ class Dataloader:
             
         return robot_config
 
+    def load_next_frame(self):
+        """
+        Loads the next available frame in the data folder. This is useful to read all the data,
+        even if we are late compared to the frames timestamp
+
+            :returns: The frame as a dictionnary or None if the reading is complete
+        """
+
+        # If the reading is complete, return None:
+        if self.reading_complete or not self._load_next():
+            return None
+        
+        # Else, return the next frame:
+        return self.parse_frame(self.next_frame)
+        
     def load_current_frame(self, time : float):
         """
         Loads data in the data folder until the next frame has a timestamp greater than
-        the current time and return the current frame as a dictionnary or None if the
-        reading is complete
+        the current time. This is useful to read data in realtime
         
             :param time: Current time in the simulation
+            :returns: The current frame as a dictionnary or None if the reading is complete
         """
 
         if self.reading_complete:
@@ -62,22 +77,44 @@ class Dataloader:
 
         # Continue reading frames until the next frame has a timestamp greater than the current time:
         while self.next_frame is None or self.next_frame['timestamp'] <= time:
-            self.current_frame_id += 1
-            filename = os.path.join(self.folder, f"frame_{self.current_frame_id + 1}.json")
-
-            if not os.path.exists(filename):
-                self.reading_complete = True
+            if not self.load_next():
                 return None
+            
+        # Return the current frame:
+        return self.parse_frame(self.current_frame)
+    
+    def _load_next(self):
+        """
+        Loads the next available frame and updates self.current_frame and self.next_frame 
+        
+            :returns: If we managed to load a new frame
+        """
+        
+        self.current_frame_id += 1
+        filename = os.path.join(self.folder, f"frame_{self.current_frame_id + 1}.json")
 
-            self.current_frame = self.next_frame
-            self.next_frame = utils.load_json(filename)
+        if not os.path.exists(filename):
+            self.reading_complete = True
+            return False
+        
+        self.current_frame = self.next_frame
+        self.next_frame = utils.load_json(filename)
+
+        return True
+    
+    def parse_frame(self, frame : dict):
+        """
+        Parses the given frame and gives the correct type for the objects in the dictionnary
+        
+            :returns: The parsed dictionnary
+        """
 
         # Get the current pose of the robot:
-        robot_pose = Pose2D(**self.current_frame['robot_pose'])
+        robot_pose = Pose2D(**frame['robot_pose'])
 
         # Get the observations from the LIDARs:
         lidars_observations = []
-        for lidar_data in self.current_frame['lidars_data']:
+        for lidar_data in frame['lidars_data']:
 
             # Observations are represented using dictionnaries of ndarrays for performance:
             observations = {}

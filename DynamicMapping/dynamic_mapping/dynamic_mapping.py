@@ -1,6 +1,10 @@
 import pygame as py
 from scene.scene import Scene
 
+# Set this to True to run the simulation frame by frame (pressing the right 
+# arrow key to go to the next frame):
+FRAME_MODE = True
+
 # Dimensions of the screen in pixels
 WIDTH = 800
 HEIGHT = 400
@@ -22,7 +26,10 @@ while running:
     clock.tick(FPS)    
     screen.fill((255, 255, 255))
 
-    # check for the exit
+    # By default, the scene is updated only if we are not in frame mode:
+    update_scene = not FRAME_MODE
+
+    # Manage events:
     for event in py.event.get():
         if event.type == py.QUIT:
             running = False
@@ -36,6 +43,11 @@ while running:
             py.mouse.get_rel()
 
         elif event.type == py.KEYDOWN:
+            # If we are in the frame mode, we update the scene only if we press the 
+            # right arrow key:
+            if FRAME_MODE and event.key == py.K_RIGHT:
+                update_scene = True
+                
             scene.on_key_down(event.key)
 
     if py.mouse.get_pressed(num_buttons=3)[0]:
@@ -43,7 +55,8 @@ while running:
         scene.move(delta_x, -delta_y)
 
     # Update the scene:
-    scene.update()
+    if update_scene:
+        scene.update(FRAME_MODE)
 
     # Draw the scene:
     scene.draw(clock)

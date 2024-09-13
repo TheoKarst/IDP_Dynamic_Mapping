@@ -21,6 +21,7 @@ class Scene:
 
         self.pixels_per_meter = pixels_per_meter
 
+        # Text font to draw the current FPS on the screen:
         self.text_font = py.font.SysFont('Comic Sans MS', 14)
 
         # Create a dataloader to load recorded data:
@@ -49,13 +50,31 @@ class Scene:
         xmax, ymax = self.world_coordinates(screen.get_width(), screen.get_height())
         print(f"Screen setup: [xmin: {xmin}m; xmax: {xmax}m], [ymin: {ymin}m; ymax: {ymax}m]")
 
-    def update(self):
-        """ Called each frame, updates the whole scene """
+        # Last time when the scene was updated:
+        self.last_time_update = 0
 
-        # Get the current time in seconds (elapsed time since pygame.init() was called):
+    def update(self, frame_mode : bool = False):
+        """
+        Called each frame, updates the whole scene
+        
+            :param frame_mode: If True, the data is loaded frame by frame instead of
+                trying to run realtime
+        """
+
+        # Get the current time (number of seconds since pygame.init() was called):
         current_time = py.time.get_ticks() / 1000
 
-        data_frame = self.dataloader.load_current_frame(current_time)
+        # Compute the delta time since the last update and load the next frame:
+        if frame_mode:
+            delta_time = 0.02
+            self.last_time_update += 0.02
+
+            data_frame = self.dataloader.load_next_frame()
+        else:
+            delta_time = current_time - self.last_time_update
+            self.last_time_update = current_time
+
+            data_frame = self.dataloader.load_current_frame(current_time)
 
         if data_frame is not None:
             # The first thing to update is the robot, to have the right position for the 
@@ -75,10 +94,14 @@ class Scene:
                 # self.grid_maps.update_maps(lidar_pose, observations)
 
                 # Use the observations of the LIDAR to update the map using geometric primitives:
-                self.geometry_map.update(self.robot, lidar_index, observations, current_time)
+                self.geometry_map.update(self.robot, lidar_index, observations, delta_time)
 
     def draw(self, clock : py.time.Clock):
-        """ Draws the whole scene """
+        """
+        Draws the whole scene
+        
+            :param clock: Clock used to measure the FPS of the simulation
+        """
 
         # Draw the static and dynamic maps if necessary:
         if self.display['grid_maps'] == 1:
