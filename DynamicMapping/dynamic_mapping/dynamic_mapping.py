@@ -1,5 +1,5 @@
 import pygame as py
-from scene import Scene
+from utils.scene import Scene
 
 # Dimensions of the screen in pixels
 WIDTH = 800

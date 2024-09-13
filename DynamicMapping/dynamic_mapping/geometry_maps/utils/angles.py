@@ -1,4 +1,3 @@
-import json
 import numpy as np
 
 def abs_delta_angles(a : np.ndarray, b : np.ndarray):
@@ -43,10 +42,3 @@ def line_delta_angle(a : np.ndarray, b : np.ndarray):
     num = (a - b) % np.pi
 
     return np.where(num > np.pi/2, np.pi - num, num)
-
-def load_json(path : str):
-        """ Loads a json file and returns data as a dictionnary """
-
-        with open(path, "r") as f:
-            return json.load(f)
-    
