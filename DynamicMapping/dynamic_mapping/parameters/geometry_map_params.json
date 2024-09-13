@@ -1,4 +1,12 @@
 {
+    "match_grid" : {
+        "center_x" : 0,
+        "center_y" : 0,
+        "width" : 36,
+        "height" : 22,
+        "cell_size" : 2
+    },
+    
     "geometry_extraction" : {
         "points_critical_distance" : 1,
         "line_critical_distance" : 0.02,

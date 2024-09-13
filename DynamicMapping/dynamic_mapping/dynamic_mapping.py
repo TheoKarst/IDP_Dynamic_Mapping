@@ -5,7 +5,7 @@ from scene import Scene
 WIDTH = 800
 HEIGHT = 400
 
-# Framerate:
+# Target Framerate:
 FPS = 60
 
 # initialize pygame and create screen

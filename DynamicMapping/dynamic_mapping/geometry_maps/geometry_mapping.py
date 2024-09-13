@@ -6,6 +6,7 @@ import parameters.parameters as params
 import utils
 from .wipe_shape.utils import alpha_filter, douglas_peucker
 from .wipe_shape.wipe_shape import WipeShape
+from .match_grid import MatchGrid
 
 class GeometryMapping:
     def __init__(self, parameters : dict | None = None):
@@ -13,6 +14,14 @@ class GeometryMapping:
 
         self.parameters = parameters if parameters is not None \
             else params.geometry_params
+        
+        # Create a grid for a more efficient matching of primitives:
+        self.match_grid = MatchGrid(
+            self.parameters['match_grid']['width'],
+            self.parameters['match_grid']['height'],
+            self.parameters['match_grid']['cell_size'],
+            self.parameters['match_grid']['center_x'],
+            self.parameters['match_grid']['center_y'])
         
         # Lines and circles currently in the model:
         self.model_lines = []
@@ -26,6 +35,11 @@ class GeometryMapping:
         # Compute the elapsed time since the last update:
         delta_time = 0 if self.last_time_update == -1 else current_time - self.last_time_update
         self.last_time_update = current_time
+
+        # Clear the match grid and register again the current model lines:
+        self.match_grid.clear()
+        for line in self.model_lines:
+            self.match_grid.register_line(line)
 
         # Compute the position and error estimate of each observation that is not 
         # out of the range of the LIDAR:
@@ -53,6 +67,8 @@ class GeometryMapping:
 
         if self.wipe_shape is not None:
             self.wipe_shape.draw(scene)
+
+        self.match_grid.draw(scene)
 
     def compute_points(self, robot : Robot, lidar_index : int, observations : dict):
 
@@ -238,7 +254,7 @@ class GeometryMapping:
             min_norm_distance = -1
 
             m_params = self.parameters['geometry_matching']
-            for model_line in self.model_lines:
+            for model_line in self.match_grid.find_line_neighbors(current_line):
                 # First test: check if the line from the model is a good match candidate:
                 if (current_line.is_match_candidate(model_line,
                     m_params['line_max_match_angle'],

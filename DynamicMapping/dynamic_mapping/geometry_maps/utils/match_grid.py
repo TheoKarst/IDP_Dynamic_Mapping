@@ -1,6 +1,5 @@
 import math
-from dynamic_line import DynamicLine
-from ...scene import Scene
+from .dynamic_line import DynamicLine
 
 class MatchGrid:
     """
@@ -70,7 +69,12 @@ class MatchGrid:
 
         cells = self.find_contact_cells(x0, y0, x1, y1)
         for x, y in cells:
-            self.register_line(line, x, y)
+            self.register_line_at(line, x, y)
+
+    def register_line_at(self, line : DynamicLine, cell_x : int, cell_y : int):
+        """ Adds the given line to the list of lines registered for the given cell """
+
+        self.cells[self.width * cell_y + cell_x].append(line)
 
     def find_line_neighbors(self, line : DynamicLine):
         # Use a set to find neighbors, to avoid adding multiple times the same object in the list:
@@ -241,11 +245,6 @@ class MatchGrid:
                 intery = intery + gradient
 
         return result
-
-    def register_line(self, line : DynamicLine, cell_x : int, cell_y : int):
-        """ Adds the given line to the list of lines registered for the given cell """
-
-        self.cells[self.width * cell_y + cell_x].append(line)
 
     def belongs_to_grid(self, x : float, y : float):
         """ Returns if the given coordinates belongs to the grid """
