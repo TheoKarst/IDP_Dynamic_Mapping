@@ -8,16 +8,25 @@ from grid_maps.grids_mapping_bresenham import GridsMappingBresenham
 from grid_maps.grids_mapping_rectangle import GridsMappingRectangle
 from geometry_maps.geometry_mapping import GeometryMapping
 
-folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\StaticCapture_0"
-# folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\DynamicCapture_0"
+# folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\StaticCapture_0"
+folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\DynamicCapture_0"
 
 class Scene:
-    def __init__(self, screen : py.Surface, centerX : float, centerY : float, pixels_per_meter : float):
+    def __init__(self, screen : py.Surface, center_x : float, center_y : float, pixels_per_meter : float):
+        """
+        Creates a scene for the mapping simulation using grid maps and geometric primitives
+        
+            :param screen: Screen on which the scene should be drawn
+            :param center_x: Center of the camera along the x-axis
+            :param center_y: Center of the camera along the y-axis
+            :param pixels_per_meter: Number of pixels on the screen to represent one meter in the world
+        """
+        
         self.screen = screen
 
         # World position of the top left corner of the camera:
-        self.corner_x = centerX - screen.get_width() / (2 * pixels_per_meter)
-        self.corner_y = centerY + screen.get_height() / (2 * pixels_per_meter)
+        self.corner_x = center_x - screen.get_width() / (2 * pixels_per_meter)
+        self.corner_y = center_y + screen.get_height() / (2 * pixels_per_meter)
 
         self.pixels_per_meter = pixels_per_meter
 
@@ -40,10 +49,14 @@ class Scene:
 
         # Record what to display in the scene using a dictionnary:
         self.display = {}
-        self.display['rays'] = True             # Draw the rays of the LIDARs
-        self.display['grid_maps'] = 0           # 0: none, 1: static, 2: dynamic, 3: both
+        self.display['rays'] = True                 # Draw the rays of the LIDARs
+        self.display['grid_maps'] = 0               # 0: none, 1: static, 2: dynamic, 3: both
         self.display['geometry_map'] = True
-        self.display['wipe_shape'] = False       # Draw the wipe shape
+        self.display['wipe_shape'] = False          # Draw the wipe shape
+        self.display['match_grid'] = False          # Draw the match grid used for geometry mapping
+        self.display['speed_estimates'] = True      # Draw the speed estimate of the primitives
+        self.display['lines'] = True                # Draw the lines in the geometry map
+        self.display['circles'] = True              # Draw the circles in the geometry map
 
         # For information, print the boundaries of the screen in world space:
         xmin, ymin = self.world_coordinates(0, 0)
@@ -116,11 +129,10 @@ class Scene:
         
         # Draw the map using geometric primitives if necessary:
         if self.display['geometry_map']:
-            self.geometry_map.draw(self)
+            self.geometry_map.draw(self, self.display)
 
         # Draw the current FPS at which the simulation is running:
-        text = self.text_font.render('FPS: %.1f' % clock.get_fps(), True, (0, 0, 0))
-        self.screen.blit(text, (0,0))
+        self.draw_text('FPS: %.1f' % clock.get_fps(), 'top_left')
 
     def on_key_down(self, key):
         """ Should be called when a key button on the keyboard is pressed """
@@ -144,6 +156,49 @@ class Scene:
         # If W-key is pressed, toggle the drawing of the wipe-shape:
         elif key == py.K_w:
             self.display['wipe_shape'] = not self.display['wipe_shape']
+
+        # If M-key is pressed, toggle the drawing of the match-grid (used for geometric maps):
+        elif key == py.K_m:
+            self.display['match_grid'] = not self.display['match_grid']
+
+        # If S-key is pressed, toggle the drawing of the speed estimate of primitives:
+        elif key == py.K_s:
+            self.display['speed_estimates'] = not self.display['speed_estimates']
+
+        # If L-key is pressed, toggle the drawing of lines in the geometric maps:
+        elif key == py.K_l:
+            self.display['lines'] = not self.display['lines']
+
+        # If the C-key is pressed, toggle the drawing of circles in the geometric maps:
+        elif key == py.K_c:
+            self.display['circles'] = not self.display['circles']
+
+    def draw_text(self, text : str, corner : str, color : tuple = (0, 0, 0)):
+        """
+        Draws text on the screen
+        
+            :param text: The text to print
+            :param corner: On which corner of the screen to draw the text. One among
+                'top_left', 'top_right', 'bottom_left' or 'bottom_right'
+            :param color: The color of the text
+        """
+
+        surface = self.text_font.render(text, True, color)
+        rect = surface.get_rect()
+
+        # Compute the position where the text should be drawn:
+        if corner == 'top_left':
+            pos = (0, 0)
+        elif corner == 'top_right':
+            pos = (self.screen.get_width() - rect.width,0)
+        elif corner == 'bottom_left':
+            pos = (0,self.screen.get_height() - rect.height)
+        else:
+            pos = (self.screen.get_width() - rect.width, 
+                   self.screen.get_height() - rect.height)
+            
+        # Draw the text:
+        self.screen.blit(surface, pos)
 
     def draw_grid(self, x : float, y : float, cell_size : float, data : np.ndarray):
         """
@@ -207,8 +262,8 @@ class Scene:
         points[:,1] *= height * self.pixels_per_meter
 
         # Rotate the arrow:
-        points = points @ np.array([[np.cos(angle), np.sin(angle)], 
-                                    [-np.sin(angle), np.cos(angle)]])
+        points = points @ np.array([[np.cos(angle), -np.sin(angle)], 
+                                    [np.sin(angle), np.cos(angle)]])
         
         # Put the arrow at the right position:
         start_x, start_y = self.screen_coordinates(start_x, start_y)

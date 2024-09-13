@@ -1,11 +1,24 @@
 import numpy as np
 
+# from scene.scene import Scene
+
 import geometry_maps.utils.angles as utils
 from geometry_maps.utils.bool_axis import BoolAxis
 
 class DynamicLine:
 
-    def __init__(self, rho, theta, covariance, begin_point, end_point):
+    def __init__(self, rho : float, theta : float, covariance : np.ndarray, 
+                 begin_point : np.ndarray, end_point : np.ndarray):
+        """
+        Instantiates a dynamic line to represent aligned parts of the environment
+        
+            :param rho: Distance of the line from the origin in meters
+            :param theta: Angle of the line in radians
+            :param covariance: 2x2 covariance matrix of rho and theta
+            :param begin_point: Begin position of the line
+            :param end_point: End position of the line
+        """
+
         self.state = {}
         self.state['rho'] = rho         # Range of the line
         self.state['theta'] = theta     # Angle of the line (in radians)
@@ -36,6 +49,9 @@ class DynamicLine:
         # Number of times this line has been matched with an observation:
         self.match_count = 0
 
+        # Flag to force the deletion of a line:
+        self.force_delete = False
+
         # Use a BoolAxis to represent which parts of the line are "valid":
         self.line_validity = BoolAxis(False)
 
@@ -54,11 +70,27 @@ class DynamicLine:
 
         self.check_state()
     
-    def draw(self, scene : 'Scene'):
+    def draw(self, scene : 'Scene', draw_speed_estimate : bool = False):
+        """ Draws the line in the scene """
+
         color = (0, 0, 0) if self.is_static else self.color
 
         scene.draw_line(self.begin_point[0], self.begin_point[1], 
                         self.end_point[0], self.end_point[1], color)
+        
+        # Draw an arrow representing the estimated speed of the line:
+        if draw_speed_estimate and not self.is_static:
+            # Compute the speed of the center of the line:
+            center = (self.begin_point + self.end_point) / 2
+
+            speed_x, speed_y = self.velocity_of_point(center[0], center[1])
+
+            # Width and height of the arrow representing the speed:
+            width = np.sqrt(speed_x ** 2 + speed_y ** 2)
+            height = width / 4
+            angle = np.arctan2(speed_y, speed_x)
+
+            scene.draw_arrow(center[0], center[1], width, height, angle, (255, 0, 0))
 
     def predict_state(self, elapsed_time : float, process_noise : np.ndarray, friction : float):
         """
@@ -140,12 +172,13 @@ class DynamicLine:
         
         # Then, since the observation is by definition valid, use it to
         # update which sections of this line are valid:
-        # UpdateLineValidity(observation.begin_point, observation.end_point, validity_margin);
+        self.update_line_validity(observation.begin_point, observation.end_point, validity_margin)
 
         # Finally, increase the match count:
         self.match_count += 1
         
-    def update_state(self, observation_rho, observation_theta, observation_covariance):
+    def update_state(self, observation_rho : float, observation_theta : float, 
+                     observation_covariance : np.ndarray):
         """ Use the given observation to update the line state 
             :param observation_rho: Range of the observed line
             :param observation_theta: Angle of the observed line
@@ -188,7 +221,20 @@ class DynamicLine:
         # Make sure that the new state is well defined:
         self.check_state()
 
-    def check_dynamic_status(self, static_max_der_rho, static_max_der_theta, min_matches_to_consider_static):
+    def check_dynamic_status(self, static_max_der_rho : float, static_max_der_theta : float, 
+                             min_matches_to_consider_static : int):
+        """
+        Looks at the speed estimate of the line and updates if the line should be considered
+        static or dynamic
+
+            :param static_max_der_rho: Maximum value for the derivative of rho to consider
+                the line static
+            :param static_max_der_theta: Maximum value for the derivative of theta to
+                consider the line static
+            :param min_matches_to_consider_static: Minimum of frames to consider an
+                immobile line as static
+        """
+        
         # We check if the line is currently moving:
         is_moving = abs(self.state['der_rho']) > static_max_der_rho \
                 or abs(self.state['der_theta']) > static_max_der_theta
@@ -333,7 +379,7 @@ class DynamicLine:
         
         # Make sure p_begin <= p_end:
         if p_begin > p_end:
-            (pBegin, pEnd) = (pEnd, pBegin)
+            (p_begin, p_end) = (p_end, p_begin)
 
         # Update the min and max projections of the line validity:
         if p_begin < self.line_validity_min_p:
@@ -358,6 +404,10 @@ class DynamicLine:
             :param init_steps: Minimum number of steps where the line is kept alive, 
                 before checking the two above thresholds
         """
+
+        # If we need to delete this line, there is nothing to do:
+        if self.force_delete:
+            return
         
         # If the error on the position estimate of the line is too high, then we have to remove it:
         if (self.match_count > init_steps and (self.covariance[0, 0] > max_rho_error_sq 
@@ -428,34 +478,42 @@ class DynamicLine:
         # Make sure theta is between 0 and 2*PI:
         self.state['theta'] %= 2*np.pi
 
-    # public Vector2 VelocityOfPoint(float x, float y) {
-    #     // Perform some renamings for simplification:
-    #     float rho = modelLine.state.rho;
-    #     float theta = modelLine.state.theta;
-    #     float dRho = modelLine.state.dRho;
-    #     float dTheta = modelLine.state.dTheta;
-
-    #     // Express the given point in the referential of the model line:
-    #     float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
-    #     Vector2 MP = new Vector2(x - rho * costheta, y - rho * sintheta);
-
-    #     // Unit vectors orthogonal to the line, and along the line:
-    #     Vector2 x1 = new Vector2(costheta, sintheta);       // Orthogonal
-    #     Vector2 y1 = new Vector2(-sintheta, costheta);      // Along
+    def velocity_of_point(self, x, y):
+        """
+        Computes the velocity of a point, supposing that this point belongs to the line
         
-    #     // MP = a.x1 + b.y1:
-    #     float a = Vector2.Dot(MP, x1);
-    #     float b = Vector2.Dot(MP, y1);
+            :param x: World position of the point along the X-axis in meters
+            :param y: World position of the point along the Y-axis in meters
+        """
 
-    #     // Compute the derivative of the point in the referential of the line:
-    #     float der_along_x1 = dRho - b * dTheta;
-    #     float der_along_y1 = (rho + a) * dTheta;
+        # Perform some renamings for simplification:
+        rho = self.state['rho']
+        theta = self.state['theta']
+        d_rho = self.state['der_rho']
+        d_theta = self.state['der_theta']
+        
+        # Express the given point in the referential of the model line:
+        costheta = np.cos(theta)
+        sintheta = np.sin(theta)
+        MP = np.array([x - rho * costheta, y - rho * sintheta])
 
-    #     // Express the result in the base reference:
-    #     return new Vector2(
-    #         der_along_x1 * costheta - der_along_y1 * sintheta,
-    #         der_along_x1 * sintheta + der_along_y1 * costheta);
-    # }
+        # Unit vectors orthogonal to the line and along the line:
+        x1 = np.array([costheta, sintheta])     # Orthogonal
+        y1 = np.array([-sintheta, costheta])    # Along
+        
+        # MP = a.x1 + b.y1:
+        a = np.sum(MP * x1)
+        b = np.sum(MP * y1)
+        
+        # Compute the derivative of the point in the referential of the line:
+        der_along_x1 = d_rho - b * d_theta
+        der_along_y1 = (rho + a) * d_theta
+
+        # Finally express the result in the base reference:
+        speed_x = der_along_x1 * costheta - der_along_y1 * sintheta
+        speed_y = der_along_x1 * sintheta + der_along_y1 * costheta
+
+        return speed_x, speed_y
 
     def intersect_distance(self, A : np.ndarray, B : np.ndarray):
         """

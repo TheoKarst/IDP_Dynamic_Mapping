@@ -3,7 +3,7 @@ import numpy as np
 from geometry_maps.primitives.dynamic_line import DynamicLine
 
 class WipeShape:
-    def __init__(self, center, positions, angles):
+    def __init__(self, center : tuple, positions : list | np.ndarray, angles : list | np.ndarray):
         """
         Instantiates a wipe-shape, that is a polygon representing the free space
         around the sensor
@@ -26,6 +26,11 @@ class WipeShape:
         scene.draw_polygon(self.positions, (0, 255, 0), 1)
 
     def update_line_validity(self, line : DynamicLine):
+        """
+        Updates which part of the given line are valid or invalid, knowing that 
+        all the parts overlapping the wipe-shape should be invalid
+        """
+        
         assert len(self.positions) >= 3, "Wipe-shape has less than three points !"
 
         # All the indices are modulo n:

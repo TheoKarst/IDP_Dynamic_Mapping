@@ -77,7 +77,7 @@ class Dataloader:
 
         # Continue reading frames until the next frame has a timestamp greater than the current time:
         while self.next_frame is None or self.next_frame['timestamp'] <= time:
-            if not self.load_next():
+            if not self._load_next():
                 return None
             
         # Return the current frame:

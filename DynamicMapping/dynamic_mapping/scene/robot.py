@@ -52,6 +52,13 @@ class Robot:
     def update(self, robot_pose : Pose2D, lidars_observations : list[dict], 
                state_covariance : np.ndarray | None = None,
                observation_covariance : np.ndarray | None = None):
+        """
+        Updates the state of the robot
+            :param robot_pose: World pose of the robot
+            :param lidar_observations: Observations of each LIDAR attached to the robot
+            :param state_covariance: Estimated 3x3 covariance matrix of the state of the robot
+            :param observation_covariance: Estimated 2x2 covariance matrix of the observations (rho, theta)
+        """
         
         self.pose = robot_pose
 
@@ -65,6 +72,8 @@ class Robot:
             self.lidars[index].update(self.pose, observations)
 
     def draw(self, scene : 'Scene', draw_rays : bool):
+        """ Draws the robot in the scene """
+        
         # When drawing the rectangle, width and height are inverted because when
         # the angle is zero, the robot should be oriented to the right:
         scene.draw_rectangle(self.pose.x, self.pose.y, 

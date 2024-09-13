@@ -59,13 +59,17 @@ class MatchGrid:
                 scene.draw_rectangle(x, y, self.cell_size, self.cell_size, 0, black)
 
     def register_line(self, line : DynamicLine):
+        """ Registers the given line in the match grid """
+
         # Compute the position of the endpoints of the line in the grid:
         x0, y0 = self.world_to_grid(line.begin_point[0], line.begin_point[1])
         x1, y1 = self.world_to_grid(line.end_point[0], line.end_point[1])
 
         if not self.belongs_to_grid(x0, y0) or not self.belongs_to_grid(x1, y1):
-            print("Warning: The given line is outside of the bounds of the match grid !"\
+            print("Warning: The given line is outside of the bounds of the match grid ! "\
                   "Make sure to use a large enough grid for the whole environment !")
+            
+            line.force_delete = True
             return
 
         cells = self.find_contact_cells(x0, y0, x1, y1)
@@ -78,6 +82,8 @@ class MatchGrid:
         self.cells[self.width * cell_y + cell_x].append(line)
 
     def find_line_neighbors(self, line : DynamicLine):
+        """ Finds the lines near to the given one """
+
         # Use a set to find neighbors, to avoid adding multiple times the same object in the list:
         neighbors = set()
 
@@ -249,6 +255,7 @@ class MatchGrid:
 
     def belongs_to_grid(self, x : float, y : float):
         """ Returns if the given coordinates belongs to the grid """
+        
         return x >= 0 and x < self.width and y >= 0 and y < self.height
     
     def world_to_grid(self, x : float, y : float):

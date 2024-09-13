@@ -8,12 +8,16 @@ from scene.robot import Robot
 
 from geometry_maps.primitives.line_builder import LineBuilder
 from geometry_maps.primitives.dynamic_line import DynamicLine
+from geometry_maps.primitives.circle_builder import CircleBuilder
+from geometry_maps.primitives.circle import Circle
 from geometry_maps.primitives.wipe_shape import WipeShape
 
 from geometry_maps.utils.filtering import alpha_filter, douglas_peucker
 from geometry_maps.utils.match_grid import MatchGrid
 
 class GeometryMapping:
+    """ Class to build a dynamic map of an environment using lines and circles """
+
     def __init__(self, parameters : dict | None = None):
         self.parameters = parameters if parameters is not None \
             else params.geometry_params
@@ -27,13 +31,21 @@ class GeometryMapping:
             self.parameters['match_grid']['center_y'])
         
         # Lines and circles currently in the model:
-        self.model_lines = []
-        self.model_circles = []
+        self.model_lines : list[DynamicLine] = []
+        self.model_circles : list[Circle] = []
 
         # Wipe shape used during the current frame, to remove inconsistent primitives:
         self.wipe_shape = None
 
     def update(self, robot : Robot, lidar_index : int, observations : dict, elapsed_time : float):
+        """
+        Updates the lines and circles in the model
+        
+            :param robot: Robot which made the observations
+            :param lidar_index: Index of the LIDAR which made the observations
+            :param observations: Observations made by the LIDAR
+            :param elapsed_time: Elapsed time in seconds since the last update
+        """
 
         # Clear the match grid and register again the current model lines:
         self.match_grid.clear()
@@ -53,23 +65,32 @@ class GeometryMapping:
         # Update the lines in the model, using the observed lines:
         self.update_model_lines(lines, self.wipe_shape, elapsed_time)
 
-        print("Model lines:", len(self.model_lines))
+    def draw(self, scene : 'Scene', display : dict):
+        """
+        Draws the map in the scene
+            :param display: Dictionnary representing the objects to draw
+        """
 
-    def draw(self, scene : 'Scene'):
-        if self.model_lines is not None:
+        if display['lines']:
             for line in self.model_lines:
-                line.draw(scene)
+                line.draw(scene, display['speed_estimates'])
 
-        if self.model_circles is not None:
+        if display['circles']:
             for circle in self.model_circles:
-                pass
+                circle.draw(scene, display['speed_estimates'])
 
-        if self.wipe_shape is not None:
+        if display['wipe_shape'] and self.wipe_shape is not None:
             self.wipe_shape.draw(scene)
 
-        self.match_grid.draw(scene)
+        if display['match_grid']:
+            self.match_grid.draw(scene)
+
+        # Draw the current number of lines and circles in the map:
+        scene.draw_text("Lines: %i, Circles: %i" % (len(self.model_lines), len(self.model_circles)),
+                        'bottom_left')
 
     def compute_points(self, robot : Robot, lidar_index : int, observations : dict):
+        """ Computes the position and covariance matrix for all the observations """
 
         # Compute the position of the observations in world space:
         positions = robot.get_observations_positions(lidar_index)
@@ -122,7 +143,9 @@ class GeometryMapping:
 
         return WipeShape((lidar_pose.x, lidar_pose.y), positions, angles)
 
-    def extract_primitives(self, points):
+    def extract_primitives(self, points : dict):
+        """ Build lines and circles to represent the observed points """
+
         extracted_lines = []
         extracted_circles = []
 
@@ -137,7 +160,6 @@ class GeometryMapping:
 
         # Get the parameters used for the extraction of primitives:
         m_params = self.parameters['geometry_extraction']
-        line_process_noise = np.identity(2)     # TODO: Change this !
 
         for current_point in zip(points['angles'], points['positions'], points['covariances']):
             
@@ -174,7 +196,7 @@ class GeometryMapping:
                 elif (line_builder.points_count() >= m_params['line_min_points']
                       and line_builder.length() >= m_params['line_min_length']):
 
-                    extracted_lines.append(line_builder.build(line_process_noise))
+                    extracted_lines.append(line_builder.build())
                     line_builder = LineBuilder(current_point[1], current_point[2])
                     last_point = current_point
                     continue
@@ -207,7 +229,7 @@ class GeometryMapping:
             and line_builder.points_count() >= m_params['line_min_points'] 
             and line_builder.length() >= m_params['line_min_length']):
 
-            extracted_lines.append(line_builder.build(line_process_noise))
+            extracted_lines.append(line_builder.build())
 
         elif(circle_builder is not None 
             and circle_builder.points_count() >= m_params['circle_min_points']):

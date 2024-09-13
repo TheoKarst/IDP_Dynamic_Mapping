@@ -4,7 +4,13 @@ from geometry_maps.primitives.dynamic_line import DynamicLine
 
 class LineBuilder:
 
-    def __init__(self, initial_position, initial_covariance):
+    def __init__(self, initial_position : np.ndarray, initial_covariance : np.ndarray):
+        """
+        Instantiates a class to build lines from points
+        
+            :param initial_position: Position of the first point to add to the line
+            :param initial_covariance: 2x2 covariance matrix of the initial position
+        """
 
         # List of points representing this line:
         self.points = {}
@@ -27,8 +33,13 @@ class LineBuilder:
         self.end_point = None
         self.up_to_date_endpoints = False
 
-    def add_point(self, position, covariance):
-        """ Adds a point to the line and updates the parameters of the line """
+    def add_point(self, position : np.ndarray, covariance : np.ndarray):
+        """
+        Adds a point to the line and updates the parameters of the line
+        
+            :param position: 2D world position of the point
+            :param covariance: 2x2 covariance matrix of the position
+        """
 
         self.points['positions'].append(position)
         self.points['covariances'].append(covariance)
@@ -66,18 +77,22 @@ class LineBuilder:
             self.rho = abs(t / np.sqrt(s * s + 1))
             self.theta = np.arctan2(-t * s, t)
 
-    # Return the length of the line, using its endpoints
     def length(self):
+        """ Returns the length of the line in meters, using its endpoints """
+
         if(not self.up_to_date_endpoints):
             self.update_endpoints()
 
         return np.sqrt(np.sum((self.begin_point - self.end_point) ** 2))
 
-    # Convert this line into a circle cluster (this line shouldn't be used after that):
     def to_circle(self):
+        """ Convert this line into a circle cluster (this line shouldn't be used after that) """
+
         return CircleBuilder(self.points)
 
-    def build(self, Q):
+    def build(self):
+        """ Returns a dynamic line instance, built from the points added to this line builder """
+
         # Compute the endpoints and covariance matrix of the line:
         if not self.up_to_date_endpoints: 
             self.update_endpoints()
@@ -87,9 +102,12 @@ class LineBuilder:
         # Build the line:
         return DynamicLine(self.rho, self.theta, covariance, self.begin_point, self.end_point)
 
-    # Compute the endpoints of the line by projecting the first and last points that were added
-    # in the line builder, along the line defined by the parameters (rho, theta):
     def update_endpoints(self):
+        """
+        Computes the endpoints of the line by projecting the first and last points that were added
+        in the line builder, along the line defined by the parameters (rho, theta)
+        """
+
         # Intermediate computations:
         costheta = np.cos(self.theta)
         sintheta = np.sin(self.theta)
@@ -108,8 +126,9 @@ class LineBuilder:
         self.end_point = center + p_last * u
         self.up_to_date_endpoints = True
 
-    # Compute the covariance matrix of the parameters (rho, theta) of the line:
     def compute_covariance(self):
+        """ Compute the covariance matrix of the parameters (rho, theta) of the line """
+
         # We first convert the array of points into Numpy arrays:
         positions = np.array(self.points['positions'])
         covariances = np.array(self.points['covariances'])
@@ -156,7 +175,10 @@ class LineBuilder:
         # The covariance matrix of (rho, theta) can finally be computed using:
         return Hl @ Cv @ Hl.T
     
-    def compute_mq_covariance(self, positions, covariances, m, N1, T):
+    def compute_mq_covariance(self, positions : np.ndarray, covariances : np.ndarray, 
+                              m : float, N1 : float, T : float):
+        """ Computes the covariance matrix of the (m, q) representation of the line """
+
         n = len(positions)
 
         # Unwrap the columns of the positions:
@@ -182,7 +204,10 @@ class LineBuilder:
         # We can compute the covariance matrix of m, q using:
         return np.sum(J @ covariances @ np.transpose(J, axes=(0,2,1)), axis=0)
     
-    def compute_st_covariance(self, positions, covariances, s, N2, T):
+    def compute_st_covariance(self, positions : np.ndarray, covariances : np.ndarray,
+                              s : float, N2 : float, T : float):
+        """ Computes the covariance matrix of the (s, t) representation of the line """
+
         n = len(positions)
 
         # Unwrap the columns of the positions:
@@ -214,4 +239,6 @@ class LineBuilder:
         return abs(position[0] * np.cos(self.theta) + position[1] * np.sin(self.theta) - self.rho)
 
     def points_count(self):
+        """ Returns the number of points currently in the line """
+
         return len(self.points['positions'])

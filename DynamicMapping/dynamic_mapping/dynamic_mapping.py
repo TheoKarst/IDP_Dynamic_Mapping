@@ -3,7 +3,7 @@ from scene.scene import Scene
 
 # Set this to True to run the simulation frame by frame (pressing the right 
 # arrow key to go to the next frame):
-FRAME_MODE = True
+FRAME_MODE = False
 
 # Dimensions of the screen in pixels
 WIDTH = 800
@@ -15,7 +15,7 @@ FPS = 60
 # initialize pygame and create screen
 py.init()
 py.font.init()
-screen = py.display.set_mode((WIDTH , HEIGHT))
+screen = py.display.set_mode((WIDTH, HEIGHT))
 clock = py.time.Clock()
 
 # Create a scene to manage all the entities:
