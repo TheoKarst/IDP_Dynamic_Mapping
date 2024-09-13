@@ -8,6 +8,7 @@ from mapping.grid_maps.grids_mapping_rectangle import GridsMappingRectangle
 from mapping.geometry_maps.geometry_mapping import GeometryMapping
 
 folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\StaticCapture_0"
+# folder = "C:\\Users\\theok\\IDP\\LidarCaptures\\DynamicCapture_0"
 
 class Scene:
     def __init__(self, screen : py.Surface, centerX : float, centerY : float, pixels_per_meter : float):
