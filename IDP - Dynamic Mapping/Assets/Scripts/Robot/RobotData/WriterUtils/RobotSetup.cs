@@ -1,4 +1,9 @@
-﻿[System.Serializable]
+﻿/// <summary>
+/// Serializable class used to represent the initial setup of the robot:
+/// initial pose and setup of the LIDARs on the robot
+/// </summary>
+
+[System.Serializable]
 public class RobotSetup {
     // Initial global pose of the robot in the scene:
     public Pose2D initial_robot_pose;

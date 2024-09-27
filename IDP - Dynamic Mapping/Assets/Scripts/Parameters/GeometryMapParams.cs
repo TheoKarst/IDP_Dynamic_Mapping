@@ -2,8 +2,12 @@
 using System;
 using UnityEngine;
 
+/// <summary>
+/// Serializable class used to represent the parameters used for the mapping using geometric primitives (lines and circles)
+/// </summary>
+
 [Serializable]
-public class GeometryClusterParams {
+public class GeometryMapParams {
     /***********************************************************************************************/
     // This section describes the parameter of the grid map used to speed up the matching between
     // observed objects (circles and lines), and objects in the world model:
@@ -17,6 +21,9 @@ public class GeometryClusterParams {
     public float cellSize = 2;
 
     /***********************************************************************************************/
+    // This section describes the parameters used during the extraction of primitives (lines, circles)
+    // from observed points:
+
     [Header("Geometry Extraction:")]
 
     [Tooltip("Maximum distance between two consecutive points to be matched to the same line")]
@@ -43,6 +50,9 @@ public class GeometryClusterParams {
     public int CircleMinPoints = 6;
 
     /***********************************************************************************************/
+    // This section describes the parameters used for the matching between observed primitives and
+    // primitives in the model:
+
     [Header("Geometry Matching:")]
 
     [Tooltip("Maximum angle (in degrees) between the current line "
@@ -60,20 +70,26 @@ public class GeometryClusterParams {
     [Tooltip("Maximum distance between two circles to be matched together")]
     public float CircleMaxMatchDistance = 0.2f;
 
+    [Tooltip("Parameter used to extend the validity of a line during matching")]
     public float LineValidityExtent = 0.1f;
 
     /***********************************************************************************************/
+    // This section describes parameters used for dynamic lines:
+
     [Header("Dynamic Lines")]
     [Tooltip("If this is true, the static Kalman Filter is used to update the lines."
         + "Otherwise, we use a dynamic Kalman Filter (taking into account the lines speed)")]
     public bool StaticLines = false;
 
+    [Tooltip("If true, data about the lines in the model will be recorded in the file ./Assets/Data/logs/lines_data.csv")]
     public bool LogLinesData = false;
 
     [Tooltip("Number of matches to consider a line completely initialised")]
     public int InitialisationSteps = 10;
 
+    [Tooltip("Maximum error estimate on the range of a line to keep it")]
     public float MaxLinesRhoError = 1;
+    [Tooltip("Maximum error on the angle (in degrees) of a line to keep it")]
     public float MaxLinesThetaError = 10;
 
     [Tooltip("If a line is matched this amount of times, having a speed below the following thresholds, "
@@ -87,21 +103,30 @@ public class GeometryClusterParams {
     public float StaticMaxThetaDerivative = 5;
 
     [Range(0, 1)]
+    [Tooltip("Friction applied to the speed of the lines")]
     public float LinesFriction = 0.01f;
     public float LineProcessNoiseRho = 0.1f;
     public float LineProcessNoiseTheta = 5;
     public float LineProcessNoiseDerRho = 1;
     public float LineProcessNoiseDerTheta = 50;
 
+    /***********************************************************************************************/
+    // This section describes parameters used for circles:
+
     [Header("Dynamic Circles")]
+    [Tooltip("Minimum allowed distance between a circle and a line")]
     public float MinOrthogonalDistanceToLines = 1;
+    [Range(0, 1)]
+    [Tooltip("Friction applied to the speed of the circles")]
     public float CirclesFriction = 0.01f;
 
     /***********************************************************************************************/
+    // This section describes parameters used for the construction of the wipe-shape:
+
     [Header("Wipe Shape")]
 
     [Range(0f, 90f)]
-    [Tooltip("Angle of the wipe cone associated to the observations")]
+    [Tooltip("Angle in degrees of the wipe angle associated to the observations")]
     public float alpha = 15;
     [Min(0f)]
     [Tooltip("Epsilon used in Douglas Peucker algorithm to filter the points of the shape")]
@@ -111,16 +136,29 @@ public class GeometryClusterParams {
     public float clampDistance = 10;
 
     /***********************************************************************************************/
+    // This section describes which elements to draw in the scene:
+
     [Header("Drawing")]
 
-    public bool drawMatchGridMap = false;
+    [Tooltip("If true, draws the grid used for the faster matching of primitives")]
+    public bool drawMatchGrid = false;
+    [Tooltip("If true, draws the current speed estimate of the primitives in the model")]
+    public bool drawSpeedEstimates = true;
+    [Tooltip("If true, draws the points observed by the LIDAR")]
     public bool drawPoints = true;
-    public bool drawPointsError = false;
+    [Tooltip("If true, draws for each point a cube representing the error estimate for that point")]
+    public bool drawPointsError = true;
+    [Tooltip("If true, draws the current lines in the model")]
     public bool drawLines = true;
-    public bool drawLinesError = false;
+    [Tooltip("If true, draws the current circles in the model")]
     public bool drawCircles = true;
+    [Tooltip("If true, draws the lines that are currently observed (used for debugging)")]
     public bool drawCurrentLines = true;
+    [Tooltip("If true, draws the wipe-shape representing the free space of the sensor")]
     public bool drawWipeShape = true;
+
+    /***********************************************************************************************/
+    // This section contains some useful functions to define variables from the above parameters:
 
     private Matrix<double> _LineProcessNoiseError;
 

@@ -1,5 +1,9 @@
 using MathNet.Numerics.LinearAlgebra;
 
+/// <summary>
+/// Class used to represent a potential landmark in the Kalman Filter
+/// </summary>
+
 public class PotentialLandmark {
     private Vector<double> position;
     private Matrix<double> covariance;
@@ -13,7 +17,7 @@ public class PotentialLandmark {
         this.countAssociations = 0;
     }
 
-    public void updateState(Vector<double> newPosEstimate, Matrix<double> newPosCovariance) {
+    public void UpdateState(Vector<double> newPosEstimate, Matrix<double> newPosCovariance) {
         // We update the landmark covariance and position estimates using the Kalman gain:
         Matrix<double> K = covariance * (covariance + newPosCovariance).Inverse();
 
@@ -23,23 +27,23 @@ public class PotentialLandmark {
         countAssociations++;
     }
 
-    public Landmark toLandmark() {
+    public Landmark ToLandmark() {
         return new Landmark(position);
     }
 
-    public Vector<double> getPosition() {
+    public Vector<double> GetPosition() {
         return position;
     }
 
-    public Matrix<double> getCovariance() {
+    public Matrix<double> GetCovariance() {
         return covariance;
     }
 
-    public long getCreationTime() {
+    public long GetCreationTime() {
         return creationTimestep;
     }
 
-    public int getAssociationsCount() {
+    public int GetAssociationsCount() {
         return countAssociations;
     }
 }

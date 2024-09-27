@@ -1,6 +1,14 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
+/// <summary>
+/// Class used to represent the model of a vehicle:
+/// - Contains the equation for the state prediction
+/// - Contains the equations to estimate the position of an observation from the vehicle
+///   state, or to estimate which observation corresponds to a given position
+/// - Contains the equations of the corresponding Jacobian matrices used in the Kalman Filter
+/// </summary>
+
 public class VehicleModel {
     // Create shortcuts for state, landmarks and observations dimensions:
     private const int STATE_DIM = VehicleState.DIMENSION;        // (x, y, phi)
@@ -21,6 +29,13 @@ public class VehicleModel {
     // Length of the vehicle:
     private float L;
 
+    /// <summary>
+    /// Instantiates a vehicle model
+    /// </summary>
+    /// <param name="lidarSetups">Setup of the LIDARs on the vehicle</param>
+    /// <param name="L">Length of the vehicle in meters</param>
+    /// <param name="processNoiseError">Process noise error of the state (3x3 matrix)</param>
+    /// <param name="observationError">Observations error matrix (2x2 matrix)</param>
     public VehicleModel(LidarSetup[] lidarSetups, float L, Matrix<double> processNoiseError, Matrix<double> observationError) {
         this.lidarSetups = lidarSetups;
         this.L = L;
@@ -29,6 +44,11 @@ public class VehicleModel {
         this.ObservationError = observationError;
     }
 
+    /// <summary>
+    /// Instantiates a vehicle model
+    /// </summary>
+    /// <param name="lidarSetups">Setup of the LIDARs on the vehicle</param>
+    /// <param name="L">Length of the vehicle in meters</param>
     public VehicleModel(LidarSetup[] lidarSetups, float L) {
         this.lidarSetups = lidarSetups;
         this.L = L;
@@ -50,8 +70,10 @@ public class VehicleModel {
             eTheta * eTheta });
     }
 
-    // Given the previous state estimate and the current inputs, compute the prediction 
-    // of the new state estimate (Equation (10) of Dissanayake's paper):
+    /// <summary>
+    /// Given the previous state estimate and the current inputs, compute the prediction
+    /// of the new state estimate (Equation (10) of Dissanayake's paper)
+    /// </summary>
     public VehicleState PredictCurrentState(VehicleState previous, ModelInputs inputs, float deltaT) {
         float x = previous.x + deltaT * inputs.V * Mathf.Cos(previous.phi);
         float y = previous.y + deltaT * inputs.V * Mathf.Sin(previous.phi);
@@ -60,8 +82,10 @@ public class VehicleModel {
         return new VehicleState(x, y, phi);
     }
 
-    // Given the previous state estimate and the current inputs, compute the Jacobian of the state
-    // prediction, relatively to the state:
+    /// <summary>
+    /// Given the previous state estimate and the current inputs, compute the Jacobian of the state
+    /// prediction, relatively to the state
+    /// </summary>
     public Matrix<double> StatePredictionJacobian(VehicleState previous, ModelInputs inputs, float deltaT) {
         float cosphi = Mathf.Cos(previous.phi), sinphi = Mathf.Sin(previous.phi);
 
@@ -72,9 +96,11 @@ public class VehicleModel {
             {0, 0, 1 } });                      // Derivative of phi / (previous.x, previous.y, previous.phi)
     }
 
-    // Given the vehicle state estimate, and a global point in the map, return what observation (from the given
-    // LIDAR) should correspond to the given point. This is used during Kalman Filter update.
-    // See equations (11) and (37) of Dissanayake's paper:
+    /// <summary>
+    /// Given the vehicle state estimate, and a global point in the map, returns what observation (from the given
+    /// LIDAR) should correspond to the given point. This is used during Kalman Filter update.
+    /// See equations (11) and (37) of Dissanayake's paper
+    /// </summary>
     public Observation PredictObservation(VehicleState stateEstimate, float pointX, float pointY, int lidarIndex) {
         // Get the local pose of the LIDAR whose observation we want to predict:
         Pose2D lidarPose = lidarSetups[lidarIndex].local_pose;
@@ -93,8 +119,10 @@ public class VehicleModel {
         return new Observation(ri, thetai, lidarIndex, false);
     }
 
-    // From the vehicle state estimate, compute the position of the given observation in
-    // global space, without computing the corresponding covariance matrix:
+    /// <summary>
+    /// From the vehicle state estimate, computes the position of the given observation in
+    /// global space, without computing the corresponding covariance matrix
+    /// </summary>
     public Vector2 ComputeObservationPositionEstimate(
         VehicleState stateEstimate, Observation observation) {
 
@@ -115,8 +143,10 @@ public class VehicleModel {
                            y + a * sinphi + b * cosphi + r * sinphi_theta);
     }
 
-    // From the vehicle state estimate and covariance, compute the position of the given observation in
-    // global space, as well as the associated covariance matrix:
+    /// <summary>
+    /// From the vehicle state estimate and covariance, computes the position of the given observation in
+    /// global space, as well as the associated covariance matrix
+    /// </summary>
     public (Vector<double>, Matrix<double>) ComputeObservationPositionEstimate(
         VehicleState stateEstimate, Matrix<double> stateCovariance, Observation observation) {
 
@@ -155,8 +185,10 @@ public class VehicleModel {
         return (Xp, Cp);
     }
 
-    // TESTING: Compute the observation position estimate for a list of observations.
-    // The objective is to have a faster function:
+    /// <summary>
+    /// Computes the observation position estimate for a list of observations.
+    /// The objective is to have a faster function
+    /// </summary>
     public (Vector<double>[], Matrix<double>[]) ComputeObservationsPositionsEstimates(
         VehicleState stateEstimate, Matrix<double> stateCovariance, Observation[] observations, int lidarIndex) {
 
@@ -227,8 +259,10 @@ public class VehicleModel {
         return (Xps, Cps);
     }
 
-    // Compute the Jacobian of the PredictObservation() function for a given landmark, with respect to the
-    // state, and stack the result in dest matrix, at the given index:
+    /// <summary>
+    /// Computes the Jacobian of the PredictObservation() function for a given landmark, with respect to the
+    /// state, and stack the result in dest matrix, at the given index
+    /// </summary>
     public void ComputeHi(VehicleState predictedState, Landmark landmark, int landmarkIndex, Matrix<double> dest, int index, int lidarIndex) {
         // Get the local pose of the LIDAR we want to use:
         Pose2D lidarPose = lidarSetups[lidarIndex].local_pose;
@@ -269,7 +303,9 @@ public class VehicleModel {
         dest.SetSubMatrix(index, STATE_DIM + landmarkIndex * LANDMARK_DIM, Hpi);
     }
 
-    // From the vehicle state estimate, compute the world space pose of the LIDAR:
+    /// <summary>
+    /// From the vehicle state estimate, computes the world space pose of the LIDAR
+    /// </summary>
     public Pose2D GetWorldSensorPose(VehicleState stateEstimate, int lidarIndex) {
         // First, get the local pose of the LIDAR:
         Pose2D localPose = lidarSetups[lidarIndex].local_pose;
@@ -283,11 +319,16 @@ public class VehicleModel {
         return new Pose2D(sensorX, sensorY, stateEstimate.phi + localPose.angle);
     }
 
-    // Update the local pose of a LIDAR on the vehicle (this is used by the DataloaderRobot):
+    /// <summary>
+    /// Updates the local pose of a LIDAR on the vehicle (this is used by the DataloaderRobot)
+    /// </summary>
     public void UpdateLidarPose(int lidarIndex, Pose2D newPose) {
         lidarSetups[lidarIndex].local_pose = newPose;
     }
 
+    /// <summary>
+    /// Returns the setup of the LIDAR with the given index
+    /// </summary>
     public LidarSetup GetLidarSetup(int lidarIndex) {
         return lidarSetups[lidarIndex];
     }

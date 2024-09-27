@@ -1,12 +1,16 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
+/// <summary>
+/// Class used to represent the state of a vehicle (x, y, phi)
+/// </summary>
+
 public struct VehicleState {
     public const int DIMENSION = 3;
 
-    public float x;
-    public float y;
-    public float phi;
+    public float x;     // World y-position of the vehicle
+    public float y;     // World y-position of the vehicle
+    public float phi;   // Angle of the vehicle in radians
 
     public VehicleState(float x, float y, float phi) {
         this.x = x;

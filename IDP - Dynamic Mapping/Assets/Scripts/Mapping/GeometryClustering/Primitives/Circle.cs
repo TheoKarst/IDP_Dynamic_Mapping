@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Net;
 using UnityEngine;
 
 /// <summary>
@@ -36,9 +37,18 @@ public class Circle {
     /// Draws the circle in the scene using Unity gizmos
     /// </summary>
     /// <param name="height">Position of the circle along the Z-axis</param>
-    public void DrawGizmos(float height) {
+    public void DrawGizmos(float height, bool drawSpeedEstimate) {
         Gizmos.color = circleColor;
         Gizmos.DrawSphere(Utils.To3D(_center, height), R);
+
+        // Draw an arrow representing the estimated speed of the circle:
+        if (drawSpeedEstimate) {
+            Vector2 p1 = Utils.To3D(center, height);
+            Vector2 p2 = Utils.To3D(center + speed, height);
+
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(p1, p2);
+        }
     }
 
     /// <summary>

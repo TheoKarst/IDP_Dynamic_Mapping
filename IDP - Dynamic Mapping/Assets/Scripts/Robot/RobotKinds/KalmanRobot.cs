@@ -18,6 +18,7 @@ public class KalmanRobot : Robot {
     [Header("Lidar")]
     public GameObject lidarObject;
 
+    [Tooltip("Number of ")]
     public int raycastCount = 500;
     public float lidarMinRange = 0;
     public float lidarMaxRange = 10;
@@ -53,8 +54,8 @@ public class KalmanRobot : Robot {
         // Instantiate the Kalman Filter to estimate the robot position. We initialize
         // it with the real pose of the robot:
         VehicleState initialState = controller.GetRobotRealState();
-        Logger kalmanLogger = kalmanParams.writeLogFile ? new Logger(false, "kalman_estimate.csv") : new Logger(false);
-        kalmanFilter = new KalmanFilter(this, initialState, vehicleModel, kalmanParams, kalmanLogger, 0);
+        Logger kalmanLogger = kalmanParams.writeLogFile ? new Logger(false, "./Assets/Data/logs/kalman_estimate.csv") : new Logger(false);
+        kalmanFilter = new KalmanFilter(this, initialState, vehicleModel, kalmanParams, kalmanLogger);
     }
 
     // Update is called once per frame
@@ -74,15 +75,15 @@ public class KalmanRobot : Robot {
             ModelInputs inputs = controller.GetModelInputs();
 
             // Get the observations from the LIDAR that are good landmarks candidates:
-            int[] filteredObservations = LidarUtils.DouglasPeucker(observations, douglasPeuckerEpsilon);
-            List<int> landmarkCandidatesIndices = LidarUtils.ExtractConvexCorners(observations, filteredObservations, 220);
+            Observation[] filteredObservations = Filtering.DouglasPeucker(observations, douglasPeuckerEpsilon);
+            List<Observation> landmarkCandidates = Filtering.ExtractConcaveCorners(filteredObservations, 220);
 
             // Using the world model, we want to identify which landmarks corresponds to static objects. For that, we need
             // a pose estimate for the robot. Since we still haven't identified which landmarks to use for localisation,
             // we have to rely only on the prediction step for the robot state estimate:
-            WorldModel worldModel = manager.GetWorldModel();
+            GridMapBresenham worldModel = manager.GetWorldModel();
 
-            List<Observation> landmarkCandidates;
+            // If we have a world model, we can remove the dynamic observations from the landmark candidates:
             if(worldModel != null) {
                 // Get the previous state estimate:
                 VehicleState previousStateEstimate = kalmanFilter.GetStateEstimate();
@@ -93,16 +94,7 @@ public class KalmanRobot : Robot {
                 VehicleState statePrediction = vehicleModel.PredictCurrentState(previousStateEstimate, inputs, currentTime - lastTimeUpdate);
 
                 // From this estimate, we can compute the world space position of the observations and detect if they are static:
-                landmarkCandidates = LidarUtils.GetStaticObservations(observations, landmarkCandidatesIndices, 
-                    worldModel, vehicleModel, statePrediction);
-            }
-
-            // If we have no world model, we cannot find which ones are static or not:
-            else {
-                landmarkCandidates = new List<Observation>(landmarkCandidatesIndices.Count);
-                foreach (int index in landmarkCandidatesIndices) {
-                    landmarkCandidates.Add(observations[index]);
-                }
+                landmarkCandidates = Filtering.GetStaticObservations(landmarkCandidates, worldModel, vehicleModel, statePrediction);
             }
 
             // Use these observations to update the robot state estimate:

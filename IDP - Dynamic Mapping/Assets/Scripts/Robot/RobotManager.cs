@@ -1,22 +1,27 @@
 using UnityEngine;
 using UnityEngine.Profiling;
 
+/// <summary>
+/// Global manager script to get data from a robot and use this data to build a map of the environment
+/// using grid maps or geometric primitives
+/// </summary>
+
 public class RobotManager : MonoBehaviour {
 
+    [Tooltip("Robot instance from which we get LIDAR data for the mapping")]
     public Robot robot;
-
-    public bool drawLandmarkCandidates = true;
 
     // For now, there is no possibility to disable the mapping using grid maps, since
     // this mapping is more reliable to detect if a landmark is static or dynamic, and is
     // thus required for the localization estimate in a dynamic environment:
     public GridMapParams gridMapParams;
 
-    public bool runGeometryClustering = true;
-    public GeometryClusterParams geometryClusterParams;
+    [Tooltip("If we should run the mapping using geometric primitives")]
+    public bool runGeometryMapping = true;
+    public GeometryMapParams geometryMapParams;
 
     private GridMapBresenham worldGridMap;
-    private GeometryMapping geometryClustering;
+    private GeometryMapping geometryMapping;
 
     private long updateCount = 0;
 
@@ -25,8 +30,8 @@ public class RobotManager : MonoBehaviour {
         worldGridMap = new GridMapBresenham(gridMapParams);
 
         // Instantiate the geometry clustering algorithm:
-        if(runGeometryClustering)
-            geometryClustering = new GeometryMapping(geometryClusterParams);
+        if(runGeometryMapping)
+            geometryMapping = new GeometryMapping(geometryMapParams);
     }
 
     // Update is called once per frame
@@ -54,9 +59,9 @@ public class RobotManager : MonoBehaviour {
                 worldGridMap.UpdateMaps(worldSensorPose, data.observations[i]);
                 Profiler.EndSample();
 
-                if(geometryClustering != null) {
+                if(geometryMapping != null) {
                     Profiler.BeginSample("Geometry clustering update");
-                    geometryClustering.UpdateModel(
+                    geometryMapping.UpdateModel(
                         worldSensorPose, model,
                         data.vehicleState, data.vehicleStateCovariance,
                         data.observations[i], Time.time);
@@ -71,25 +76,23 @@ public class RobotManager : MonoBehaviour {
     public void OnDrawGizmos() {
         if (worldGridMap != null) {
             worldGridMap.DrawMap(gridMapParams.showTexture,
-                updateCount % gridMapParams.textureUpdateWait == 0,
-                drawLandmarkCandidates);
+                updateCount % gridMapParams.textureUpdateWait == 0);
         }
 
-        if (geometryClustering != null) {
-            geometryClustering.DrawGizmos();
-        }
+        if (geometryMapping != null)
+            geometryMapping.DrawGizmos();
 
-        // For testing, draw the match grid map dynamically when options in the editor are changed.
+        // For testing, draw the match grid dynamically when options in the editor are changed.
         // This is only executed when the application is not playing:
-        if (!Application.isPlaying && geometryClusterParams.drawMatchGridMap) {
-            GridMap.DrawGizmos(0.2f, 
-                geometryClusterParams.width, geometryClusterParams.height,
-                geometryClusterParams.centerX, geometryClusterParams.centerY, 
-                geometryClusterParams.cellSize);
+        if (!Application.isPlaying && geometryMapParams.drawMatchGrid) {
+            MatchGrid.DrawGizmos(0.2f,
+                geometryMapParams.width, geometryMapParams.height,
+                geometryMapParams.centerX, geometryMapParams.centerY,
+                geometryMapParams.cellSize);
         }   
     }
 
-    public WorldModel GetWorldModel() {
+    public GridMapBresenham GetWorldModel() {
         return worldGridMap;
     }
 }

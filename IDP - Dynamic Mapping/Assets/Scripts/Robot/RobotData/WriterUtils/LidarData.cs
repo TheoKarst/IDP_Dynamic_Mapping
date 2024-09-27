@@ -1,4 +1,8 @@
-﻿[System.Serializable]
+﻿/// <summary>
+/// Serializable class used to represent data recorded by a LIDAR
+/// </summary>
+
+[System.Serializable]
 public class LidarData {
     // Id of the LIDAR sending this data:
     public int id;

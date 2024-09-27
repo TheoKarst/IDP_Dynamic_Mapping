@@ -1,6 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Class used to represent a LIDAR using Unity raycasting
+/// </summary>
+
 public class Lidar {
 
     // GameObject representing the LIDAR:
@@ -32,6 +36,9 @@ public class Lidar {
         this.maxRange = maxRange;
     }
 
+    /// <summary>
+    /// Draws the rays of the LIDAR if drawRays is true
+    /// </summary>
     public void DrawGizmos(bool drawRays) {
         if (drawRays && observations != null) {
             Vector3 direction = lastScanForward;
@@ -45,9 +52,11 @@ public class Lidar {
         }
     }
 
-    // Use raycasting to compute the observations made by the LIDAR. Observations with a range
-    // smaller than minRange are ignored and observations with a range larger than maxRange are
-    // clamped and marked as outOfRange:
+    /// <summary>
+    /// Use raycasting to compute the observations made by the LIDAR. Observations with a range
+    /// smaller than minRange are ignored and observations with a range larger than maxRange are
+    /// clamped and marked as outOfRange
+    /// </summary>
     public Observation[] ComputeObservations() {
         observations = new List<Observation>(raycastCount);
 
@@ -82,7 +91,9 @@ public class Lidar {
         return observations.ToArray();
     }
 
-    // Local pose of the LIDAR on the robot:
+    /// <summary>
+    /// Returns the local pose of the LIDAR on the robot
+    /// </summary>
     public Pose2D GetLocalPose() {
         float x = lidar.transform.localPosition.z;
         float y = -lidar.transform.localPosition.x;
@@ -91,13 +102,20 @@ public class Lidar {
         return new Pose2D(x, y, angle);
     }
 
+    /// <summary>
+    /// Returns the setup of the robot (pose, name, min range, max range)
+    /// </summary>
     public LidarSetup GetSetup() {
         return new LidarSetup(lidarIndex, lidar.name, GetLocalPose(), minRange, maxRange);
     }
 
-    public void DrawObservation(Observation observation, Color color) {
-        float duration = 0.02f;
-
+    /// <summary>
+    /// Draws an observation with the given color and for the given duration (used for debugging)
+    /// </summary>
+    /// <param name="observation">The observation to draw</param>
+    /// <param name="color">The color of the duratio</param>
+    /// <param name="duration">How long the observation will be visible for (in seconds)</param>
+    public void DrawObservation(Observation observation, Color color, float duration) {
         Vector3 direction = lidar.transform.TransformDirection(Vector3.forward);
         direction = Quaternion.AngleAxis(-observation.theta * Mathf.Rad2Deg, Vector3.up) * direction;
 

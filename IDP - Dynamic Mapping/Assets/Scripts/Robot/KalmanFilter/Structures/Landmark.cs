@@ -1,5 +1,9 @@
 using MathNet.Numerics.LinearAlgebra;
 
+/// <summary>
+/// Class used to represent the landmarks used for localization
+/// </summary>
+
 public class Landmark {
     public const int DIMENSION = 2;
     
@@ -12,14 +16,14 @@ public class Landmark {
     }
 
     public Landmark(Vector<double> position) {
-        setPosition(position);
+        SetPosition(position);
     }
 
-    public Vector<double> getPosition() {
+    public Vector<double> GetPosition() {
         return Vector<double>.Build.DenseOfArray(new double[] { x, y });
     }
 
-    public void setPosition(Vector<double> position) {
+    public void SetPosition(Vector<double> position) {
         this.x = (float) position[0];
         this.y = (float) position[1];
     }

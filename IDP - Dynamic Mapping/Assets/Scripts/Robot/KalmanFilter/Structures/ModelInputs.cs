@@ -1,8 +1,12 @@
 using UnityEngine;
 
+/// <summary>
+/// Struct used to represent the inputs of the robot (speed and steering angle)
+/// </summary>
+
 public struct ModelInputs {
-    public float V;
-    public float gamma;
+    public float V;             // Linear speed of the robot
+    public float gamma;         // Steering angle of the front wheels of the robot
 
     public ModelInputs(float V, float gamma) {
         this.V = V;

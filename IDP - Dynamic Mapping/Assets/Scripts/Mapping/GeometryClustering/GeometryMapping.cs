@@ -8,7 +8,7 @@ using UnityEngine;
 /// </summary>
 public class GeometryMapping {
     
-    private GeometryClusterParams parameters;
+    private GeometryMapParams parameters;
 
     // Match to each observation (rho, theta) from the LIDAR a point in world space coordinate:
     private List<Point> currentPoints;
@@ -38,7 +38,7 @@ public class GeometryMapping {
     /// Instantiates the mapping algorithm using geometric primitives
     /// </summary>
     /// <param name="parameters">All the parameters used by the algorithm</param>
-    public GeometryMapping(GeometryClusterParams parameters) {
+    public GeometryMapping(GeometryMapParams parameters) {
         this.parameters = parameters;
 
         this.matchGrid = new MatchGrid(
@@ -128,19 +128,19 @@ public class GeometryMapping {
 
         if (parameters.drawLines && modelLines != null) {
             foreach (DynamicLine line in modelLines)
-                line.DrawGizmos(height, parameters.drawLinesError);
+                line.DrawGizmos(height, parameters.drawSpeedEstimates);
         }
 
         if(parameters.drawCircles && modelCircles != null) {
             foreach (Circle circle in modelCircles)
-                circle.DrawGizmos(height);
+                circle.DrawGizmos(height, parameters.drawSpeedEstimates);
         }
 
         if(parameters.drawWipeShape && currentWipeShape != null) {
             currentWipeShape.DrawGizmos(height);
         }
 
-        if(parameters.drawMatchGridMap && matchGrid != null) {
+        if(parameters.drawMatchGrid && matchGrid != null) {
             matchGrid.DrawGizmos(height);
         }
     }

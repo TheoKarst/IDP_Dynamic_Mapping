@@ -1,4 +1,10 @@
-﻿[System.Serializable]
+﻿/// <summary>
+/// Serializable class used to represent the setup of a LIDAR. This contains
+/// information like the local pose of the LIDAR on the robot, the id of the LIDAR,
+/// the minimum and maximum range of the LIDAR
+/// </summary>
+
+[System.Serializable]
 public class LidarSetup {
     // Id of the LIDAR: for each robot frame (see RobotFrame class), the data of this LIDAR
     // will be saved at lidars_data[id]:

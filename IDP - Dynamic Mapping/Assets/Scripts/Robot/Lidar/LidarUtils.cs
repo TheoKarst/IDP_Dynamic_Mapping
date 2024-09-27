@@ -2,6 +2,8 @@
 using UnityEngine;
 
 public class LidarUtils {
+    /*
+    
 
     // Run Douglas Peucker algorithm on the given observations, and return the indices of
     // the points returned by the algorithm:
@@ -338,4 +340,6 @@ public class LidarUtils {
         else
             return new Vector2[] { points[start], points[end] };
     }
+
+    */
 }

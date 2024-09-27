@@ -1,3 +1,9 @@
+
+/// <summary>
+/// Serializable class used to represent a frame of data (contains the frame number, the timestamp,
+/// the pose of the robot and the data from the LIDARs)
+/// </summary>
+
 [System.Serializable]
 public class RobotFrame {
     // Number of the current frame (starting from zero):

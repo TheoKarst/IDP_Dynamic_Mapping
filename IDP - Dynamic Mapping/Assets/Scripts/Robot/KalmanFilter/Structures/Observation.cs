@@ -1,13 +1,16 @@
 using MathNet.Numerics.LinearAlgebra;
 using UnityEngine;
 
+/// <summary>
+/// Struct used to represent the observations made by a LIDAR
+/// </summary>
+
 public struct Observation {
     public const int DIMENSION = 2;
 
-    public float r;
-    public float theta;
+    public float r;                 // Range of the observation
+    public float theta;             // Angle of the observation (in radians)
 
-    // Additional information:
     public int lidarIndex;          // Index of the LIDAR which made the observation
     public bool outOfRange;         // If the observation was out of the range of the LIDAR
 

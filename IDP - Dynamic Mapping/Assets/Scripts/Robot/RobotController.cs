@@ -1,6 +1,11 @@
 using UnityEngine;
 
+/// <summary>
+/// Controller to move the robot using the arrow keys from the keyboard
+/// </summary>
+
 public class RobotController {
+
     // GameObject representing the robot:
     private GameObject robot;
 
@@ -54,10 +59,17 @@ public class RobotController {
         robot.transform.Rotate(Vector3.up, -h * angleP * Mathf.Rad2Deg - noisePhi);
     }
 
+    /// <summary>
+    /// Returns the current model inputs of the robot (velocity and steering angle)
+    /// </summary>
     public ModelInputs GetModelInputs() {
         return new ModelInputs(velocity, Mathf.Deg2Rad * steering);
     }
 
+    /// <summary>
+    /// Returns the real pose of the robot, from Unity (this is used for log purposes, to compare the 
+    /// results of the Kalman Filter with the real pose of the robot)
+    /// </summary>
     public VehicleState GetRobotRealState() {
         float x = robot.transform.position.x;
         float y = robot.transform.position.z;
@@ -66,6 +78,9 @@ public class RobotController {
         return new VehicleState(x, y, angle);
     }
 
+    /// <summary>
+    /// Returns the angle of the robot in radians
+    /// </summary>
     private float GetRobotAngle() {
         return Mathf.Deg2Rad * (90 - robot.transform.rotation.eulerAngles.y);
     }
