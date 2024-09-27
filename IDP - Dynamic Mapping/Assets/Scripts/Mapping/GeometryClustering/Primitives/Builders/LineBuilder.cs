@@ -2,7 +2,11 @@ using MathNet.Numerics.LinearAlgebra;
 using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Class used to build lines from observed points
+/// </summary>
 public class LineBuilder {
+    
     // Matrix builder used as a shortcut for matrix creation:
     private static MatrixBuilder<double> M = Matrix<double>.Build;
     
@@ -19,6 +23,10 @@ public class LineBuilder {
     private Vector2 beginPoint, endPoint;
     private bool upToDateEndpoints = false;
 
+    /// <summary>
+    /// Instantiates a line builder
+    /// </summary>
+    /// <param name="initialPoint">The first point to add to the line</param>
     public LineBuilder(Point initialPoint) {
         points.Add(initialPoint);
 
@@ -29,7 +37,9 @@ public class LineBuilder {
         Rxy = initialPoint.position.x * initialPoint.position.y;
     }
 
-    // Add a point to the line, and update the line parameters:
+    /// <summary>
+    /// Adds a point to the line, and update the line parameters
+    /// </summary>
     public void AddPoint(Point point) {
         points.Add(point);
 
@@ -66,13 +76,9 @@ public class LineBuilder {
         }
     }
 
-    // Get the last point that was added to the line (cannot be null,
-    // since a line always contains at least one point):
-    public Point GetLastPoint() {
-        return points[points.Count - 1];
-    }
-
-    // Return the length of the line, using its endpoints
+    /// <summary>
+    /// Returns the length of the line in meters, using its endpoints
+    /// </summary>
     public float Length() {
         if(!upToDateEndpoints)
             UpdateEndpoints();
@@ -80,12 +86,17 @@ public class LineBuilder {
         return Vector2.Distance(beginPoint, endPoint);
     }
 
-    // Convert this line into a circle cluster (this line shouldn't be used anymore after that):
+    /// <summary>
+    /// Converts this line into a circle cluster (this line shouldn't be used anymore after that)
+    /// </summary>
     public CircleBuilder ToCircle() {
         return new CircleBuilder(points);
     }
 
-    public DynamicLine Build(Matrix<double> Q) {
+    /// <summary>
+    /// Returns a dynamic line instance, built from the points added to this line builder
+    /// </summary>
+    public DynamicLine Build() {
         // Compute the endpoints and covariance matrix of the line:
         if (!upToDateEndpoints) 
             UpdateEndpoints();
@@ -93,16 +104,15 @@ public class LineBuilder {
         Matrix<double> covariance = ComputeCovariance();
 
         // Build the line:
-        DynamicLine line = new DynamicLine(rho, theta, covariance, beginPoint, endPoint, Q);
-
-        // Match all the points to the built line:
-        foreach (Point point in points) point.MatchToPrimitive(line);
+        DynamicLine line = new DynamicLine(rho, theta, covariance, beginPoint, endPoint);
 
         return line;
     }
 
-    // Compute the endpoints of the line by projecting the first and last points that were added
-    // in the line builder, along the line defined by the parameters (rho, theta):
+    /// <summary>
+    /// Computes the endpoints of the line by projecting the first and last points that were added
+    /// in the line builder, along the line defined by the parameters (rho, theta)
+    /// </summary>
     private void UpdateEndpoints() {
         float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
         // Unit vector along the line:
@@ -120,7 +130,9 @@ public class LineBuilder {
         upToDateEndpoints = true;
     }
 
-    // Compute the covariance matrix of the parameters (rho, theta) of the line:
+    /// <summary>
+    /// Compute the covariance matrix of the parameters (rho, theta) of the line
+    /// </summary>
     private Matrix<double> ComputeCovariance() {
         // Step 1: Compute Cv (covariance matrix on m,q or s,t):
         Matrix<double> Cv = M.Dense(2, 2, 0);    // 2*2 Zero Matrix
@@ -207,12 +219,24 @@ public class LineBuilder {
             { dt_dx, dt_dy } });
     }
 
-    // Return the distance between the line and the given point:
+    /// <summary>
+    /// Returns the orthogonal distance between the line and the given point
+    /// </summary>
     public float DistanceFrom(Point point) {
         return Mathf.Abs(point.position.x * Mathf.Cos(theta) + point.position.y * Mathf.Sin(theta) - rho);
     }
 
+    /// <summary>
+    /// Returns the number of points currently in the line
+    /// </summary>
     public int PointsCount() {
         return points.Count;
+    }
+
+    /// <summary>
+    /// Returns the last point that was added to the line
+    /// </summary>
+    public Point GetLastPoint() {
+        return points[points.Count - 1];
     }
 }

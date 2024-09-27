@@ -4,8 +4,11 @@ using System.Collections.ObjectModel;
 using UnityEditor;
 using UnityEngine;
 
-public class DynamicLine : Primitive {
-
+/// <summary>
+/// Class used to represent lines primitives for the mapping using geometric primitives
+/// </summary>
+public class DynamicLine {
+    
     // Matrix builder used as a shortcut for vector and matrix creation:
     private static MatrixBuilder<double> M = Matrix<double>.Build;
     private static VectorBuilder<double> V = Vector<double>.Build;
@@ -24,6 +27,7 @@ public class DynamicLine : Primitive {
         }
     }
 
+    // Color of the line (for drawing):
     public Color lineColor = Color.red;
 
     private LineState state;
@@ -34,7 +38,7 @@ public class DynamicLine : Primitive {
 
     // Use a BoolAxis to represent which parts of the line are valid, according to the current
     // observations from the LIDAR:
-    private BoolAxis2 lineValidity = new BoolAxis2(false);
+    private BoolAxis lineValidity = new BoolAxis(false);
 
     // Save the state of the line when we called ResetLineValidity() for the last time:
     private Vector2 lineValidityBegin;      // beginPoint of the line
@@ -45,19 +49,15 @@ public class DynamicLine : Primitive {
     // along lineValidityU:
     private float lineValidityMinP, lineValidityMaxP;
 
-    // To which line in the model this line is matched. This is used to have a speed estimate of all
-    // the points from the current observation: the points are matched to current lines, and current
-    // lines are matched with model lines, for which the velocity was correctly computed.
-    // For each line already in the model, modelLine = this:
-    private DynamicLine modelLine;
-
     // If the line is considered as static:
     private bool _isStatic = false;
     private int lastMatchDynamic = 0;   // Match count the last time the line was considered as dynamic
     private int _matchCount = 0;        // Number of times this line was matched with an observation
+    private bool _forceDelete = false;  // Flag used to force the deletion of a line
 
+    public bool forceDelete { get => _forceDelete; }
 
-    // For debugging:
+    // For debugging and log purposes:
     private int _id;
     private static int _instantiatedLines = 0;
 
@@ -67,22 +67,30 @@ public class DynamicLine : Primitive {
 
     public bool isStatic { get => _isStatic; }
 
-    public DynamicLine(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint, Matrix<double> Q) {
+    /// <summary>
+    /// Instantiates a dynamic line to represent aligned parts of the environment
+    /// </summary>
+    /// <param name="rho">Distance of the line from the origin in meters</param>
+    /// <param name="theta">Angle of the line in radians</param>
+    /// <param name="covariance">2x2 covariance matrix of rho and theta</param>
+    /// <param name="beginPoint">Begin position of the line</param>
+    /// <param name="endPoint">End position of the line</param>
+    public DynamicLine(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint) {
         this.state = new LineState(rho, theta);
 
-        // When building a new line, we cannot estimate the error on dRho and dTheta.
-        // Thus, we initialise this part of the covariance matrix with zeros. The matrix
-        // will be updated later with the Kalman Filter when we get more data about this line
+        // When building a new line, we cannot compute the covariance of der_rho and der_theta
+        // because there is no way to estimate the speed of a line with one observation.
+        // Even if the covariance matrix will be correctly updated later by the Kalman Filter,
+        // the initialisation is still a problem...
         this.covariance = M.DenseOfArray(new double[,] {
-            { covariance[0,0], covariance[0,1],   0   ,   0    },
-            { covariance[1,0], covariance[1,1],   0   ,   0    },
-            {      0         ,      0         , Q[2,2],   0    },
-            {      0         ,      0         ,   0   , Q[3,3] },
+            { covariance[0,0], covariance[0,1], 0, 0 },
+            { covariance[1,0], covariance[1,1], 0, 0 },
+            {      0         ,      0         , 0, 0 },
+            {      0         ,      0         , 0, 0 },
         });
 
         this.beginPoint = beginPoint;
         this.endPoint = endPoint;
-        this.modelLine = this;
 
         CheckState();
 
@@ -90,13 +98,18 @@ public class DynamicLine : Primitive {
         _id = _instantiatedLines++;
     }
 
+    /// <summary>
+    /// Instantiates a copy of the given line, with redefined endpoints
+    /// </summary>
+    /// <param name="line">The line to copy</param>
+    /// <param name="beginPoint">The new begin point of the line</param>
+    /// <param name="endPoint">The new end point of the line</param>
     public DynamicLine(DynamicLine line, Vector2 beginPoint, Vector2 endPoint) {
         this.lineColor = line.lineColor;
         this.state = line.state;
         this.covariance = line.covariance;
         this.beginPoint = beginPoint;
         this.endPoint = endPoint;
-        this.modelLine = line.modelLine;
         this._matchCount = line.matchCount;
         this.lastMatchDynamic = line.lastMatchDynamic;
         this._isStatic = line._isStatic;
@@ -107,31 +120,40 @@ public class DynamicLine : Primitive {
         _id = _instantiatedLines++;
     }
 
-    public void DrawGizmos(float height, bool drawError) {
+    /// <summary>
+    /// Draws the line in the scene using Unity Gizmos
+    /// </summary>
+    /// <param name="height">Position of the line along the Z-axis</param>
+    /// <param name="drawSpeedEstimate">If true, draws an </param>
+    public void DrawGizmos(float height, bool drawSpeedEstimate) {
         Color color = _isStatic ? Color.black : lineColor;
 
         Vector3 p1 = Utils.To3D(beginPoint, height);
         Vector3 p2 = Utils.To3D(endPoint, height);
         Handles.DrawBezier(p1, p2, p1, p2, color, null, 4);
 
-        // Draw a cube at the middle of the line, representing its error estimate:
-        if (drawError) {
-            float errorRho = Mathf.Sqrt((float)covariance[0, 0]);
-            float errorTheta = Mathf.Sqrt((float)covariance[1, 1]) * Mathf.Rad2Deg;
 
-            Gizmos.color = errorRho < 2 && errorTheta < 90 ? Color.yellow : Color.red;
-            errorRho = Mathf.Min(errorRho, 2);
-            errorTheta = Mathf.Min(errorTheta, 90);
+        // Draw an arrow representing the estimated speed of the line:
+        if (drawSpeedEstimate) {
+            // Compute the speed of the center of the line:
+            Vector2 center = (beginPoint + endPoint) / 2;
+            Vector2 speed = VelocityOfPoint(center.x, center.y);
 
-            Vector3 center = Utils.To3D((beginPoint + endPoint) / 2, height + errorTheta / 2);
-            Gizmos.DrawCube(center, Utils.To3D(errorRho, errorRho, errorTheta));
+            p1 = Utils.To3D(center, height);
+            p2 = Utils.To3D(center + speed, height);
+
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(p1, p2);
         }
-
     }
 
-    // From the previous line estimate and the elapsed time since the last update,
-    // predict where the line should be now.
-    // Q is the process noise error (4x4 diagonal mtrix)
+    /// <summary>
+    /// From the previous line estimate and the elapsed time since the last update,
+    /// predict where the line should be now.
+    /// </summary>
+    /// <param name="deltaTime">Elapsed time in seconds since the last update</param>
+    /// <param name="Q">Process noise error (4x4 diagonal matrix)</param>
+    /// <param name="friction">Friction applied to the speed of the line (between 0 and 1)</param>
     public void PredictState(float deltaTime, Matrix<double> Q, float friction) {
         // If the line is static, there is nothing to do:
         if (_isStatic)
@@ -207,14 +229,69 @@ public class DynamicLine : Primitive {
 
         // We also need to update the endpoints of the line. To do so, we
         // simply project them on the new line:
-        beginPoint = Project(beginPoint);
-        endPoint = Project(endPoint);
+        ProjectEndpoints();
 
         // Ensures that the new state is well defined:
         CheckState();
     }
 
-    // Use the given observation to update the line state:
+    /// <summary>
+    /// Replace the endpoints by their orthogonal projection along the line defined
+    /// by the parameters(rho, theta)
+    /// </summary>
+    private void ProjectEndpoints() {
+
+        float costheta = Mathf.Cos(state.theta);
+        float sintheta = Mathf.Sin(state.theta);
+
+        // Unit vector along the line:
+        Vector2 u = new Vector2(-sintheta, costheta);
+
+        // "Center" of the infinite line:
+        Vector2 center = state.rho * new Vector2(costheta, sintheta);
+
+        beginPoint = center + Vector2.Dot(beginPoint, u) * u;
+        endPoint = center + Vector2.Dot(endPoint, u) * u;
+    }
+
+    /// <summary>
+    /// Supposing that this line belongs to the current model of the environment,
+    /// use the given line(that is supposed to be an observed line, matched with
+    /// this one) to update the position estimate, covariance matrix and endpoints
+    /// of this line.
+    /// </summary>
+    /// <param name="validityMargin">Used to extend the validity of an observed line</param>
+    /// <param name="staticMaxRhoDerivative">Maximum value for the derivative of rho to consider
+    /// the line static</param>
+    /// <param name="staticMaxThetaDerivative">Maximum value for the derivative of theta to
+    /// consider the line static</param>
+    /// <param name="minMatchesToConsiderStatic">Minimum of frames to consider an immobile 
+    /// line as static</param>
+    public void UpdateLineUsingMatch(DynamicLine observation,
+        float validityMargin, float staticMaxRhoDerivative,
+        float staticMaxThetaDerivative, int minMatchesToConsiderStatic) {
+
+        // First, update the state of this line from the observation, using
+        // Kalman Filter:
+        UpdateState(observation.state.rho, observation.state.theta,
+            observation.covariance.SubMatrix(0, 2, 0, 2));
+
+        // Check if the line should now be treated as dynamic or static:
+        CheckDynamicStatus(staticMaxRhoDerivative, staticMaxThetaDerivative, minMatchesToConsiderStatic);
+
+        // Then, since the observation is by definition valid, use it to
+        // update which sections of this line are valid:
+        UpdateLineValidity(observation.beginPoint, observation.endPoint, validityMargin);
+
+        _matchCount++;
+    }
+
+    /// <summary>
+    /// Use the given observation to update the line state 
+    /// </summary>
+    /// <param name="observationRho">Distance between the observed line and the center</param>
+    /// <param name="observationTheta">Angle of the observed line in radians</param>
+    /// <param name="observationCovariance">2x2 covariance matrix of the observation</param>
     private void UpdateState(float observationRho, float observationTheta, Matrix<double> observationCovariance) {
         Vector<double> innovation = V.DenseOfArray(new double[] {
             observationRho - state.rho,
@@ -249,6 +326,16 @@ public class DynamicLine : Primitive {
         CheckState();
     }
 
+    /// <summary>
+    /// Looks at the speed estimate of the line and updates if the line should be considered
+    /// static or dynamic
+    /// </summary>
+    /// <param name="staticMaxRhoDerivative">Maximum value for the derivative of rho to consider
+    /// the line static</param>
+    /// <param name="staticMaxThetaDerivative">Maximum value for the derivative of theta to
+    /// consider the line static</param>
+    /// <param name="minMatchesToConsiderStatic">Minimum of frames to consider an
+    /// immobile line as static</param>
     private void CheckDynamicStatus(float staticMaxRhoDerivative, float staticMaxThetaDerivative, int minMatchesToConsiderStatic) {
         // We check if the line is currently mooving:
         bool isMooving = Mathf.Abs(state.dRho) > staticMaxRhoDerivative
@@ -321,8 +408,10 @@ public class DynamicLine : Primitive {
         return Mathf.Max(p3 - p2, p1 - p4) < maxParallelDistance;
     }
 
-    // Compute the Mahalanobis distance between this line (supposed to be part of the current
-    // observations), and the given one (supposed to belong to the world model):
+    /// <summary>
+    /// Compute the Mahalanobis distance between this line (supposed to be an observed line)
+    /// and the given one(supposed to be part of the model)
+    /// </summary>
     public float NormDistanceFromModel(DynamicLine model) {
         // Since the speed of the observed lines is unknown (we cannot estimate the speed of
         // a line from a single frame), we only use rho and theta to compute the Norm Distance,
@@ -341,37 +430,13 @@ public class DynamicLine : Primitive {
 
         return (float)(X.ToRowMatrix() * (Cl + Cm).Inverse() * X)[0];
     }
-    
-    // Supposing that this line belongs to the current model of the environment,
-    // use the given line (that is supposed to be matched with this one, and to
-    // belong to the current observation of the environment) to update the position
-    // estimate, covariance matrix and endpoints of this line:
-    public void UpdateLineUsingMatch(DynamicLine observation, 
-        float validityMargin, float staticMaxRhoDerivative, 
-        float staticMaxThetaDerivative, int minMatchesToConsiderStatic) {
 
-        // First, update the state of this line from the observation, using
-        // Kalman Filter:
-        UpdateState(observation.state.rho, observation.state.theta, 
-            observation.covariance.SubMatrix(0, 2, 0, 2));
-
-        // Check if the line should now be treated as dynamic or static:
-        CheckDynamicStatus(staticMaxRhoDerivative, staticMaxThetaDerivative, minMatchesToConsiderStatic);
-        
-        // Then, since the observation is by definition valid, use it to
-        // update which sections of this line are valid:
-        UpdateLineValidity(observation.beginPoint, observation.endPoint, validityMargin);
-
-        // Finally, match the observation with this line (supposed to be part of the model):
-        observation.modelLine = this;
-
-        _matchCount++;
-    }
-
-    // Set which parts of the line are valid or invalid, according to the current observations.
-    // startValid: If the beginPoint of this line should be marked as valid
-    // changes: sorted list of floats, between 0 (beginPoint, excluded) and 1 (endPoint, excluded),
-    //      representing when we change from valid to invalid (or the opposite)
+    /// <summary>
+    /// Set which parts of the line are valid or invalid, according to the current observations.
+    /// </summary>
+    /// <param name="startValid">If the beginPoint of this line should be marked as valid</param>
+    /// <param name="changes">Sorted list of floats, between 0 (beginPoint, excluded) and 1 (endPoint, excluded),
+    /// representing when we change from valid to invalid (or the opposite)</param>
     public void ResetLineValidity(bool startValid, List<float> changes) {
         // Save the current position of the line:
         lineValidityBegin = beginPoint;
@@ -395,11 +460,15 @@ public class DynamicLine : Primitive {
 
         // The line is set to invalid by default, and this state changes for each point in the list:
         lineValidity.Reset(false, changes);
-
-        Debug.Log("Reset line validity: (rho=" + state.rho + ", theta=" + state.theta + ")"
-            + "[" + beginPoint + "; " + endPoint + "], validity: " + Utils.ToString(changes));
     }
 
+    /// <summary>
+    /// Updates the validity of the line, knowing that the section between match_begin and match_end
+    /// should be considered valid
+    /// </summary>
+    /// <param name="matchBegin">Begin point of an observed line matched with this one</param>
+    /// <param name="matchEnd">End point of an observed line matched with this one</param>
+    /// <param name="margin">Parameter used to extend the validity of a line</param>
     private void UpdateLineValidity(Vector2 matchBegin, Vector2 matchEnd, float margin) {
         // Project the match along the initial line, in order to update which
         // sections of the line are valid:
@@ -417,21 +486,27 @@ public class DynamicLine : Primitive {
 
         // The line should be valid between pBegin-margin and pBegin+margin:
         lineValidity.SetValue(pBegin-margin, pEnd+margin, true);
-
-        Debug.Log("Update line validity: (rho=" + state.rho + ", theta=" + state.theta + ")"
-            + "[" + beginPoint + "; " + endPoint + "], " +
-            "validity: [" + (pBegin-margin) + "; " + (pEnd+margin) + "]");
     }
 
-    // Add to the list the parts of this line that are valid:
+    /// <summary>
+    /// Adds to the given list the parts of this line that are valid
+    /// </summary>
+    /// <param name="dest">The list on which new line segments will be added</param>
+    /// <param name="minLineLength">Minimum length of a line</param>
+    /// <param name="maxRhoErrorSq">Square of the maximum error estimate on the range of a line to keep it</param>
+    /// <param name="maxThetaErrorSq">Square of the maximum error estimate on the angle of a line to keep it</param>
+    /// <param name="initialisationSteps">Minimum number of steps where the line is kept alive, before checking the 
+    /// two above thresholds</param>
     public void AddValidParts(List<DynamicLine> dest, float minLineLength, float maxRhoErrorSq, float maxThetaErrorSq, int initialisationSteps) {
-        // If the error on the position estimate of the line is too high, then we have to remove it:
-        if (_matchCount > initialisationSteps && 
-            (covariance[0, 0] > maxRhoErrorSq || covariance[1, 1] > maxThetaErrorSq)) {
 
-            Debug.LogWarning("Deleting line because of its error !");
+        // If we need to delete this line, there is nothing to do:
+        if (forceDelete)
             return;
-        }
+
+        // If the error on the position estimate of the line is too high, then we have to remove it:
+        if (_matchCount > initialisationSteps && (covariance[0, 0] > maxRhoErrorSq 
+                                               || covariance[1, 1] > maxThetaErrorSq))
+            return;
 
         ReadOnlyCollection<float> changes = lineValidity.GetSplits();
 
@@ -472,9 +547,9 @@ public class DynamicLine : Primitive {
     /// <summary>
     /// If the forward direction is the vector from beginPoint to endPoint:
     /// <list type="bullet">
-    /// <item>Return -1 if the given point is on the left of the line</item>
-    /// <item>Return +1 if the given point is on the right of the line</item>
-    /// <item>Return 0 if the given point belongs to the line</item>
+    /// <item>Returns -1 if the given point is on the left of the line</item>
+    /// <item>Returns +1 if the given point is on the right of the line</item>
+    /// <item>Returns 0 if the given point belongs to the line</item>
     /// </list>
     /// </summary>
     public int SideOfPoint(Vector2 point) {
@@ -484,23 +559,12 @@ public class DynamicLine : Primitive {
     }
 
     /// <summary>
-    /// Compute the orthonal projection of the given point on the line
+    /// Checks the state of the line, and make sure that we keep the following properties:
+    /// <list type="bullet">
+    /// <item>state.rho >= 0</item>
+    /// <item>0 <= state.theta < 2*PI</item>
+    /// </list>
     /// </summary>
-    private Vector2 Project(Vector2 point) {
-        float costheta = Mathf.Cos(state.theta), sintheta = Mathf.Sin(state.theta);
-
-        // Unit vector along the line:
-        Vector2 u = new Vector2(-sintheta, costheta);
-
-        // "Center" of the infinite line:
-        Vector2 center = new Vector2(state.rho * costheta, state.rho * sintheta);
-
-        return center + Vector2.Dot(point, u) * u;
-    }
-
-    // Check the state of the line, and make sure that we keep the following properties:
-    // * state.rho >= 0
-    // * 0 <= state.theta < 2*PI
     private void CheckState() {
         // If rho < 0, rotate the line to make r >= 0 again:
         if(state.rho < 0) {
@@ -519,12 +583,17 @@ public class DynamicLine : Primitive {
             state.theta = 0;
     }
 
+    /// <summary>
+    /// Computes the velocity of a point, supposing that this point belongs to the line
+    /// </summary>
+    /// <param name="x">World position of the point along the X-axis in meters</param>
+    /// <param name="y">World position of the point along the Y-axis in meters</param>
     public Vector2 VelocityOfPoint(float x, float y) {
         // Perform some renamings for simplification:
-        float rho = modelLine.state.rho;
-        float theta = modelLine.state.theta;
-        float dRho = modelLine.state.dRho;
-        float dTheta = modelLine.state.dTheta;
+        float rho = state.rho;
+        float theta = state.theta;
+        float dRho = state.dRho;
+        float dTheta = state.dTheta;
 
         // Express the given point in the referential of the model line:
         float costheta = Mathf.Cos(theta), sintheta = Mathf.Sin(theta);
@@ -548,6 +617,13 @@ public class DynamicLine : Primitive {
             der_along_x1 * sintheta + der_along_y1 * costheta);
     }
 
+
+    /// <summary>
+    /// Returns the value t such that the point:
+    /// I = line.begin_point + t * (line.end_point - line.begin_point)
+    /// belongs to the line AB.This point is thus the intersection point
+    /// between this line and the line AB
+    /// </summary>
     public float IntersectDistance(Vector2 A, Vector2 B) {
         Vector2 AB = B - A;
         Vector2 CD = endPoint - beginPoint;
@@ -560,6 +636,13 @@ public class DynamicLine : Primitive {
         Vector2 AC = beginPoint - A;
 
         return (AC.y * AB.x - AC.x * AB.y) / den;
+    }
+
+    /// <summary>
+    /// Forces the deletion of the line
+    /// </summary>
+    public void ForceDelete() {
+        _forceDelete = true;
     }
 
     // Used for log purposes:

@@ -87,7 +87,7 @@ class LineBuilder:
         return np.sqrt(np.sum((self.begin_point - self.end_point) ** 2))
 
     def to_circle(self):
-        """ Convert this line into a circle cluster (this line shouldn't be used after that) """
+        """ Converts this line into a circle cluster (this line shouldn't be used after that) """
 
         return CircleBuilder(self.points)
 
@@ -128,7 +128,7 @@ class LineBuilder:
         self.up_to_date_endpoints = True
 
     def compute_covariance(self):
-        """ Compute the covariance matrix of the parameters (rho, theta) of the line """
+        """ Computes the covariance matrix of the parameters (rho, theta) of the line """
 
         # We first convert the array of points into Numpy arrays:
         positions = np.array(self.points['positions'])

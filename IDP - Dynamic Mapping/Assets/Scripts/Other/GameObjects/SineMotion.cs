@@ -1,10 +1,20 @@
 using UnityEngine;
 
-public class SineMotion : MonoBehaviour
-{
+/// <summary>
+/// Simple script to move an object with a sine motion
+/// </summary>
+public class SineMotion : MonoBehaviour {
+
+    [Tooltip("Amplitude of the motion along the X-axis")]
     public float amplitudeX = 1;
+
+    [Tooltip("Amplitude of the rotation along the Y-axis")]
     public float amplitudeRotationY = 45;
+
+    [Tooltip("Speed of the motion along the X-axis")]
     public float omegaX = 1;
+
+    [Tooltip("Speed of the motion along the Y-axis")]
     public float omegaY = 1;
 
     private float startX, startAngleY;

@@ -1,14 +1,26 @@
 ﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
-public class BoolAxis2 {
+/// <summary>
+/// This class is used to represent a boolean function, able to map any real value
+/// with a boolean.To do this, we store the state of the function at -infinity and
+/// a list of splits at which the function switches from True to False or False to True
+/// </summary>
+public class BoolAxis {
+    
     private bool defaultValue;
     private List<float> splits = new List<float>();
 
-    public BoolAxis2(bool defaultValue) {
+    /// <summary>
+    /// Instantiates a BoolAxis with the given initial value
+    /// </summary>
+    public BoolAxis(bool defaultValue) {
         this.defaultValue = defaultValue;
     }
 
+    /// <summary>
+    /// Sets the value of the boolean function between min and max
+    /// </summary>
     public void SetValue(float min, float max, bool value) {
         if (max <= min)
             return;
@@ -47,16 +59,32 @@ public class BoolAxis2 {
         splits = newSplits;
     }
 
+    /// <summary>
+    /// Returns the boolean value of the function at x
+    /// </summary>
+    public bool GetValue(float x) {
+
+        int index = 0;
+        while (index < splits.Count && splits[index] < x)
+            index++;
+
+        return index % 2 == 0 ? defaultValue : !defaultValue;
+    }
+
+    /// <summary>
+    /// Resets the state of the axis
+    /// </summary>
+    /// <param name="defaultValue">Value of the axis at -infinity</param>
+    /// <param name="changes">Sorted list of positions where the state of the axis should change between
+    /// True and False or the opposite</param>
     public void Reset(bool defaultValue, List<float> changes) {
         this.defaultValue = defaultValue;
         this.splits = changes;
     }
 
-    public struct Struct {
-        public int index;
-        public float value;
-    }
-
+    /// <summary>
+    /// Returns the list of positions where the state of the function changes
+    /// </summary>
     public ReadOnlyCollection<float> GetSplits() {
         return splits.AsReadOnly();
     }

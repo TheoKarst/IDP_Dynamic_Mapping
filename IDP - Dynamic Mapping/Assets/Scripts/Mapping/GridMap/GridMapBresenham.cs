@@ -1,9 +1,13 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class GridMapBresenham : WorldModel {
-
+/// <summary>
+/// Class to build a dynamic map of an environment using two grids:
+/// - A static grid for the static parts of the environment
+/// - A dynamic grid for the dynamic parts of the environment
+/// </summary>
+public class GridMapBresenham {
+    
     // Image and corresponding texture used to print the grid:
     private RawImage mapImage;
     private Texture2D texture;
@@ -20,22 +24,17 @@ public class GridMapBresenham : WorldModel {
     private float HighStatic, LowStatic;
     private float HighDynamic, LowDynamic;
 
-    // Possible state for an observation of a cell:
-    private const int FREE = 0;
-    private const int OCCUPIED = 1;
-
     // Static and dynamic maps in log-odds form (the value of each cell can be computed
     // using the function getValue)
     private float[][] staticMap;
     private float[][] dynamicMap;
 
-    // For drawing purposes, this represents the landmarks that were compared with this map
-    // to identify which ones were static or dynamic:
-    private List<(int, int)> landmarkCandidates = new List<(int, int)>();
-
     // Value in the grid corresponding to the maximum confidence:
     private float maxLogOddValue;
 
+    /// <summary>
+    /// Instantiates the mapping algorithm with the given parameters
+    /// </summary>
     public GridMapBresenham(GridMapParams gridMapParams) {
         this.mapImage = gridMapParams.mapImage;
 
@@ -51,6 +50,10 @@ public class GridMapBresenham : WorldModel {
         SetupGrid();
     }
 
+    /// <summary>
+    /// Computes the parameters to update the grid, instantiates the static and dynamic maps
+    /// and creates a texture to draw the map in the scene
+    /// </summary>
     private void SetupGrid() {
         // Map width and height should be a multiple of 2:
         mapWidth &= ~1;
@@ -87,7 +90,11 @@ public class GridMapBresenham : WorldModel {
         mapImage.texture = texture;
     }
 
-    // Update the static and dynamic maps using the current sensor position and observations:
+    /// <summary>
+    /// Updates the static and dynamic maps using the current sensor position and observations
+    /// </summary>
+    /// <param name="worldSensorPose">World posie of the sensor which made the observations</param>
+    /// <param name="observations">Observations of the sensor</param>
     public void UpdateMaps(Pose2D worldSensorPose, Observation[] observations) {
 
         // Position of the sensor in the grids:
@@ -112,6 +119,11 @@ public class GridMapBresenham : WorldModel {
         }
     }
 
+    /// <summary>
+    /// Uses Bresenhams algorithm to update the cells: all cells traversed by the line from (x0, y0)
+    /// to (x1, y1) are considered free. The cell (x1, y1) is considered occupied if collision=True
+    /// and free otherwise
+    /// </summary>
     private void Bresenham(int x0, int y0, int x1, int y1, bool collision) {
         int dx = Mathf.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
         int dy = Mathf.Abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
@@ -122,12 +134,12 @@ public class GridMapBresenham : WorldModel {
 
                 // If there was a collision, the last cell touched by the raycast is occupied.
                 // Else, it's free:
-                UpdateCell(x0, y0, collision ? OCCUPIED : FREE);
+                UpdateCell(x0, y0, collision);
                 break;
             }
 
             // All the cells traversed by the raycast are free:
-            UpdateCell(x0, y0, FREE);
+            UpdateCell(x0, y0, false);
 
             e2 = err;
             if (e2 > -dx) { err -= dy; x0 += sx; }
@@ -135,20 +147,26 @@ public class GridMapBresenham : WorldModel {
         }
     }
 
-    private void UpdateCell(int x, int y, int observation) {
+    /// <summary>
+    /// Updates the given cell, knowing how the cell is observed
+    /// </summary>
+    /// <param name="occupied">Should be true if the cell was observed occupied and false if it was observed
+    /// free. If the cell is not observed, this function shouldn't be called because the state of the cell
+    /// should stay the same</param>
+    private void UpdateCell(int x, int y, bool occupied) {
         if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight)
             return;
 
-        float previousStaticValue = getMapValue(x, y, staticMap);
+        float previousStaticValue = LogOddsToProba(staticMap[x][y]);
 
         // Update the static and dynamic maps according to the inverse observation model
         // of the static and dynamic maps:
-        float pSt = observation == OCCUPIED && previousStaticValue > 0.1f ? HighStatic : LowStatic;
-        float pDt = observation == OCCUPIED && previousStaticValue <= 0.1f ? HighDynamic : LowDynamic;
+        float pSt = occupied && previousStaticValue > 0.1f ? HighStatic : LowStatic;
+        float pDt = occupied && previousStaticValue <= 0.1f ? HighDynamic : LowDynamic;
 
         // Update the maps using equations (12) and (13):
-        staticMap[x][y] += Mathf.Log(pSt / (1 - pSt));
-        dynamicMap[x][y] += Mathf.Log(pDt / (1 - pDt));
+        staticMap[x][y] += ProbaToLogOdds(pSt);
+        dynamicMap[x][y] += ProbaToLogOdds(pDt);
 
         // Clamp values to avoid being too confident about the presence or absence
         // of an obstacle (this allows to take changes of the map into account):
@@ -156,38 +174,33 @@ public class GridMapBresenham : WorldModel {
         dynamicMap[x][y] = Mathf.Clamp(dynamicMap[x][y], -maxLogOddValue, maxLogOddValue);
     }
 
-    private float getMapValue(int x, int y, float[][] map)
-    {
-        // ln(value / (1 - value)) = map[x][y]
-        // <=> value / (1 - value) = e^map[x][y]
-        // <=> value = e^map[x][y] * (1 - value)
-        // <=> value * (1 + e^map[x][y]) = e^map[x][y]
-
-        float p = Mathf.Exp(map[x][y]);
-
-        return p / (1 + p);
+    /// <summary>Returns the log-odds form representation of a probability</summary>
+    private float ProbaToLogOdds(float p) {
+        return Mathf.Log(p / (1 - p));
     }
 
-    public void Cleanup() {
-        landmarkCandidates.Clear();
+    /// <summary>Returns the probability represented by the given log-odds form</summary>
+    private float LogOddsToProba(float l) {
+        float e = Mathf.Exp(l);
+
+        return e / (1 + e);
     }
 
-    // Return if the given position corresponds to a static object or not
+    /// <summary>
+    /// Returns if the given position corresponds to a static object or not
+    /// </summary>
     public bool IsStatic(Vector2 worldPosition) {
 
         // Convert the world position into a cell position:
         int xCell = Mathf.FloorToInt(worldPosition.x / cellSize) + mapWidth / 2;
         int yCell = Mathf.FloorToInt(worldPosition.y / cellSize) + mapHeight / 2;
 
-        // Register this to the list of landmark candidates for drawing / debugging purposes:
-        landmarkCandidates.Add((xCell, yCell));
-
         // Instead of checking just one cell, check if at least one neighbouring cell is static.
         // This method is a bit slower but more robust to errors in the estimate of the observation:
         const int border = 5;
         for(int x = Mathf.Max(xCell - border, 0); x <= Mathf.Min(xCell + border, mapWidth-1); x++) {
             for (int y = Mathf.Max(yCell - border, 0); y <= Mathf.Min(yCell + border, mapHeight - 1); y++) {
-                if (getMapValue(x, y, staticMap) >= 0.8f)
+                if (LogOddsToProba(staticMap[x][y]) >= 0.8f)
                     return true;
             }
         }
@@ -195,7 +208,12 @@ public class GridMapBresenham : WorldModel {
         return false;
     }
 
-    public void DrawMap(bool showMap, bool updateTexture, bool drawLandmarkCandidates) {
+    /// <summary>
+    /// Draws the map in the scene
+    /// </summary>
+    /// <param name="showMap">If we need to show the map in the scene</param>
+    /// <param name="updateTexture">If we need to update the texture representing the map</param>
+    public void DrawMap(bool showMap, bool updateTexture) {
         if(showMap && updateTexture) {
             // Should contain the pixels row by row, starting at the bottom left of the texture:
             Color[] pixels = new Color[2 * mapWidth * mapHeight];
@@ -204,20 +222,14 @@ public class GridMapBresenham : WorldModel {
                 for (int y = 0; y < mapHeight; y++) {
                     // Gray color of the static cell. If the occupancy probability is 0,
                     // the cell should be white:
-                    float gray = 1 - getMapValue(x, y, staticMap);
+                    float gray = 1 - LogOddsToProba(staticMap[x][y]);
                     pixels[mapWidth * (mapHeight + y) + x] = new Color(gray, gray, gray);
 
                     // Gray color of the dynamic cell. If the occupancy probability is 0,
                     // the cell should be white:
-                    gray = 1 - getMapValue(x, y, dynamicMap);
+                    gray = 1 - LogOddsToProba(dynamicMap[x][y]);
                     pixels[mapWidth * y + x] = new Color(gray, gray, gray);
                 }
-            }
-
-            if(drawLandmarkCandidates) {
-                // Landmark candidates are represented by red cells in the static map:
-                foreach((int x, int y) in landmarkCandidates)
-                    pixels[mapWidth * (mapHeight + y) + x] = new Color(1, 0, 0);
             }
 
             texture.SetPixels(pixels);

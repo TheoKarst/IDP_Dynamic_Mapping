@@ -3,181 +3,14 @@ using UnityEngine;
 using UnityEngine.Assertions;
 
 public class WipeShapeUtils {
-    public static List<int> HighPassSubsample(Observation[] observations, float deltaAngle) {
-        List<int> result = new List<int>();
-
-        Observation lastObservation = observations[0];
-        int lastObservationIndex = -1;
-        float lastObservationFilterValue = -1;
-
-        int index = 0;
-        while (index < observations.Length) {
-            // Find the observation with the minimum radius in the list of observations
-            // having an angle between first.theta and first.theta + deltaAngle:
-            Observation first = observations[index];
-
-            int maxIndex = index;
-            float maxFilterValue = MaxAreaFilter(observations, index);
-            Observation maxObservation = first;
-
-            index++;
-            while (index < observations.Length) {
-                Observation current = observations[index];
-
-                if (current.theta - first.theta > deltaAngle)
-                    break;
-
-                float filterValue = MaxAreaFilter(observations, index);
-                if (filterValue > maxFilterValue) {
-                    maxIndex = index;
-                    maxObservation = current;
-                    maxFilterValue = filterValue;
-                }
-
-                index++;
-            }
-
-            // Before adding maxIndex to the list, we have to check that the angle
-            // between lastObservation and maxObservation is greater than deltaAngle.
-            // If this is not the case, we keep among them the one with the biggest
-            // filter value:
-            if (lastObservationIndex != -1 && maxObservation.theta - lastObservation.theta < deltaAngle) {
-                if (maxFilterValue > lastObservationFilterValue) {
-                    lastObservation = maxObservation;
-                    lastObservationIndex = maxIndex;
-                    lastObservationFilterValue = maxFilterValue;
-                }
-            }
-            else {
-                if (lastObservationIndex != -1)
-                    result.Add(lastObservationIndex);
-
-                lastObservation = maxObservation;
-                lastObservationIndex = maxIndex;
-                lastObservationFilterValue = maxFilterValue;
-            }
-        }
-
-        if (lastObservationIndex != -1)
-            result.Add(lastObservationIndex);
-
-        return result;
-    }
-
-    private static float MaxAreaFilter(Observation[] observations, int index) {
-        int last = observations.Length - 1;
-
-        Vector2 A = LocalPosition(observations[index == 0 ? last : index - 1]);
-        Vector2 B = LocalPosition(observations[index]);
-        Vector2 C = LocalPosition(observations[index == last ? 0 : index + 1]);
-
-        Vector2 BA = A - B;
-        Vector2 BC = C - B;
-
-        // Return the cross product between BA and BC:
-        return BA.x * BC.y - BA.y * BC.x;
-    }
-
-    private static Vector2 LocalPosition(Observation observation) {
-        return new Vector2(
-            observation.r * Mathf.Cos(observation.theta),
-            observation.r * Mathf.Sin(observation.theta)
-        );
-    }
-
-    public static int[] AlphaFilter(Observation[] observations, float alpha, float clamp) {
-        // For each observation, if we have to remove it:
-        bool[] remove = new bool[observations.Length];
-
-        // First compute the local position of each observation:
-        Vector2[] positions = new Vector2[observations.Length];
-        for(int i = 0; i < observations.Length; i++) {
-            float r = Mathf.Min(observations[i].r, clamp);
-            float theta = observations[i].theta;
-
-            positions[i] = new Vector2(r * Mathf.Cos(theta), r * Mathf.Sin(theta));
-        }
-
-        // Then for each observation, remove all the observations in the "alpha-cone"
-        // of of this observation:
-        for (int i = 0; i < observations.Length; i++) {
-            if (remove[i])
-                continue;
-
-            // 1. Remove observations in the cone in counter-clockwise order, between theta and theta + alpha:
-            int index = i;
-            float theta = observations[i].theta;
-            float stopAngle = theta + alpha;
-
-            // cos(x + PI/2) = -sin(x); sin(x + PI/2) = cos(x)
-            Vector2 u = new Vector2(-Mathf.Sin(stopAngle), Mathf.Cos(stopAngle));
-
-            while (theta < stopAngle) {
-                index++;
-
-                // If we reached the last observation, return to the first one:
-                if (index >= observations.Length) {
-                    index = 0;
-                    stopAngle -= 2 * Mathf.PI;
-                }
-
-                theta = observations[index].theta;
-                float dotU = Vector2.Dot(positions[index] - positions[i], u);
-
-                if (dotU <= 0)
-                    remove[index] = true;
-                else
-                    break;
-            }
-
-            // 2. Remove observations in the cone in clockwise order, between theta and theta - alpha:
-            index = i;
-            theta = observations[i].theta;
-            stopAngle = theta - alpha;
-
-            // cos(x - PI/2) = sin(x); sin(x - PI/2) = -cos(x)
-            u = new Vector2(Mathf.Sin(stopAngle), -Mathf.Cos(stopAngle));
-
-            while (theta > stopAngle) {
-                index--;
-
-                // If we reached the first observation, return to the last one:
-                if (index <= 0) {
-                    index = observations.Length - 1;
-                    stopAngle += 2 * Mathf.PI;
-                }
-
-                theta = observations[index].theta;
-                float dotU = Vector2.Dot(positions[index] - positions[i], u);
-
-                if (dotU <= 0)
-                    remove[index] = true;
-                else
-                    break;
-            }
-        }
-
-        // Count the number of observations we still have:
-        int count = 0;
-        for (int i = 0; i < remove.Length; i++)
-            if (!remove[i])
-                count++;
-
-        // Return the indices of the remaining observations:
-        int[] result = new int[count];
-
-        int resultIndex = 0;
-        for (int i = 0; i < remove.Length; i++) {
-            if (!remove[i]) {
-                result[resultIndex] = i;
-                resultIndex++;
-            }
-        }
-
-        return result;
-    }
-
-    public static int[] AlphaFilter(Vector2[] points, float[] angles, float alpha) {
+    /// <summary>
+    /// For each observation of a LIDAR, remove all the observations in the "alpha-cone" of that observation
+    /// </summary>
+    /// <param name="points">List of positions of the observations</param>
+    /// <param name="angles">List of angles of the observations from the LIDAR in radians</param>
+    /// <param name="alpha">Angle of the "alpha-cone" in radians</param>
+    /// <returns>The indices of the observations to remove after filtering</returns>
+    public static bool[] AlphaFilter(Vector2[] points, float[] angles, float alpha) {
         Assert.IsTrue(points.Length == angles.Length);
 
         // Register each point that should be deleted:
@@ -241,23 +74,68 @@ public class WipeShapeUtils {
             }
         }
 
-        // Count the number of observations we still have:
-        int count = 0;
-        for (int i = 0; i < remove.Length; i++)
-            if (!remove[i])
-                count++;
+        return remove;
+    }
 
-        // Return the indices of the remaining points:
-        int[] result = new int[count];
+    /// <summary>
+    /// Runs Douglas-Peucker algorithm on the given positions between start (inclusive)
+    /// and end (inclusive)
+    /// </summary>
+    /// <param name="positions">Positions of the points of the shape to filter</param>
+    /// <param name="epsilon">Parameter of the algorithm that defines how much the curve will be filtered</param>
+    /// <param name="remove">Mask of positions to remove (by default, no position is removed)</param>
+    /// <returns>The updated mask of positions to remove</returns>
+    public static bool[] DouglasPeucker(Vector2[] positions, float epsilon, bool[] remove = null) {
 
-        int resultIndex = 0;
-        for (int i = 0; i < remove.Length; i++) {
-            if (!remove[i]) {
-                result[resultIndex] = i;
-                resultIndex++;
+        // If there are less than two points, we always keep them:
+        if (positions.Length <= 2)
+            return new bool[] { true, true };
+
+        Stack<(int, int)> stack = new Stack<(int, int)>();
+        stack.Push((0, positions.Length - 1));
+
+        // Mask of positions to remove:
+        if(remove == null)
+            remove = new bool[positions.Length];
+
+        while (stack.Count != 0) {
+            (int start, int end) = stack.Pop();
+            Vector2 startPoint = positions[start];
+            Vector2 endPoint = positions[end];
+
+            if (end - start <= 1)
+                continue;
+
+            // Create a unit vector orthogonal to the line between start_point and end_point:
+            Vector2 u = Vector2.Perpendicular(endPoint - startPoint).normalized;
+
+            // For each point between start (exclusive) and end (exclusive), compute the
+            // orthogonal distance between that point and the line [start_point, end_point]:
+            int maxIndex = -1;
+            float maxDistance = 0;
+
+            for (int i = start + 1; i < end; i++) {
+                if (remove[i])
+                    continue;
+
+                float distance = Mathf.Abs(Vector2.Dot(positions[i] - startPoint, u));
+
+                if (maxIndex == -1 || distance > maxDistance) {
+                    maxIndex = i;
+                    maxDistance = distance;
+                }
+            }
+
+            if (maxDistance > epsilon) {
+                stack.Push((start, maxIndex));
+                stack.Push((maxIndex, end));
+            }
+            else {
+                for (int i = start + 1; i < end; i++)
+                    remove[i] = true;
             }
         }
 
-        return result;
+        return remove;
     }
 }

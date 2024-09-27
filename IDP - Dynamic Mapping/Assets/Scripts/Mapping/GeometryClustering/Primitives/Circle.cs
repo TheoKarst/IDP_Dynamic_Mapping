@@ -1,64 +1,96 @@
+using System.Collections.Generic;
 using UnityEngine;
 
-public class Circle : Primitive {
+/// <summary>
+/// Class used to represent circle primitives for the mapping using geometric primitives
+/// </summary>
+public class Circle {
+    
+    // Color of the circle (for drawing):
     public Color circleColor = Color.red;
 
     // Center and radius of the circle:
-    private float xc, yc, R;
-    private float xcP, ycP;     // Derivative of xc and yc (used to estimate the speed of the circle)
+    private Vector2 _center;
+    public Vector2 center { get => _center; }
+    private float R;
 
-    public Vector2 position { get => new Vector2(xc, yc); }
+    // Estimated derivative of center.x and center.y with respect to time:
+    private Vector2 speed;
 
+    // If the circle is consistent with the current observations:
     public bool isValid = true;
 
-    public Circle(float xc, float yc, float R) {
-        this.xc = xc;
-        this.yc = yc;
+    /// <summary>
+    /// Instantiates a circle with the given center and radius
+    /// </summary>
+    /// <param name="center">World position of the circle</param>
+    /// <param name="R">Radius of the circle in meters</param>
+    public Circle(Vector2 center, float R) {
+        this._center = center;
         this.R = R;
 
-        this.xcP = this.ycP = 0;
+        this.speed = Vector2.zero;
     }
 
+    /// <summary>
+    /// Draws the circle in the scene using Unity gizmos
+    /// </summary>
+    /// <param name="height">Position of the circle along the Z-axis</param>
     public void DrawGizmos(float height) {
         Gizmos.color = circleColor;
-        Gizmos.DrawSphere(Utils.To3D(xc, yc, height), R);
+        Gizmos.DrawSphere(Utils.To3D(_center, height), R);
     }
 
-    // Supposing that this circle belongs to the current model of the environment, use the
-    // given circle (that is supposed to be matched with this one) to update the center and
-    // radius of this circle:
-    public void UpdateCircleUsingMatching(Circle other) {
-        float newXc = (xc + other.xc) / 2;
-        float newYc = (yc + other.yc) / 2;
+    /// <summary>
+    /// From the previous circle estimate and the elapsed time since the last update,
+    /// predict where the circle should be now
+    /// </summary>
+    /// <param name="elapsedTime">Elapsed time in seconds since the last update</param>
+    /// <param name="friction">Friction applied to the speed of the circle (between 0 and 1)</param>
+    public void PredictState(float elapsedTime, float friction) {
+        _center += elapsedTime * speed;
+        speed *= 1 - friction;
+    }
+
+    /// <summary>
+    /// Supposing that this circle belongs to the current model of the environment, use the
+    /// given circle (that is supposed to be matched with this one) to update the center and
+    /// radius of this circle
+    /// </summary>
+    /// <param name="other">Observed circle matched with this one</param>
+    public void UpdateCircleUsingMatch(Circle other) {
+        Vector2 newCenter = (_center + other._center) / 2;
         R = (R + other.R) / 2;
 
-        // Use the newXc and newYc to update the circle speed estimate, using a simple
-        // exponential low pass filter:
+        // Use the newCenter to update the circle speed estimate, using a simple
+        // exponential low pass filter (TODO: Implement Kalman Filter instead):
         const float m = 0.95f;
-        other.xcP = xcP = m * xcP + (1 - m) * (newXc - xc);
-        other.ycP = ycP = m * ycP + (1 - m) * (newYc - yc);
+        speed = m * speed + (1 - m) * (newCenter - _center);
 
-        // Update xc and yc:
-        xc = newXc; yc = newYc;
+        // Update the center of the circle:
+        _center = newCenter;
     }
 
-    // Compute the Euclidean distance between the two circles centers:
+    /// <summary>
+    /// Computes the Euclidean distance between the centers of this circle and the
+    /// center of the given circle
+    /// </summary>
     public float DistanceFrom(Circle other) {
-        float dX = other.xc - xc;
-        float dY = other.yc - yc;
-
-        return Mathf.Sqrt(dX * dX + dY * dY);
+        return (other._center - _center).magnitude;
     }
 
-    // All the points belonging to a circle have the same speed, which is the speed
-    // of the center of the circle:
-    public Vector2 VelocityOfPoint(float x, float y) {
-        return new Vector2(xcP, ycP);
-    }
+    /// <summary>
+    /// Returns if the circle is far enough from the given lines
+    /// </summary>
+    /// <param name="lines">List of lines</param>
+    /// <param name="minDistanceToLines">Minimum allowed orthogonal distance 
+    /// between a line and the center of the circle</param>
+    /// <returns></returns>
+    public bool IsFarFromLines(List<DynamicLine> lines, float minDistanceToLines) {
+        foreach (DynamicLine line in lines)
+            if (line.DistanceOf(_center) < minDistanceToLines)
+                return false;
 
-    // Set if the circle is valid (it's valid if the center of the circle is outside the
-    // current WipeShape:
-    public void UpdateValidity(bool isValid) {
-        this.isValid = isValid;
+        return true;
     }
 }

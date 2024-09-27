@@ -1,26 +1,44 @@
-﻿// Class used to project lines into a grid, in order to compute faster
-// line matching:
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Assertions;
 
-public class GridMap {
+/// <summary>
+/// This class is used to project lines onto a grid in the mapping using geometric
+/// primitives.This allows to compute faster line matching
+/// </summary>
+public class MatchGrid {
+    
+    // Number of cells of the grid along the X and Y-axis:
     private int width;
     private int height;
 
     // Position of the top left corner of the grid:
     private float cornerX, cornerY;
 
+    // Size of the cells in meters:
     private float cellSize;
 
     private List<DynamicLine>[] cells;
 
-    public GridMap(int width, int height, float cellSize) 
+    /// <summary>
+    /// Instantiates a match grid, with the center at (0, 0)
+    /// </summary>
+    /// <param name="width">Number of cells along the x-axis</param>
+    /// <param name="height">Number of cells along the y-axis</param>
+    /// <param name="cellSize">Size of the cells in meters</param>
+    public MatchGrid(int width, int height, float cellSize) 
         : this(width, height, 0, 0, cellSize) {}
 
-    public GridMap(int width, int height, float centerX, float centerY, float cellSize) {
+    /// <summary>
+    /// Instantiates a match grid
+    /// </summary>
+    /// <param name="width">Number of cells along the x-axis</param>
+    /// <param name="height">Number of cells along the y-axis</param>
+    /// <param name="centerX">World position of the center of the grid along the x-axis</param>
+    /// <param name="centerY">World position of the center of the grid along the y-axis</param>
+    /// <param name="cellSize">Size of the cells in meters</param>
+    public MatchGrid(int width, int height, float centerX, float centerY, float cellSize) {
         this.width = width;
         this.height = height;
         
@@ -32,6 +50,9 @@ public class GridMap {
         cells = new List<DynamicLine>[width * height];
     }
 
+    /// <summary>
+    /// Registers the given line in the match grid
+    /// </summary>
     public void RegisterLine(DynamicLine line) {
         // Compute the position of the endpoints of the line in the grid:
         float x0 = (line.beginPoint.x - cornerX) / cellSize;
@@ -40,7 +61,9 @@ public class GridMap {
         float y1 = (cornerY - line.endPoint.y) / cellSize;
 
         if(!BelongsToGrid(x0, y0) || !BelongsToGrid(x1, y1)) {
-            Debug.LogError("The given line is outside of the bounds of the grid !");
+            Debug.LogWarning("Warning: The given line is outside of the bounds of the match grid ! " +
+                "Make sure to use a large enough grid for the whole environment !");
+            line.ForceDelete();
             return;
         }
 
@@ -49,6 +72,9 @@ public class GridMap {
             RegisterLine(line, cell.x, cell.y);
     }
 
+    /// <summary>
+    /// Finds the lines near to the given one in the grid
+    /// </summary>
     public HashSet<DynamicLine> FindNeighbors(DynamicLine line) {
         HashSet<DynamicLine> neighbors = new HashSet<DynamicLine>();
 
@@ -72,20 +98,25 @@ public class GridMap {
         return neighbors;
     }
 
+    /// <summary>
+    /// Finds the lines near to the given circle in the grid
+    /// </summary>
     public List<DynamicLine> FindNeighbors(Circle circle) {
         // Compute the position of the center of the circle in the grid:
 
-        int x = (int) ((circle.position.x - cornerX) / cellSize);
-        int y = (int) ((cornerY - circle.position.y) / cellSize);
+        int x = (int) ((circle.center.x - cornerX) / cellSize);
+        int y = (int) ((cornerY - circle.center.y) / cellSize);
 
         Assert.IsTrue(BelongsToGrid(x, y), "The given circle is outside of the grid !");
 
         return this[x, y];
     }
 
-    // Find all the cells that are colliding the line with the given endpoints, expressed
-    // in the grid coordinate system, using the voxel traversal algorithm described in the
-    // following paper: https://www.cse.chalmers.se/edu/year/2013/course/TDA361/grid.pdf
+    /// <summary>
+    /// Finds all the cells that are colliding the line with the given endpoints, expressed
+    /// in the grid coordinate system, using the voxel traversal algorithm described in the
+    /// following paper: https://www.cse.chalmers.se/edu/year/2013/course/TDA361/grid.pdf
+    /// </summary>
     private List<(int, int)> FindContactCells(float x0, float y0, float x1, float y1) {
         List<(int, int)> result = new List<(int, int)>();
 
@@ -136,9 +167,11 @@ public class GridMap {
         return result;
     }
 
-    // Use a modified version of Xiaolin Wu's algorithm, to get all the cells colliding the line
-    // with the given endpoints, returning all the points explored by the algorithm, no matter
-    // the brightness:
+    /// <summary>
+    /// Use a modified version of Xiaolin Wu's algorithm, to get all the cells colliding the line
+    /// with the given endpoints, returning all the points explored by the algorithm, no matter
+    /// the brightness
+    /// </summary>
     private List<(int, int)> FindContactCellsMargin(float x0, float y0, float x1, float y1) {
         List<(int, int)> result = new List<(int, int)>();
 
@@ -210,6 +243,9 @@ public class GridMap {
         return result;
     }
 
+    /// <summary>
+    /// Registers the line in the given cell
+    /// </summary>
     private void RegisterLine(DynamicLine line, int cellX, int cellY) {
         if (this[cellX, cellY] == null)
             this[cellX, cellY] = new List<DynamicLine> { line };
@@ -218,6 +254,9 @@ public class GridMap {
             this[cellX, cellY].Add(line);
     }
 
+    /// <summary>
+    /// Clears the grid from registered lines
+    /// </summary>
     public void Clear() {
         for (int i = 0; i < cells.Length; i++) 
             cells[i] = null;
@@ -228,11 +267,17 @@ public class GridMap {
         set => cells[width * y + x] = value;
     }
 
+    /// <summary>
+    /// Returns if the given smooth coordinates (in grid space) belongs to the grid
+    /// </summary>
     private bool BelongsToGrid(float x, float y) {
         return x >= 0 && x < width && y >= 0 && y < height;
     }
 
-    // Draw the grid using Unity Gizmos (for debugging):
+    /// <summary>
+    /// Draws the grid in the scene using Unity Gizmos
+    /// </summary>
+    /// <param name="z">Position of the grid along the Z-axis</param>
     public void DrawGizmos(float z) {
         Gizmos.color = Color.black;
 
@@ -264,7 +309,9 @@ public class GridMap {
         }
     }
 
-    // Debug function to draw how a grid would look like even if the grid is not instantiated:
+    /// <summary>
+    /// Debug function to draw how a grid would look like even if the grid is not instantiated
+    /// </summary>
     public static void DrawGizmos(float z, int width, int height, float centerX, float centerY, 
         float cellSize) {
 

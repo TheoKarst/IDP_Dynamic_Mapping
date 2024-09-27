@@ -14,12 +14,10 @@ class Circle:
         
         # Center and radius of the circle:
         self.center = center
+        self.R = R
         
         # Derivative of center_x and center_y with respect to time:
         self.speed = np.array([0.0, 0.0])
-
-        # Radius of the circle:
-        self.R = R
 
         # If the circle is consistent with the current observations:
         self.is_valid = True
@@ -59,7 +57,7 @@ class Circle:
         new_center = (self.center + other.center) / 2
         self.R = (self.R + other.R) / 2
 
-        # Use the new_xc and new_yc to update the circle speed estimate, using a simple
+        # Use the new_center to update the circle speed estimate, using a simple
         # exponential low pass filter (TODO: Use Kalman Filter instead):
         m = 0.95
         self.speed = m * self.speed + (1 - m) * (new_center - self.center)

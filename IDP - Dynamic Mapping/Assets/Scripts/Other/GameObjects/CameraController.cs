@@ -1,9 +1,14 @@
 using UnityEngine;
 
+/// <summary>
+/// Simple script used in Unity to track an object with the camera
+/// </summary>
 public class CameraController : MonoBehaviour {
+    
     [Tooltip("The object this camera should follow")]
     public GameObject target;
 
+    [Tooltip("How much the camera should zoom in/zoom out when pressing W and S keys")]
     public float zoomSpeed = 1;
 
     public void LateUpdate() {

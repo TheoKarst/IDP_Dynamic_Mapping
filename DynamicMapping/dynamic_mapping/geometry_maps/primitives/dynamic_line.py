@@ -186,7 +186,7 @@ class DynamicLine:
         
     def update_state(self, observation_rho : float, observation_theta : float, 
                      observation_covariance : np.ndarray):
-        """ Use the given observation to update the line state 
+        """ Use the given observation to update the line state
             :param observation_rho: Range of the observed line
             :param observation_theta: Angle of the observed line
             :param observation_covariance: 2x2 covariance matrix of the observation
@@ -314,7 +314,7 @@ class DynamicLine:
 
     def norm_distance_from_model(self, model_line : 'DynamicLine'):
         """
-        Compute the Mahalanobis distance between this line (supposed to be an observed line)
+        Computes the Mahalanobis distance between this line (supposed to be an observed line)
         and the given one (supposed to be part of the model)
         """
 
@@ -375,7 +375,7 @@ class DynamicLine:
         
             :param match_begin: Begin point of an observed line matched with this one
             :param match_end: End point of an observed line matched with this one
-            :param margin: 
+            :param margin: Parameter used to extend the validity of a line
         """
 
         # Project the match along the initial line, in order to update which

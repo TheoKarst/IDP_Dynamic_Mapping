@@ -1,9 +1,17 @@
 using UnityEngine;
 
-public class MovingObject : MonoBehaviour
-{
+/// <summary>
+/// Simple script to move objects in Unity scene
+/// </summary>
+public class MovingObject : MonoBehaviour {
+
+    [Tooltip("The list of transforme where this object should go")]
     public Transform[] transforms;
+
+    [Tooltip("Duration to move from one transform to the next")]
     public float moveDuration = 1f;
+
+    [Tooltip("Duration to wait at each transform")]
     public float waitDuration = 1f;
 
     private Vector3 lastPosition;

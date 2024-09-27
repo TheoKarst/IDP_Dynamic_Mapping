@@ -1,5 +1,10 @@
 using System;
 
+/// <summary>
+/// Serializable class used to represent the parameters of the controller of the robot (used
+/// to move the robot in Unity scene with the arrow keys of the keyboard)
+/// </summary>
+
 [Serializable]
 public class ControllerParams {
     public bool forceForward = false;

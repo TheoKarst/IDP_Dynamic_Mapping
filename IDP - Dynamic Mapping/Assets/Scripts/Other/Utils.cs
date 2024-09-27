@@ -2,17 +2,24 @@ using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
 
+/// <summary>
+/// Class used to define useful functions
+/// </summary>
 public class Utils {
 
-    // Compute the shortest angle distance between two given angles in radians.
-    // The result is thus always in the range [0; PI]:
+    /// <summary>
+    /// Computes the shortest angle distance between two given angles in radians.
+    /// The result is thus always in the range [0; PI]
+    /// </summary>
     public static float DeltaAngleRadians(float a, float b) {
         return Mathf.PingPong(Mathf.Abs(a - b), Mathf.PI);
     }
 
-    // Compute the shortest (in absolute value) difference between
-    // the two given angles in radians.
-    // The result is thus always in the range[-PI; PI]:
+    /// <summary>
+    /// Computes the shortest (in absolute value) difference between
+    /// the two given angles in radians.
+    /// The result is thus always in the range[-PI; PI]:
+    /// </summary>
     public static float SubstractAngleRadians(float a, float b) {
         float num = Mathf.Repeat(a - b, 2 * Mathf.PI);
         if (num > Mathf.PI) {
@@ -22,15 +29,20 @@ public class Utils {
         return num;
     }
 
-    // Compute the shortest angle between two lines with the given angles.
-    // The result is thus always in the range [0; PI/2]:
+    /// <summary>
+    /// Computes the shortest angle between two lines with the given angles
+    /// in radians.
+    /// The result is thus always in the range [0; PI/2]
+    /// </summary>
     public static float LineDeltaAngleRadians(float a, float b) {
         return Mathf.PingPong(Mathf.Abs(a - b), Mathf.PI / 2);
     }
 
-    // Compute the shortest (in absolute value) difference between
-    // two lines with the given angles.
-    // The result is thus always in the range [-PI/2; PI/2]:
+    /// <summary>
+    /// Computes the shortest (in absolute value) difference between two 
+    /// lines with the given angles in radians.
+    /// The result is thus always in the range [-PI/2; PI/2]
+    /// </summary>
     public static float LineSubstractAngleRadians(float a, float b) {
         float num = Mathf.Repeat(a - b, Mathf.PI);
         if (num > Mathf.PI/2) {
@@ -40,6 +52,9 @@ public class Utils {
         return num;
     }
 
+    /// <summary>
+    /// Returns a random gaussian number with the given mean and covariance
+    /// </summary>
     public static float RandomGaussian(float mean, float sigma) {
         float u1 = 1 - Random.Range(0, 1f);
         float u2 = 1 - Random.Range(0, 1f);

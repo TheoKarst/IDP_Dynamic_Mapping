@@ -2,8 +2,13 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Assertions;
 
+/// <summary>
+/// The WipeShape is a polygon representing the free space of a sensor. This is used to remove primitives
+/// inconsistent with the current observations
+/// </summary>
 public class WipeShape {
-    // Center of the shape, which is supposed to be a radial set (any line from the center to a
+    
+    // Center of the shape, which is supposed to be a "radial set" (any line from the center to a
     // point in the following list lies in the shape):
     private Vector2 center;
 
@@ -14,6 +19,14 @@ public class WipeShape {
     // The list is supposed to be sorted, with angles[last] - angles[first] < 2*PI:
     private float[] angles;
 
+    /// <summary>
+    /// Instantiates a wipe-shape, that is a polygon representing the free space around the sensor
+    /// </summary>
+    /// <param name="center">Point inside the polygon, such that each line between the center and 
+    /// a point of the polygon should belong to the polygon. The polygon is thus supposed to be a 
+    /// "radial set", which is the case if the center is the position of the LIDAR</param>
+    /// <param name="points">Positions of the points of the polygon</param>
+    /// <param name="angles">Angles of the rays between the center and the positions</param>
     public WipeShape(Vector2 center, Vector2[] points, float[] angles) {
         this.center = center;
         this.points = points;
@@ -27,40 +40,10 @@ public class WipeShape {
 
     }
 
-    // OLD VERSION:
-    public WipeShape(Vector2 center, Vector2[] points) {
-        this.center = center;
-        this.points = points;
-
-        this.angles = new float[points.Length];
-        angles[0] = Mathf.Atan2(points[0].y - center.y,
-                                      points[0].x - center.x);
-        string logMsg = "[" + angles[0] * Mathf.Rad2Deg;
-
-        for (int i = 1; i < points.Length; i++) {
-            float pointAngle = Mathf.Atan2(points[i].y - center.y,
-                                           points[i].x - center.x);
-
-            float step = Mathf.Repeat(pointAngle - angles[i - 1], 2 * Mathf.PI);
-            if (step >= Mathf.PI)
-                Debug.LogError("Assertion error while building the wipe shape");
-
-            angles[i] = angles[i - 1] + step;
-            logMsg += "; " + angles[i] * Mathf.Rad2Deg;
-        }
-        if (angles[angles.Length - 1] - angles[0] > 2 * Mathf.PI)
-            Debug.LogError("Angles: " + logMsg + "]; First point: " + points[0] + ", Last: " + points[points.Length - 1]);
-
-        /*
-        string log = "";
-        for (int i = 1; i < points.Count; i++) {
-            log += Mathf.Rad2Deg * points[i].angle + "; ";
-            if (points[i - 1].angle >= points[i].angle)
-                Debug.LogError("Invalid points for the wipe shape !");
-        }
-        Debug.Log("Wipe shape angles: [" + log + "]");*/
-    }
-
+    /// <summary>
+    /// Draws the wipe-shape in the scene, using Unity Gizmos
+    /// </summary>
+    /// <param name="height">Position of the wipe-shape along the Z-axis</param>
     public void DrawGizmos(float height) {
         if (points.Length == 0)
             return;
@@ -73,13 +56,10 @@ public class WipeShape {
         }
     }
 
-    // For each circle that was given, the circle is considered as valid only if its
-    // center is outside the WipeShape:
-    public void UpdateCircles(List<Circle> modelCircles) {
-        foreach(Circle circle in modelCircles)
-            UpdateCircleValidity(circle);
-    }
-
+    /// <summary>
+    /// Updates which part of the given line are valid or invalid, knowing that 
+    /// all the parts overlapping the wipe-shape should be invalid
+    /// </summary>
     public void UpdateLineValidity(DynamicLine line) {
         if (points.Length < 3) {
             Debug.LogError("Wipe Shape has less than 3 points !");
@@ -227,8 +207,12 @@ public class WipeShape {
         line.ResetLineValidity(startPointOutside, intersections);
     }
 
-    private void UpdateCircleValidity(Circle circle) {
-        int nextIndex = FindSectionUpper(circle.position);
+    /// <summary>
+    /// Sets the validity of the given circle to False if its center is 
+    /// inside the wipe-shape and True otherwise
+    /// </summary>
+    public void UpdateCircleValidity(Circle circle) {
+        int nextIndex = FindSectionUpper(circle.center);
         int previousIndex = nextIndex > 0 ? nextIndex - 1 : points.Length - 1;
 
         Vector2 nextPos = points[nextIndex];
@@ -239,30 +223,12 @@ public class WipeShape {
 
         // Compute the dot product between n and (circle.position - prevPos).
         // If the dot product is greater than 0, the point is outside the shape:
-        bool valid = Vector2.Dot(circle.position - prevPos, normal) > 0;
-
-        circle.UpdateValidity(valid);
+        circle.isValid = Vector2.Dot(circle.center - prevPos, normal) > 0;
     }
 
-    // Return the index of a point from the shape, with an angle strictly greater
-    // than the given point:
-    /*private int FindSection(Vector2 point) {
-        float pointAngle = Mathf.Atan2(point.y - center.y, point.x - center.x);
-
-        // Make sure that the angle is greater than the angle of the
-        // first point of the shape:
-        pointAngle = angles[0] + Mathf.Repeat(pointAngle - angles[0], 2 * Mathf.PI);
-
-        int section = 0;
-        while (section < points.Length && angles[section] < pointAngle)
-            section++;
-
-        // Keep the result between 0 and points.Count:
-        return section == points.Length ? 0 : section;
-    }*/
-
-    // Return the index of a point from the shape, with an angle greater or
-    // equal to the given point:
+    /// <summary>
+    /// Returns the index of a point from the shape, with an angle greater or equal to the given point
+    /// </summary>
     private int FindSectionUpper(Vector2 point) {
         float pointAngle = Mathf.Atan2(point.y - center.y, point.x - center.x);
 
@@ -277,7 +243,9 @@ public class WipeShape {
         return section == angles.Length ? 0 : section;
     }
 
-    // Return the index of a point with an angle less or equal to the given point:
+    /// <summary>
+    /// Returns the index of a point with an angle less or equal to the given point
+    /// </summary>
     private int FindSectionLower(Vector2 point) {
         float pointAngle = Mathf.Atan2(point.y - center.y, point.x - center.x);
 

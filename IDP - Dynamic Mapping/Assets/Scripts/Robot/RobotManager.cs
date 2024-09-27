@@ -16,7 +16,7 @@ public class RobotManager : MonoBehaviour {
     public GeometryClusterParams geometryClusterParams;
 
     private GridMapBresenham worldGridMap;
-    private GeometryClustering geometryClustering;
+    private GeometryMapping geometryClustering;
 
     private long updateCount = 0;
 
@@ -26,7 +26,7 @@ public class RobotManager : MonoBehaviour {
 
         // Instantiate the geometry clustering algorithm:
         if(runGeometryClustering)
-            geometryClustering = new GeometryClustering(geometryClusterParams);
+            geometryClustering = new GeometryMapping(geometryClusterParams);
     }
 
     // Update is called once per frame

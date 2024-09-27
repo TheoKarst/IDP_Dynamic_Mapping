@@ -95,19 +95,7 @@ public class GeometryClusterParams {
 
     [Header("Dynamic Circles")]
     public float MinOrthogonalDistanceToLines = 1;
-
-
-    // Deprecated:
-    // [Header("Geometry removing")]
-    // [Tooltip("Extent of the wipe triangle built for new lines")]
-    // public float WipeTriangleExtent = 0.1f;
-    // public float WipeShapeExtent = 0.1f;
-
-    // [Tooltip("Margin angle (in degrees) of the wipe triangles")]
-    // public float WipeTriangleInsideAngleMargin = 1f;
-
-    // [Tooltip("Minimum distance between a circle and a line in the model")]
-    // public float MinCircleLineDistance = 0.5f;
+    public float CirclesFriction = 0.01f;
 
     /***********************************************************************************************/
     [Header("Wipe Shape")]

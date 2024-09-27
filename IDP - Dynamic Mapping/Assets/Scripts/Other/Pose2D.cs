@@ -1,5 +1,10 @@
-﻿[System.Serializable]
+﻿/// <summary>
+/// Serialisable struct to represent the 2D pose of an object
+/// </summary>
+
+[System.Serializable]
 public struct Pose2D {
+    
     public float x;
     public float y;
     public float angle;
