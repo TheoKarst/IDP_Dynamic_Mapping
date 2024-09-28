@@ -1,5 +1,12 @@
 using UnityEngine;
-using static DataloaderRobot;
+
+/// <summary>
+/// Differently from the KalmanRobot, this kind of robot uses the real pose of the robot (given by Unity)
+/// for the mapping. This is thus faster and more accurate than the KalmanRobot, but also less realistic
+/// since in reality, the real pose of the robot is unknown.
+/// 
+/// This script can however be used if the focus is on the mapping part and not the localization.
+/// </summary>
 
 public class SimulatedRobot : Robot {
 
@@ -8,18 +15,14 @@ public class SimulatedRobot : Robot {
     public float waitBetweenUpdates = 0.02f;
 
     [Header("Robot")]
+    [Tooltip("GameObject representing the robot")]
     public GameObject robotObject;
     public ControllerParams controllerParams;
 
     [Header("Lidar")]
+    [Tooltip("GameObject representing the LIDAR")]
     public GameObject lidarObject;
-
-    public int raycastCount = 500;
-    public float lidarMinRange = 0;
-    public float lidarMaxRange = 10;
-
-    public bool drawRays = true;
-    public bool drawCorners = true;
+    public LidarParams lidarParams;
 
     private Lidar lidar;
     private VehicleModel vehicleModel;
@@ -33,7 +36,7 @@ public class SimulatedRobot : Robot {
 
     void Start() {
         // Instantiate the LIDAR:
-        lidar = new Lidar(lidarObject, raycastCount, lidarMinRange, lidarMaxRange, 0);
+        lidar = new Lidar(lidarObject, lidarParams.raycastCount, lidarParams.lidarMinRange, lidarParams.lidarMaxRange, 0);
 
         // Instantiate the model we are going to use for the robot:
         LidarSetup[] lidarSetups = new LidarSetup[] { lidar.GetSetup() };
@@ -71,7 +74,7 @@ public class SimulatedRobot : Robot {
 
     public void OnDrawGizmos() {
         if (lidar != null)
-            lidar.DrawGizmos(drawRays);
+            lidar.DrawGizmos(lidarParams.drawRays);
     }
 
     public override bool IsNewFrameAvailable() {

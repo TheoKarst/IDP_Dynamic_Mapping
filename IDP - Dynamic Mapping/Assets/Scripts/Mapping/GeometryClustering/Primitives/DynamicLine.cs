@@ -75,7 +75,9 @@ public class DynamicLine {
     /// <param name="covariance">2x2 covariance matrix of rho and theta</param>
     /// <param name="beginPoint">Begin position of the line</param>
     /// <param name="endPoint">End position of the line</param>
-    public DynamicLine(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint) {
+    /// <param name="Q">Process noise error of the line</param>
+    public DynamicLine(float rho, float theta, Matrix<double> covariance, Vector2 beginPoint, Vector2 endPoint, 
+        Matrix<double> Q) {
         this.state = new LineState(rho, theta);
 
         // When building a new line, we cannot compute the covariance of der_rho and der_theta
@@ -88,6 +90,10 @@ public class DynamicLine {
             {      0         ,      0         , 0, 0 },
             {      0         ,      0         , 0, 0 },
         });
+
+        // Use the process noise error of the lines to estimate the error on dRho and dTheta:
+        this.covariance[2, 2] = Q[2, 2];    // Initial error estimate on dRho
+        this.covariance[3, 3] = Q[3, 3];    // Initial error estimate on dTheta
 
         this.beginPoint = beginPoint;
         this.endPoint = endPoint;

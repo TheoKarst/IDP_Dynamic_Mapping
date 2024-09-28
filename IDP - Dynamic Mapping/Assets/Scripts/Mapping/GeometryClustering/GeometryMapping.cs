@@ -192,10 +192,10 @@ public class GeometryMapping {
         }
 
         // 2. Apply alpha filter to the shape:
-        bool[] remove = WipeShapeUtils.AlphaFilter(positions, angles, parameters.alpha * Mathf.Deg2Rad);
+        bool[] remove = Filtering.AlphaFilter(positions, angles, parameters.alpha * Mathf.Deg2Rad);
 
         // 3. Apply Douglas Peucker algorithm to the remaining points:
-        remove = WipeShapeUtils.DouglasPeucker(positions, parameters.epsilon, remove);
+        remove = Filtering.DouglasPeucker(positions, parameters.epsilon, remove);
 
         // Count the points we need to keep:
         int count = 0;
@@ -264,7 +264,7 @@ public class GeometryMapping {
                 else if (lineBuilder.PointsCount() >= parameters.LineMinPoints 
                     && lineBuilder.Length() >= parameters.LineMinLength) {
 
-                    extractedLines.Add(lineBuilder.Build());
+                    extractedLines.Add(lineBuilder.Build(parameters.LineProcessNoiseError));
                     lineBuilder = new LineBuilder(currentPoint);
                     continue;
                 }
@@ -299,7 +299,7 @@ public class GeometryMapping {
             && lineBuilder.PointsCount() >= parameters.LineMinPoints 
             && lineBuilder.Length() >= parameters.LineMinLength) {
 
-            extractedLines.Add(lineBuilder.Build());
+            extractedLines.Add(lineBuilder.Build(parameters.LineProcessNoiseError));
         }
         else if(circleBuilder != null 
             && circleBuilder.PointsCount() >= parameters.CircleMinPoints) {

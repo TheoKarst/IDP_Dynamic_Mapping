@@ -1,24 +1,26 @@
 using UnityEngine;
 
+/// <summary>
+/// Script used to record data from Unity for the Python implementation
+/// </summary>
+
 public class RobotRecorder : MonoBehaviour {
 
     [Header("General")]
     [Tooltip("Wait between two measurements from the LIDARs")]
     public float waitBetweenRecords = 0.02f;
+    [Tooltip("The folder in which the data should be saved")]
     public string saveFolder = "./Assets/Data";
 
     [Header("Robot")]
+    [Tooltip("GameObject representing the robot")]
     public GameObject robotObject;
     public ControllerParams controllerParams;
 
     [Header("Lidars")]
+    [Tooltip("The list of LIDARs for which data should be recorded")]
     public GameObject[] lidarObjects;
-
-    public int raycastCount = 500;
-    public float lidarMinRange = 0;
-    public float lidarMaxRange = 10;
-
-    public bool drawRays = true;
+    public LidarParams lidarParams;
 
     private Lidar[] lidars;
     private RobotController controller;
@@ -34,7 +36,7 @@ public class RobotRecorder : MonoBehaviour {
         LidarSetup[] lidarSetups = new LidarSetup[lidarObjects.Length];
 
         for (int i = 0; i < lidarObjects.Length; i++) {
-            lidars[i] = new Lidar(lidarObjects[i], raycastCount, lidarMinRange, lidarMaxRange, i);
+            lidars[i] = new Lidar(lidarObjects[i], lidarParams.raycastCount, lidarParams.lidarMinRange, lidarParams.lidarMaxRange, i);
             lidarSetups[i] = lidars[i].GetSetup();
         }
 
@@ -81,10 +83,13 @@ public class RobotRecorder : MonoBehaviour {
     public void OnDrawGizmos() {
         if (lidars != null) {
             foreach (Lidar lidar in lidars)
-                lidar.DrawGizmos(drawRays);
+                lidar.DrawGizmos(lidarParams.drawRays);
         }
     }
 
+    /// <summary>
+    /// Records a frame of data ans save it in the folder specified by this class
+    /// </summary>
     private void RecordData(Pose2D robotPose, float timestamp) {
         // Get the observations from the LIDARs:
         LidarData[] lidarsData = new LidarData[lidars.Length];

@@ -96,7 +96,9 @@ public class LineBuilder {
     /// <summary>
     /// Returns a dynamic line instance, built from the points added to this line builder
     /// </summary>
-    public DynamicLine Build() {
+    /// <param name="Q">Process noise error of the lines, used to initialize the covariance matrix of the
+    /// lines that are built</param>
+    public DynamicLine Build(Matrix<double> Q) {
         // Compute the endpoints and covariance matrix of the line:
         if (!upToDateEndpoints) 
             UpdateEndpoints();
@@ -104,7 +106,7 @@ public class LineBuilder {
         Matrix<double> covariance = ComputeCovariance();
 
         // Build the line:
-        DynamicLine line = new DynamicLine(rho, theta, covariance, beginPoint, endPoint);
+        DynamicLine line = new DynamicLine(rho, theta, covariance, beginPoint, endPoint, Q);
 
         return line;
     }

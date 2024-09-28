@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.Profiling;
 
 /// <summary>
 /// Global manager script to get data from a robot and use this data to build a map of the environment
@@ -46,7 +45,7 @@ public class RobotManager : MonoBehaviour {
         // If a new frame of data is available, use it to update the maps:
         if(robot.IsNewFrameAvailable()) {
             // Get the current data of the robot:
-            DataloaderRobot.RobotData data = robot.GetCurrentFrame();
+            RobotData data = robot.GetCurrentFrame();
 
             // Get the vehicle model of the robot to compute the pose of each LIDAR on the robot:
             VehicleModel model = robot.GetVehicleModel();
@@ -55,17 +54,15 @@ public class RobotManager : MonoBehaviour {
             for(int i = 0; i < data.observations.Length; i++) {
                 Pose2D worldSensorPose = model.GetWorldSensorPose(data.vehicleState, i);
 
-                Profiler.BeginSample("Static/Dynamic maps update");
+                // Update the grid maps:
                 worldGridMap.UpdateMaps(worldSensorPose, data.observations[i]);
-                Profiler.EndSample();
 
+                // Update the map using geometric primitives:
                 if(geometryMapping != null) {
-                    Profiler.BeginSample("Geometry clustering update");
                     geometryMapping.UpdateModel(
                         worldSensorPose, model,
                         data.vehicleState, data.vehicleStateCovariance,
                         data.observations[i], Time.time);
-                    Profiler.EndSample();
                 }
             }
 

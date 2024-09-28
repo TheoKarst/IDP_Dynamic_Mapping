@@ -3,6 +3,17 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
+/// <summary>
+/// Class used to represent a robot playing recorded data from a given folder. This script was
+/// designed to specifically match a LIDAR capture external to this project and is not even
+/// compatible with the data recorded by the "RobotRecorder". More info about the format of
+/// the capture that was used can be found in the README of this folder.
+/// 
+/// The main goal of this script is thus to convert the frames from the recorded data into the RobotData
+/// frames used in this simulation, and to move the robot in Unity scene according to the data found
+/// in the captures
+/// </summary>
+
 public class DataloaderRobot : Robot {
 
     // Matrix builder used as a shortcut for vector and matrix creation:
@@ -43,25 +54,6 @@ public class DataloaderRobot : Robot {
         public float[] intensities;
     }
 
-    public class RobotData {
-        public float timestamp;
-
-        public VehicleState vehicleState;
-        public Matrix<double> vehicleStateCovariance;
-
-        // List of observations made by each LIDAR on the robot:
-        public Observation[][] observations;
-
-        public RobotData(float timestamp, VehicleState state,
-            Matrix<double> stateCovariance, Observation[][] observations) {
-
-            this.timestamp = timestamp;
-            this.vehicleState = state;
-            this.vehicleStateCovariance = stateCovariance;
-            this.observations = observations;
-        }
-    }
-
     public class LidarData {
         public Pose2D localPose;
 
@@ -85,9 +77,15 @@ public class DataloaderRobot : Robot {
         }
     }
 
+    [Tooltip("GemeObject representing the robot")]
     public GameObject robotObject;
+    [Tooltip("GameObject representing the rear LIDAR on the robot")]
     public GameObject rearLidar;
+    [Tooltip("GameObject representing the front LIDAR on the robot")]
     public GameObject frontLidar;
+
+    [Tooltip("Folder in which the recorded data is located")]
+    public string dataFolder = "./Assets/data/warehouse";
 
     [Tooltip("Observations below this threshold are ignored")]
     public float lidarMinRange = 0.1f;
@@ -159,7 +157,7 @@ public class DataloaderRobot : Robot {
     void Update() {
         if (run && !readingComplete) {
             currentTime += Time.deltaTime;
-            LoadNextFrame("Assets/data/warehouse", currentTime);
+            LoadNextFrame(dataFolder, currentTime);
         }
         else if (readingComplete)
             run = false;

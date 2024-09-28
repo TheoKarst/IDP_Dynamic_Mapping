@@ -43,8 +43,8 @@ public class Circle {
 
         // Draw an arrow representing the estimated speed of the circle:
         if (drawSpeedEstimate) {
-            Vector2 p1 = Utils.To3D(center, height);
-            Vector2 p2 = Utils.To3D(center + speed, height);
+            Vector3 p1 = Utils.To3D(_center, height);
+            Vector3 p2 = Utils.To3D(_center + 10 * speed, height);
 
             Gizmos.color = Color.red;
             Gizmos.DrawLine(p1, p2);
@@ -74,7 +74,7 @@ public class Circle {
 
         // Use the newCenter to update the circle speed estimate, using a simple
         // exponential low pass filter (TODO: Implement Kalman Filter instead):
-        const float m = 0.95f;
+        const float m = 0.9f;
         speed = m * speed + (1 - m) * (newCenter - _center);
 
         // Update the center of the circle:
@@ -97,6 +97,9 @@ public class Circle {
     /// between a line and the center of the circle</param>
     /// <returns></returns>
     public bool IsFarFromLines(List<DynamicLine> lines, float minDistanceToLines) {
+        if (lines == null)
+            return true;
+
         foreach (DynamicLine line in lines)
             if (line.DistanceOf(_center) < minDistanceToLines)
                 return false;

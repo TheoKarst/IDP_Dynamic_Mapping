@@ -21,6 +21,14 @@ $ cd ..
 $ unzip LidarCaptures.zip
 ```
 
+If the LidarCaptures folder was not provided, perform your own LIDAR captures using Unity. All required information to do this is in the README for Unity (see the section relative to the RobotRecorder):
+```console
+$ cd ../IDP\ -\ Dynamic\ Mapping/Assets/Documentation/
+$ cat README.md
+```
+
+
+
 Install the requirements:
 ```console
 $ cd DynamicMapping

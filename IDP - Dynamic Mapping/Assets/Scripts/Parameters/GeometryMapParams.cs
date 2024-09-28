@@ -27,13 +27,13 @@ public class GeometryMapParams {
     [Header("Geometry Extraction:")]
 
     [Tooltip("Maximum distance between two consecutive points to be matched to the same line")]
-    public float PointCriticalDistance = 0.2f;
+    public float PointCriticalDistance = 1;
 
     [Tooltip("Maximum orthogonal distance of a point to a matching line")]
-    public float LineCriticalDistance = 0.06f;
+    public float LineCriticalDistance = 0.02f;
 
     [Tooltip("Maximum angle (in degrees) between two consecutive points to be matched to the same line")]
-    public float CriticalAlpha = 1f;
+    public float CriticalAlpha = 2;
 
     [Tooltip("Maximum distance between a point and the center of a circle to match the point to that circle")]
     public float CircleCriticalDistance = 0.2f;
@@ -43,7 +43,7 @@ public class GeometryMapParams {
 
     [Tooltip("Minimum number of points a line should have to be extracted")]
     [Min(3)]
-    public int LineMinPoints = 6;
+    public int LineMinPoints = 5;
 
     [Tooltip("Minimum number of points a circle should have to be extracted")]
     [Min(2)]
@@ -57,18 +57,18 @@ public class GeometryMapParams {
 
     [Tooltip("Maximum angle (in degrees) between the current line "
         + "and the model line to have a match")]
-    public float LineMaxMatchAngle = 10f;
+    public float LineMaxMatchAngle = 20;
 
     [Tooltip("Maximum orthogonal distance between the current "
         + "line endpoints and the model line to have a match")]
-    public float LineMaxMatchOrthogonalDistance = 0.1f;
+    public float LineMaxMatchOrthogonalDistance = 0.4f;
 
     [Tooltip("Maximum distance between the current line and the "
         + "model line endpoints, along the model line, to have a match")]
-    public float LineMaxMatchParallelDistance = 0.2f;
+    public float LineMaxMatchParallelDistance = 0.1f;
 
     [Tooltip("Maximum distance between two circles to be matched together")]
-    public float CircleMaxMatchDistance = 0.2f;
+    public float CircleMaxMatchDistance = 0.5f;
 
     [Tooltip("Parameter used to extend the validity of a line during matching")]
     public float LineValidityExtent = 0.1f;
@@ -88,13 +88,13 @@ public class GeometryMapParams {
     public int InitialisationSteps = 10;
 
     [Tooltip("Maximum error estimate on the range of a line to keep it")]
-    public float MaxLinesRhoError = 1;
+    public float MaxLinesRhoError = 2;
     [Tooltip("Maximum error on the angle (in degrees) of a line to keep it")]
-    public float MaxLinesThetaError = 10;
+    public float MaxLinesThetaError = 20;
 
     [Tooltip("If a line is matched this amount of times, having a speed below the following thresholds, "
         + "then we consider it to be static, and start to ignore the prediction step of the Kalman Filter")]
-    public int MinMatchesToConsiderStatic = 10;
+    public int MinMatchesToConsiderStatic = 5;
 
     [Tooltip("Maximum speed of a static line")]
     public float StaticMaxRhoDerivative = 0.1f;
@@ -106,9 +106,9 @@ public class GeometryMapParams {
     [Tooltip("Friction applied to the speed of the lines")]
     public float LinesFriction = 0.01f;
     public float LineProcessNoiseRho = 0.1f;
-    public float LineProcessNoiseTheta = 5;
+    public float LineProcessNoiseTheta = 1;
     public float LineProcessNoiseDerRho = 1;
-    public float LineProcessNoiseDerTheta = 50;
+    public float LineProcessNoiseDerTheta = 4;
 
     /***********************************************************************************************/
     // This section describes parameters used for circles:
@@ -118,7 +118,7 @@ public class GeometryMapParams {
     public float MinOrthogonalDistanceToLines = 1;
     [Range(0, 1)]
     [Tooltip("Friction applied to the speed of the circles")]
-    public float CirclesFriction = 0.01f;
+    public float CirclesFriction = 0.05f;
 
     /***********************************************************************************************/
     // This section describes parameters used for the construction of the wipe-shape:
@@ -127,13 +127,13 @@ public class GeometryMapParams {
 
     [Range(0f, 90f)]
     [Tooltip("Angle in degrees of the wipe angle associated to the observations")]
-    public float alpha = 15;
+    public float alpha = 20;
     [Min(0f)]
     [Tooltip("Epsilon used in Douglas Peucker algorithm to filter the points of the shape")]
     public float epsilon = 0.2f;
     [Min(0)]
     [Tooltip("Clamp the observation distances to build the wipe shape")]
-    public float clampDistance = 10;
+    public float clampDistance = 20;
 
     /***********************************************************************************************/
     // This section describes which elements to draw in the scene:
